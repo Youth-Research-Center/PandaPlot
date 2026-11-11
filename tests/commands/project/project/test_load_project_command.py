@@ -9,10 +9,15 @@ import pytest
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.project.load_project_command import LoadProjectCommand
 from pandaplot.models.project.project import Project
+from pandaplot.utils.error_messages import ErrorDescription, describe_error
 
 
 def _make_app_context():
-    return Mock()
+    app_context = Mock()
+    # An int like production: a Mock revision never equals the one captured at dispatch,
+    # so every result would look like the project changed during the load.
+    app_context.get_app_state.return_value.modification_revision = 0
+    return app_context
 
 
 def test_marks_project_modified_is_false():
@@ -100,6 +105,7 @@ class TestLoadProjectCommandRaceGuard:
     def test_reconfirms_when_the_project_changed_during_the_load(self):
         command, app_context, app_state = self._dispatch()
         app_state.modification_revision = 1  # an edit landed while loading
+        app_state.is_modified = True
         app_context.get_ui_controller.return_value.show_question.return_value = True
 
         project = Mock()
@@ -113,6 +119,7 @@ class TestLoadProjectCommandRaceGuard:
     def test_discards_the_load_when_the_user_declines_reconfirmation(self):
         command, app_context, app_state = self._dispatch()
         app_state.modification_revision = 1
+        app_state.is_modified = True
         app_context.get_ui_controller.return_value.show_question.return_value = False
 
         project = Mock()
@@ -146,6 +153,7 @@ class TestLoadProjectCommandRaceGuard:
 
         def fake_flush(ctx):
             app_state.modification_revision = 1  # simulates the note's EditNoteCommand landing
+            app_state.is_modified = True
             return True
 
         monkeypatch.setattr(
@@ -181,6 +189,52 @@ class TestLoadProjectCommandRaceGuard:
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
         app_context.get_ui_controller.return_value.show_question.assert_not_called()
 
+
+class TestLateEditOfAnUntitledProject:
+    """Review (#634): an untitled project edited while another project loads must be offered Save As, not a yes/no question."""
+
+    def _dispatch_untitled(self):
+        app_context, app_state = _make_configured_app_context(has_project=True, project_file_path=None, is_modified=False)
+        app_state.modification_revision = 0
+        command = LoadProjectCommand(app_context, "/p/other.pplot")
+        assert command.execute() is CommandResult.SUCCESS
+        app_state.modification_revision = 1  # an edit landed while loading
+        app_state.is_modified = True
+        project = Mock()
+        project.name = "New"
+        project.failed_item_ids = []
+        return command, app_context, app_state, project
+
+    @pytest.mark.parametrize(("choice", "loads"), [("discard", True), ("cancel", False)])
+    def test_offers_save_as_discard_cancel(self, choice, *, loads):
+        command, app_context, app_state, project = self._dispatch_untitled()
+        ui = app_context.get_ui_controller.return_value
+        ui.show_save_as_discard_cancel.return_value = choice
+
+        command._on_load_result({"success": True, "project": project, "file_path": "/p/other.pplot"})
+
+        ui.show_save_as_discard_cancel.assert_called_once()
+        ui.show_question.assert_not_called()
+        assert app_state.load_project.called is loads
+
+    def test_titled_project_keeps_the_additional_changes_question(self):
+        app_context, app_state = _make_configured_app_context(has_project=True, project_file_path="/p/current.pplot", is_modified=False)
+        app_state.modification_revision = 0
+        command = LoadProjectCommand(app_context, "/p/other.pplot")
+        assert command.execute() is CommandResult.SUCCESS
+        app_state.modification_revision = 1
+        app_state.is_modified = True
+        ui = app_context.get_ui_controller.return_value
+        ui.show_question.return_value = True
+        project = Mock()
+        project.name = "New"
+        project.failed_item_ids = []
+
+        command._on_load_result({"success": True, "project": project, "file_path": "/p/other.pplot"})
+
+        ui.show_save_as_discard_cancel.assert_not_called()
+        assert "changed while the new one was loading" in ui.show_question.call_args.args[1]
+        app_state.load_project.assert_called_once_with(project)
 
 def _make_configured_app_context(*, has_project=False, project_file_path=None, is_modified=False):
     """Like _make_app_context, but with an app_state whose has_project/
@@ -309,6 +363,7 @@ class TestLoadProjectCommandGuards:
 def env():
     app_state = Mock()
     app_state.has_project = True
+    app_state.modification_revision = 0
     app_context = Mock()
     app_context.get_app_state.return_value = app_state
     app_context.get_ui_controller.return_value = Mock()
@@ -539,3 +594,289 @@ def test_on_load_result_does_not_warn_when_no_items_failed(env):
 
     ui_controller = env.get_ui_controller.return_value
     ui_controller.show_warning_message.assert_not_called()
+
+
+class TestLoadFailureMessages:
+    """The load worker sends a plain-language ErrorDescription, never raw exception text (#595)."""
+
+    def test_garbage_project_file_gives_a_described_failure(self, tmp_path):
+        from pandaplot.services.data_managers.project_manager import ProjectManager
+        from pandaplot.storage.project_data_manager import ProjectDataManager
+
+        bad_file = tmp_path / "broken.pplot"
+        bad_file.write_text("this is not a zip archive", encoding="utf-8")
+        app_context = _make_app_context()
+        app_context.get_manager.return_value = ProjectManager(ProjectDataManager(Mock()))
+        command = LoadProjectCommand(app_context, str(bad_file))
+
+        result = command._load_project_task(None)
+
+        assert result["success"] is False
+        description = result["error_description"]
+        assert isinstance(description, ErrorDescription)
+        assert description.reason == "This file is damaged or is not the type its name suggests."
+        assert "BadZipFile" in description.details
+
+    def test_failed_load_dialog_shows_the_description_not_the_raw_text(self):
+        app_context = _make_app_context()
+        command = LoadProjectCommand(app_context, "/p.pplot")
+        description = describe_error(FileNotFoundError("/p.pplot"))
+
+        command._on_load_result({"success": False, "error": "Error during project load: raw", "error_description": description})
+
+        command.ui_controller.show_error_message.assert_called_once_with(
+            "Load Failed", "Couldn't open the project.", error=description
+        )
+
+    def test_non_exception_failure_keeps_its_plain_reason(self):
+        command = LoadProjectCommand(_make_app_context(), "")
+
+        result = command._load_project_task(None)
+
+        assert result["success"] is False
+        assert result["error_description"].reason == "No file was chosen to open."
+        assert result["error_description"].details == ""
+
+    def test_worker_error_signal_passes_the_exception(self):
+        command = LoadProjectCommand(_make_app_context(), "/p.pplot")
+        error = PermissionError("denied")
+
+        command._on_load_error((PermissionError, error, "traceback"))
+
+        command.ui_controller.show_error_message.assert_called_once_with(
+            "Load Project Error", "Couldn't open the project.", error=error
+        )
+
+
+class TestAsUntitledCopy:
+    """Opening a bundled example must not tie the project to the example's
+    file, so Save asks for a location instead of overwriting it (#607)."""
+
+    def test_defaults_to_a_normal_load(self):
+        assert LoadProjectCommand(_make_app_context(), "/p.pplot").as_untitled_copy is False
+
+    def test_loaded_project_has_no_file_path_and_session_records_no_project(self, env):
+        command = LoadProjectCommand(env, "/examples/demo.pplot", as_untitled_copy=True)
+        project = Mock()
+        project.name = "Demo"
+        project.project_file_path = "/examples/demo.pplot"
+        project.failed_item_ids = []
+
+        command._on_load_result({"success": True, "project": project, "file_path": "/examples/demo.pplot"})
+
+        assert project.project_file_path is None
+        assert project.name == "Demo"
+        command.app_state.load_project.assert_called_once_with(project)
+        env.get_manager.return_value.update_project.assert_called_once_with(None)
+
+    def test_normal_load_still_records_path_and_session(self, env):
+        command = LoadProjectCommand(env, "/p/a.pplot")
+        project = Mock()
+        project.failed_item_ids = []
+
+        command._on_load_result({"success": True, "project": project, "file_path": "/p/a.pplot"})
+
+        assert project.project_file_path == "/p/a.pplot"
+        env.get_manager.return_value.update_project.assert_called_once_with("/p/a.pplot")
+
+    def test_skips_the_already_open_shortcut(self):
+        app_context, _ = _make_configured_app_context(has_project=True, project_file_path="/p/demo.pplot")
+        command = LoadProjectCommand(app_context, "/p/demo.pplot", as_untitled_copy=True)
+
+        assert command.execute() is CommandResult.SUCCESS
+        command.task_scheduler.run_task.assert_called_once()
+
+    def test_undo_and_redo_swap_projects_and_untitled_copy_stays_clean(self):
+        from pandaplot.models.events import EventBus
+        from pandaplot.models.state.app_state import AppState
+
+        app_state = AppState(EventBus())
+        previous = Mock()
+        previous.name = "Previous"
+        previous.project_file_path = "/p/current.pplot"
+        app_state.load_project(previous)
+
+        app_context = Mock()
+        app_context.get_app_state.return_value = app_state
+        command = LoadProjectCommand(app_context, "/examples/demo.pplot", as_untitled_copy=True)
+        assert command.execute() is CommandResult.SUCCESS
+
+        copy = Mock()
+        copy.name = "Demo"
+        copy.project_file_path = "/examples/demo.pplot"
+        copy.failed_item_ids = []
+        command._on_load_result({"success": True, "project": copy, "file_path": "/examples/demo.pplot"})
+        assert app_state.current_project is copy
+        assert app_state.project_file_path is None
+        assert not app_state.is_modified
+
+        assert command.undo() is CommandResult.SUCCESS
+        assert app_state.current_project is previous
+        assert command.redo() is CommandResult.SUCCESS
+        assert app_state.current_project is copy
+        assert app_state.project_file_path is None
+
+    @staticmethod
+    def _open_then_undo(command_path: str, *, as_untitled_copy: bool) -> tuple[LoadProjectCommand, Mock, Mock, Mock]:
+        """Open ``command_path``, then undo it, returning the pieces the redo tests need."""
+        from pandaplot.models.events import EventBus
+        from pandaplot.models.state.app_state import AppState
+
+        app_state = AppState(EventBus())
+        previous = Mock()
+        previous.name = "Previous"
+        previous.project_file_path = "/p/current.pplot"
+        app_state.load_project(previous)
+
+        session_manager = Mock()
+        app_context = Mock()
+        app_context.get_app_state.return_value = app_state
+        app_context.get_manager.return_value = session_manager
+        command = LoadProjectCommand(app_context, command_path, as_untitled_copy=as_untitled_copy)
+        assert command.execute() is CommandResult.SUCCESS
+
+        loaded = Mock()
+        loaded.name = "Loaded"
+        loaded.project_file_path = command_path
+        loaded.failed_item_ids = []
+        command._on_load_result({"success": True, "project": loaded, "file_path": command_path})
+
+        assert command.undo() is CommandResult.SUCCESS
+        return command, loaded, previous, session_manager
+
+    def test_cached_redo_of_an_untitled_copy_records_no_project_in_the_session(self):
+        """Regression (PR #616 review): open an example, undo, Save the restored
+        project (which records its path in the session without clearing redo
+        history), then redo. The session must go back to "no project" instead of
+        keeping the replaced project's path, which the next launch would reopen."""
+        command, loaded, previous, session_manager = self._open_then_undo("/examples/demo.pplot", as_untitled_copy=True)
+        session_manager.update_project.reset_mock()
+
+        assert command.redo() is CommandResult.SUCCESS
+
+        assert command.app_state.current_project is loaded
+        session_manager.update_project.assert_called_once_with(None)
+        assert previous.project_file_path == "/p/current.pplot"
+
+    def test_cached_redo_records_the_path_the_loaded_project_has_since_been_saved_to(self):
+        command, loaded, _, session_manager = self._open_then_undo("/examples/demo.pplot", as_untitled_copy=True)
+        loaded.project_file_path = "/saved/copy.pplot"
+        session_manager.update_project.reset_mock()
+
+        assert command.redo() is CommandResult.SUCCESS
+
+        session_manager.update_project.assert_called_once_with("/saved/copy.pplot")
+
+    def test_cached_redo_of_a_normal_load_records_its_path_in_the_session(self):
+        command, _, _, session_manager = self._open_then_undo("/p/a.pplot", as_untitled_copy=False)
+        session_manager.update_project.reset_mock()
+
+        assert command.redo() is CommandResult.SUCCESS
+
+        session_manager.update_project.assert_called_once_with("/p/a.pplot")
+
+
+class TestBundledExamplesAlwaysOpenAsUntitledCopy:
+    """A file inside the bundled examples directory opens as an untitled copy
+    however it was reached (File > Open, recent projects, session restore)."""
+
+    @pytest.fixture
+    def examples_dir(self, tmp_path, monkeypatch):
+        directory = tmp_path / "examples"
+        directory.mkdir()
+        monkeypatch.setattr("pandaplot.utils.examples.get_examples_dir", lambda: directory)
+        return directory
+
+    def test_path_inside_examples_dir_is_an_untitled_copy_without_the_flag(self, env, examples_dir):
+        path = str(examples_dir / "demo.pplot")
+        command = LoadProjectCommand(env, path)
+        assert command.as_untitled_copy is True
+
+        project = Mock()
+        project.failed_item_ids = []
+        command._on_load_result({"success": True, "project": project, "file_path": path})
+
+        assert project.project_file_path is None
+        env.get_manager.return_value.update_project.assert_called_once_with(None)
+
+    def test_dotdot_path_that_resolves_into_examples_dir_is_detected(self, env, examples_dir):
+        (examples_dir / "sub").mkdir()
+        assert LoadProjectCommand(env, str(examples_dir / "sub" / ".." / "demo.pplot")).as_untitled_copy is True
+
+    def test_path_outside_examples_dir_is_unchanged(self, env, examples_dir, tmp_path):
+        path = str(tmp_path / "mine.pplot")
+        command = LoadProjectCommand(env, path)
+        assert command.as_untitled_copy is False
+
+        project = Mock()
+        project.failed_item_ids = []
+        command._on_load_result({"success": True, "project": project, "file_path": path})
+
+        assert project.project_file_path == path
+        env.get_manager.return_value.update_project.assert_called_once_with(path)
+
+    def test_sibling_directory_with_the_same_prefix_is_not_an_example(self, env, examples_dir):
+        assert LoadProjectCommand(env, str(examples_dir) + "-other/demo.pplot").as_untitled_copy is False
+
+
+class TestUndoRestoresSessionProject:
+    """Undoing a load must put the session back on the previous project, or the
+    next launch reopens the project the user just undid."""
+
+    def test_undo_of_a_normal_load_records_the_previous_projects_path(self):
+        _, _, _, session_manager = TestAsUntitledCopy._open_then_undo("/p/a.pplot", as_untitled_copy=False)
+
+        session_manager.update_project.assert_called_with("/p/current.pplot")
+        assert session_manager.update_project.call_args_list[-2].args == ("/p/a.pplot",)
+
+    def test_undo_of_an_untitled_copy_load_records_the_previous_projects_path(self):
+        _, _, _, session_manager = TestAsUntitledCopy._open_then_undo("/examples/demo.pplot", as_untitled_copy=True)
+
+        assert [call.args for call in session_manager.update_project.call_args_list] == [(None,), ("/p/current.pplot",)]
+
+    def test_undo_with_no_previous_project_records_no_project(self):
+        from pandaplot.models.events import EventBus
+        from pandaplot.models.state.app_state import AppState
+
+        app_state = AppState(EventBus())
+        session_manager = Mock()
+        app_context = Mock()
+        app_context.get_app_state.return_value = app_state
+        app_context.get_manager.return_value = session_manager
+        command = LoadProjectCommand(app_context, "/p/a.pplot")
+        assert command.execute() is CommandResult.SUCCESS
+        loaded = Mock()
+        loaded.failed_item_ids = []
+        command._on_load_result({"success": True, "project": loaded, "file_path": "/p/a.pplot"})
+
+        assert command.undo() is CommandResult.SUCCESS
+
+        session_manager.update_project.assert_called_with(None)
+        assert not app_state.has_project
+
+
+class TestLoadProjectCommandUntitledProject:
+    """Opening another project over an edited untitled project offers Save As... (#629)."""
+
+    def _context(self, choice):
+        app_context, app_state = _make_configured_app_context(has_project=True, project_file_path=None, is_modified=True)
+        app_state.current_project.name = "Untitled"
+        ui_controller = app_context.get_ui_controller.return_value
+        ui_controller.show_save_as_discard_cancel.return_value = choice
+        return app_context, app_state, ui_controller
+
+    def test_offers_save_as_instead_of_the_plain_question(self):
+        app_context, _app_state, ui_controller = self._context("discard")
+        command = LoadProjectCommand(app_context, "/p/other.pplot")
+
+        assert command.execute() is CommandResult.SUCCESS
+        ui_controller.show_save_as_discard_cancel.assert_called_once()
+        ui_controller.show_question.assert_not_called()
+        command.task_scheduler.run_task.assert_called_once()
+
+    def test_cancel_keeps_the_current_project_and_loads_nothing(self):
+        app_context, _app_state, _ui_controller = self._context("cancel")
+        command = LoadProjectCommand(app_context, "/p/other.pplot")
+
+        assert command.execute() is CommandResult.NOOP
+        command.task_scheduler.run_task.assert_not_called()

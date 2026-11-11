@@ -1,7 +1,7 @@
 # exit_command.py
 # Command to handle application exit in PandaPlot.
 
-from typing import override
+from typing import NoReturn, override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.project.unsaved_changes import confirm_discard_unsaved_changes
@@ -24,6 +24,12 @@ class ExitCommand(Command):
         return False
 
     @override
+    def occupies_undo_slot(self) -> bool:
+        """Exit has no undo/redo (both raise), so it should never occupy an
+        undo slot or clear redo history when executed."""
+        return False
+
+    @override
     def execute(self) -> CommandResult:
         """
         Execute the exit command. Returns CommandResult.NOOP (without closing
@@ -32,7 +38,9 @@ class ExitCommand(Command):
         exit without warning. will_autosave=True since app.launch()'s
         aboutToQuit handler unconditionally flushes a save for an existing
         saved project before the process exits (see _flush_save_on_quit) --
-        the prompt must not claim continuing will discard those edits.
+        the prompt must not claim continuing will discard those edits. An
+        untitled project has no file to flush to, so the guard instead offers
+        Save As... / Discard / Cancel for it.
         """
         self.logger.info("Executing ExitCommand")
         if not confirm_discard_unsaved_changes(self.app_context, will_autosave=True):
@@ -42,7 +50,7 @@ class ExitCommand(Command):
         return CommandResult.SUCCESS
 
     @override
-    def undo(self):
+    def undo(self) -> NoReturn:
         """
         This is not applicable for exit command.
         """
@@ -50,7 +58,7 @@ class ExitCommand(Command):
         raise NotImplementedError("Exit command cannot be undone.")
 
     @override
-    def redo(self):
+    def redo(self) -> NoReturn:
         """
         This is not applicable for exit command.
         """

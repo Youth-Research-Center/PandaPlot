@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks
 
+from pandaplot.utils.errors import UserFacingError
+
 from ..signal_types import SignalAnalysisResult, SignalAnalysisType
 
 
@@ -18,22 +20,37 @@ def run(
     window: str = "hann",
     **_: Any,
 ) -> SignalAnalysisResult:
-    """Compute the one-sided Fast Fourier Transform of a signal."""
+    """Compute the one-sided Fast Fourier Transform of a signal.
+
+    Args:
+        column: Signal samples; non-numeric values and NaNs are dropped.
+        sampling_rate: Sampling rate in Hz (must be positive).
+        nfft: FFT length. Defaults to the signal length. A value below the
+            signal length is raised to the next power of two greater than or
+            equal to the signal length instead of truncating the signal.
+        window: Window function applied before the transform.
+
+    Returns:
+        The spectrum and dominant frequencies as a SignalAnalysisResult.
+
+    Raises:
+        ValueError: If the sampling rate is not positive, fewer than two
+            valid samples remain, or the window is not supported.
+    """
 
     if sampling_rate <= 0:
-        raise ValueError("Sampling rate must be greater than zero.")
+        raise UserFacingError("Sampling rate must be greater than zero.")
 
     signal = pd.to_numeric(column, errors="coerce").dropna().to_numpy(dtype=float)
 
     if signal.size < 2:
-        raise ValueError("Signal must contain at least two valid samples.")
+        raise UserFacingError("Signal must contain at least two valid samples.")
 
     if nfft is None:
         nfft = signal.size
 
     if nfft < signal.size:
         nfft = int(2 ** np.ceil(np.log2(signal.size)))
-        #raise ValueError("NFFT must be greater than or equal to the signal length.")
 
     # Remove DC component
     signal = signal - np.mean(signal)

@@ -22,6 +22,7 @@ from pandaplot.storage.chart_data_manager import ChartDataManager
 from pandaplot.storage.dataset_data_manager import DatasetDataManager
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 from pandaplot.storage.project_data_manager import ProjectDataManager
+from pandaplot.utils.errors import UserFacingError
 
 
 def _build_factory() -> ItemDataManagerFactory:
@@ -160,7 +161,7 @@ def test_a_schema_version_newer_than_current_is_rejected(tmp_path, manager):
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr("project.json", json.dumps(project_dict))
 
-    with pytest.raises(ValueError, match="schema_version"):
+    with pytest.raises(UserFacingError, match="newer version of PandaPlot"):
         manager.load(str(zip_path))
 
 
@@ -188,3 +189,149 @@ def test_a_version_3_project_loads_and_is_stamped_current(tmp_path, manager):
     project = manager.load(str(zip_path))
 
     assert project.schema_version == CURRENT_SCHEMA_VERSION
+
+
+# --- example settings and cover image (#608, #598) ---
+
+def _png_bytes() -> bytes:
+    from PySide6.QtCore import QBuffer, QIODevice
+    from PySide6.QtGui import QColor, QImage
+
+    image = QImage(8, 4, QImage.Format.Format_RGB32)
+    image.fill(QColor("blue"))
+    buffer = QBuffer()
+    buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+    image.save(buffer, "PNG")
+    return bytes(buffer.data())
+
+
+def test_schema_version_is_7():
+    assert CURRENT_SCHEMA_VERSION == 7
+
+
+def test_cover_image_and_example_info_round_trip(tmp_path, manager):
+    from pandaplot.models.project.example_info import ExampleInfo, ExampleLevel, ExampleSection
+
+    project = Project(name="Cover")
+    project.example_info = ExampleInfo(
+        is_example=True, summary="s", section=ExampleSection.CHARTS, level=ExampleLevel.INTERMEDIATE,
+        tag_ids=("physics",), featured_chart_ids=("c",), start_note_id="n", data_credit="credit")
+    project.cover_image = _png_bytes()
+    path = str(tmp_path / "cover.pplot")
+
+    manager.save(project, path)
+
+    with zipfile.ZipFile(path) as zf:
+        assert zf.read("cover.png") == project.cover_image
+        meta = json.loads(zf.read("project.json"))
+    assert meta["cover_image"] == "cover.png"
+    assert meta["schema_version"] == CURRENT_SCHEMA_VERSION
+    loaded = manager.load(path)
+    assert loaded.cover_image == project.cover_image
+    assert loaded.example_info == project.example_info
+
+
+def test_project_without_cover_image_writes_no_entry(tmp_path, manager):
+    path = str(tmp_path / "plain.pplot")
+    manager.save(Project(name="Plain"), path)
+
+    with zipfile.ZipFile(path) as zf:
+        assert "cover.png" not in zf.namelist()
+        assert "cover_image" not in json.loads(zf.read("project.json"))
+    assert manager.load(path).cover_image is None
+
+
+def test_corrupt_cover_image_loads_as_none_with_warning(tmp_path, manager, caplog):
+    project = Project(name="Bad cover")
+    project.cover_image = b"this is not a png"
+    path = str(tmp_path / "bad.pplot")
+    manager.save(project, path)
+
+    with caplog.at_level("WARNING"):
+        loaded = manager.load(path)
+
+    assert loaded.cover_image is None
+    assert "cover image" in caplog.text
+
+
+def test_missing_cover_entry_loads_as_none(tmp_path, manager):
+    path = str(tmp_path / "missing.pplot")
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("project.json", json.dumps({"name": "M", "schema_version": 7, "cover_image": "cover.png"}))
+
+    assert manager.load(path).cover_image is None
+
+
+def test_version_6_file_without_example_or_cover_loads_with_defaults(tmp_path, manager):
+    from pandaplot.models.project.example_info import ExampleInfo
+
+    path = str(tmp_path / "v6.pplot")
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("project.json", json.dumps({"name": "Old", "description": "d", "schema_version": 6}))
+
+    loaded = manager.load(path)
+
+    assert loaded.name == "Old"
+    assert loaded.example_info == ExampleInfo()
+    assert loaded.cover_image is None
+
+
+def _write_zip_with_damaged_cover(path) -> None:
+    """Write a project zip whose stored cover.png entry fails its CRC check when read."""
+    cover = b"damaged-cover-bytes" * 8
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as zf:
+        zf.writestr("cover.png", cover)
+        zf.writestr("project.json", json.dumps({"name": "Damaged", "schema_version": 7, "cover_image": "cover.png"}))
+    raw = bytearray(path.read_bytes())
+    offset = raw.index(cover)
+    raw[offset] ^= 0xFF
+    path.write_bytes(bytes(raw))
+    with zipfile.ZipFile(path) as zf, pytest.raises(zipfile.BadZipFile):
+        zf.read("cover.png")
+
+
+def test_damaged_cover_entry_does_not_prevent_loading_project(tmp_path, manager, caplog):
+    path = tmp_path / "damaged.pplot"
+    _write_zip_with_damaged_cover(path)
+
+    with caplog.at_level("WARNING"):
+        loaded = manager.load(str(path))
+
+    assert loaded.name == "Damaged"
+    assert loaded.cover_image is None
+    assert "cover image" in caplog.text
+
+
+def test_damaged_other_entry_still_fails_loading(tmp_path, manager):
+    path = tmp_path / "damaged-item.pplot"
+    payload = b"item-payload-bytes" * 8
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as zf:
+        zf.writestr("items/x.json", payload)
+        zf.writestr("project.json", json.dumps({"name": "Damaged", "schema_version": 7}))
+    raw = bytearray(path.read_bytes())
+    raw[raw.index(payload)] ^= 0xFF
+    path.write_bytes(bytes(raw))
+
+    with pytest.raises(zipfile.BadZipFile):
+        manager.load(str(path))
+
+
+def test_cover_png_is_stored_not_deflated(tmp_path, manager):
+    project = Project(name="Stored")
+    project.cover_image = _png_bytes()
+    path = str(tmp_path / "stored.pplot")
+    manager.save(project, path)
+
+    with zipfile.ZipFile(path) as zf:
+        assert zf.getinfo("cover.png").compress_type == zipfile.ZIP_STORED
+
+
+@pytest.mark.parametrize("length", [6, 40], ids=["inside-signature", "after-header"])
+def test_truncated_png_cover_loads_as_none(tmp_path, manager, length):
+    # 40 bytes keep the PNG signature and IHDR chunk, so only a full decode spots the missing pixel data.
+    project = Project(name="Truncated")
+    project.cover_image = _png_bytes()[:length]
+    path = str(tmp_path / "trunc.pplot")
+    manager.save(project, path)
+
+    assert manager.load(path).cover_image is None

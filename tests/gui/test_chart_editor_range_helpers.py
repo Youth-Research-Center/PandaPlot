@@ -3,7 +3,12 @@ the (min, max) of all series data plotted against a given axis -- used to
 populate the Axes tab's Range card in both Auto (disabled, for reference)
 and the moment of switching into Manual (recompute-fresh)."""
 
+import pandas as pd
+import pytest
+
 from pandaplot.gui.components.tabs.chart.chart_editor import compute_axis_data_range
+from pandaplot.models.chart.series_style_builder import build_series_style
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import DataSeries, YAxis
 from pandaplot.models.project.items.dataset import Dataset
 
@@ -17,10 +22,15 @@ class _FakeProject:
 
 
 def _make_dataset(id_, x, y):
-    import pandas as pd
     ds = Dataset(id=id_, name=id_)
     ds.data = pd.DataFrame({"x": x, "y": y})
     return ds
+
+
+def _z_style(series_type):
+    style = build_series_style(series_type)
+    style.z_column = "z"
+    return style
 
 
 def test_computes_min_max_across_all_series_on_the_x_axis():
@@ -88,3 +98,77 @@ def test_positive_only_series_with_all_non_positive_values_contributes_nothing()
     project = _FakeProject([ds])
     series = [DataSeries(dataset_id="ds1", x_column="x", y_column="y")]
     assert compute_axis_data_range(project, series, "y", positive_only=True) is None
+
+
+def test_text_x_values_span_their_category_positions():
+    """A text X column (e.g. 'Q1 2024') is drawn on matplotlib's categorical
+    axis at positions 0..n-1, so the range is that span, not a float() crash."""
+    ds = _make_dataset("ds1", x=["Q1 2024", "Q2 2024", "Q3 2024"], y=[10, 20, 30])
+    project = _FakeProject([ds])
+    series = [DataSeries(dataset_id="ds1", x_column="x", y_column="y")]
+    assert compute_axis_data_range(project, series, "x") == (0.0, 2.0)
+    assert compute_axis_data_range(project, series, "y") == (10.0, 30.0)
+
+
+def test_text_x_categories_are_shared_across_series():
+    """Series on one axis share one category list, in order of first
+    appearance, so the range covers the union of their categories."""
+    ds1 = _make_dataset("ds1", x=["a", "b"], y=[1, 2])
+    ds2 = _make_dataset("ds2", x=["b", "c"], y=[3, 4])
+    project = _FakeProject([ds1, ds2])
+    series = [
+        DataSeries(dataset_id="ds1", x_column="x", y_column="y"),
+        DataSeries(dataset_id="ds2", x_column="x", y_column="y"),
+    ]
+    assert compute_axis_data_range(project, series, "x") == (0.0, 2.0)
+
+
+def test_numeric_looking_text_x_values_are_categories_not_numbers():
+    """Matplotlib draws the strings '1' and '2' as categories, never as the numbers 1 and 2."""
+    ds = _make_dataset("ds1", x=["1", "2"], y=[10, 20])
+    project = _FakeProject([ds])
+    series = [DataSeries(dataset_id="ds1", x_column="x", y_column="y")]
+    assert compute_axis_data_range(project, series, "x") == (0.0, 1.0)
+
+
+def test_numeric_looking_text_labels_share_the_category_map_with_other_series():
+    """['a', 'b'] then ['1', '2'] puts four categories on the axis, so the range ends at 3."""
+    ds1 = _make_dataset("ds1", x=["a", "b"], y=[1, 2])
+    ds2 = _make_dataset("ds2", x=["1", "2"], y=[3, 4])
+    project = _FakeProject([ds1, ds2])
+    series = [
+        DataSeries(dataset_id="ds1", x_column="x", y_column="y"),
+        DataSeries(dataset_id="ds2", x_column="x", y_column="y"),
+    ]
+    assert compute_axis_data_range(project, series, "x") == (0.0, 3.0)
+
+
+@pytest.mark.parametrize("series_type", [
+    SeriesType.HEATMAP, SeriesType.SURFACE, SeriesType.WIREFRAME, SeriesType.TRISURF, SeriesType.BAR3D,
+])
+def test_numeric_strings_are_coordinates_for_renderers_that_coerce_to_float(series_type):
+    """These renderers convert X/Y/Z with np.asarray(dtype=float), so '10'/'20'
+    are drawn at 10 and 20, not as categories 0 and 1. A categorical range
+    would apply limits that hide the data when Auto is switched off."""
+    ds = Dataset(id="ds1", name="ds1")
+    ds.data = pd.DataFrame({"x": ["10", "20", "10", "20"], "y": ["1", "1", "2", "2"], "z": [1.0, 2.0, 3.0, 4.0]})
+    project = _FakeProject([ds])
+    series = [DataSeries(dataset_id="ds1", x_column="x", y_column="y", series_type=series_type,
+                         style=_z_style(series_type))]
+    assert compute_axis_data_range(project, series, "x") == (10.0, 20.0)
+    assert compute_axis_data_range(project, series, "y") == (1.0, 2.0)
+
+
+def test_numeric_string_coordinates_do_not_leak_into_the_category_map_of_label_series():
+    """A heatmap's '10'/'20' must not consume category slots on an axis shared
+    with a label-drawing series: ['a', 'b'] still spans 0..1 beside it."""
+    heat = Dataset(id="heat", name="heat")
+    heat.data = pd.DataFrame({"x": ["10", "20"], "y": [1, 2], "z": [1.0, 2.0]})
+    line = _make_dataset("line", x=["a", "b"], y=[1, 2])
+    project = _FakeProject([heat, line])
+    series = [
+        DataSeries(dataset_id="line", x_column="x", y_column="y"),
+        DataSeries(dataset_id="heat", x_column="x", y_column="y", series_type=SeriesType.HEATMAP,
+                   style=_z_style(SeriesType.HEATMAP)),
+    ]
+    assert compute_axis_data_range(project, series, "x") == (0.0, 20.0)

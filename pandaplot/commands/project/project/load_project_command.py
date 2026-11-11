@@ -3,14 +3,19 @@ from collections.abc import Callable
 from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
-from pandaplot.commands.project.project.unsaved_changes import flush_pending_edits
+from pandaplot.commands.project.project.unsaved_changes import (
+    confirm_discard_unsaved_changes,
+    flush_pending_edits,
+    remember_session_project,
+)
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.qtasks import TaskScheduler
-from pandaplot.services.session import SessionPersistenceManager
+from pandaplot.utils.error_messages import describe_error, describe_failure
+from pandaplot.utils.examples import is_in_examples_dir
 
 
 def _same_path(a: str | None, b: str | None) -> bool:
@@ -34,7 +39,8 @@ class LoadProjectCommand(Command):
     """
 
     def __init__(self, app_context: AppContext, file_path: str,
-                 on_loaded: Callable[[Project], None] | None = None):
+                 on_loaded: Callable[[Project], None] | None = None,
+                 *, as_untitled_copy: bool = False, on_finished: Callable[[], None] | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -45,6 +51,16 @@ class LoadProjectCommand(Command):
         # Called after the project has been loaded into app state (e.g. so the
         # caller can restore session tabs once the project is actually ready).
         self.on_loaded = on_loaded
+        # Called once the background load has ended, whether it succeeded, failed or was
+        # discarded (after on_loaded on success), e.g. so startup can continue either way.
+        self.on_finished = on_finished
+        # Open the file's contents as an unsaved, untitled project: no file
+        # path (so Save asks where to save), no "already open" shortcut, and
+        # not remembered as the session's last project. Files inside the
+        # bundled examples directory always open this way, however they were
+        # reached (File > Open, Recent Projects, session restore), because
+        # bundled examples must never be written back to (#607).
+        self.as_untitled_copy = as_untitled_copy or is_in_examples_dir(file_path)
         self.previous_project: Project | None = None
         self.previous_file_path: str | None = None
         # Whether the previous project had unsaved changes, so undo() can
@@ -83,15 +99,16 @@ class LoadProjectCommand(Command):
                 self.ui_controller.show_info_message("Load In Progress", "A project load is already in progress.")
                 return CommandResult.FAILURE
 
-            # Centralized guards for every load path (the file-dialog flow
-            # via OpenProjectCommand, recent/example projects from the
-            # welcome tab, and the Examples dialog) -- previously only
-            # OpenProjectCommand checked these, so the other entry points
-            # could silently replace a modified project or reload the
-            # current file from disk, discarding undo history. Living here
-            # means every caller gets the same protection with nothing
-            # extra to remember at the call site.
-            if self.app_state.has_project and _same_path(self.app_state.project_file_path, self.file_path):
+            # Guards shared by every load path (File > Open, recent projects,
+            # example projects, session restore): reloading the file that is
+            # already open is skipped so its undo history is not discarded,
+            # and replacing a modified project is confirmed below. An
+            # untitled copy is a new project, so it is never "already open".
+            if (
+                not self.as_untitled_copy
+                and self.app_state.has_project
+                and _same_path(self.app_state.project_file_path, self.file_path)
+            ):
                 self.logger.info("'%s' is already open; skipping reload", self.file_path)
                 return CommandResult.NOOP
 
@@ -103,9 +120,10 @@ class LoadProjectCommand(Command):
                 return CommandResult.FAILURE
 
             if self.app_state.has_project and self.app_state.is_modified:
-                should_continue = self.ui_controller.show_question(
-                    "Open Project",
-                    "Opening a new project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
+                should_continue = confirm_discard_unsaved_changes(
+                    self.app_context,
+                    title="Open Project",
+                    discard_message="Opening a new project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
                 )
                 if not should_continue:
                     self.logger.info("Load project cancelled by user (unsaved changes)")
@@ -140,9 +158,8 @@ class LoadProjectCommand(Command):
             return CommandResult.SUCCESS  # Command initiated successfully
 
         except Exception as e:
-            error_msg = f"Failed to initiate project load: {e}"
-            self.logger.exception("LoadProjectCommand Error: %s", error_msg)
-            self.ui_controller.show_error_message("Load Project Error", error_msg)
+            self.logger.exception("Failed to initiate project load")
+            self.ui_controller.show_error_message("Load Project Error", "Couldn't open the project.", error=e)
             self.is_loading = False  # Reset flag on error
             return CommandResult.FAILURE
 
@@ -163,7 +180,13 @@ class LoadProjectCommand(Command):
                 progress_callback(0.1)  # Starting load
 
             if not self.file_path:
-                return {"success": False, "error": "No file path provided for loading.", "project": None, "file_path": None}
+                return {
+                    "success": False,
+                    "error": "No file path provided for loading.",
+                    "error_description": describe_failure("No file was chosen to open."),
+                    "project": None,
+                    "file_path": None,
+                }
 
             if progress_callback:
                 progress_callback(0.2)  # File path validated
@@ -181,7 +204,13 @@ class LoadProjectCommand(Command):
                 progress_callback(0.7)  # Project loaded from file
 
             if not loaded_project:
-                return {"success": False, "error": f"Failed to load project from {self.file_path}", "project": None, "file_path": self.file_path}
+                return {
+                    "success": False,
+                    "error": f"Failed to load project from {self.file_path}",
+                    "error_description": describe_failure("The project could not be loaded from this file."),
+                    "project": None,
+                    "file_path": self.file_path,
+                }
 
             if progress_callback:
                 progress_callback(0.9)  # Load validation complete
@@ -196,7 +225,13 @@ class LoadProjectCommand(Command):
         except Exception as e:
             error_msg = f"Error during project load: {e!s}"
             self.logger.exception(error_msg)
-            return {"success": False, "error": error_msg, "project": None, "file_path": self.file_path}
+            return {
+                "success": False,
+                "error": error_msg,
+                "error_description": describe_error(e),
+                "project": None,
+                "file_path": self.file_path,
+            }
 
     def _on_load_result(self, result: dict):
         """Handle successful completion of load task."""
@@ -234,12 +269,15 @@ class LoadProjectCommand(Command):
                     # the loaded project now would silently discard it, so
                     # re-confirm before doing that instead of assuming the
                     # original answer still applies.
+                    # Goes through the shared guard, so an untitled project edited meanwhile
+                    # is offered Save As like any other replacement of it.
                     if (
                         self.app_state.has_project
                         and self.app_state.modification_revision != self._dispatch_revision
-                        and not self.ui_controller.show_question(
-                            "Open Project",
-                            "The current project changed while the new one was loading.\n"
+                        and not confirm_discard_unsaved_changes(
+                            self.app_context,
+                            title="Open Project",
+                            discard_message="The current project changed while the new one was loading.\n"
                             "Loading it now will discard those additional changes.\n\n"
                             "Do you want to continue?",
                         )
@@ -258,7 +296,9 @@ class LoadProjectCommand(Command):
                     # opened from -- stamp it with the path this command
                     # actually loaded from so later "already open"
                     # comparisons and Save target the right file.
-                    project.project_file_path = file_path
+                    # An untitled copy deliberately has no path, so Save
+                    # prompts for a location instead of writing to file_path.
+                    project.project_file_path = None if self.as_untitled_copy else file_path
 
                     # Store the loaded project for undo/redo
                     self.loaded_project = project
@@ -266,12 +306,11 @@ class LoadProjectCommand(Command):
                     # Update app state with the loaded project
                     self.app_state.load_project(project)
 
-                    # Remember this project so it can be restored on next launch
-                    try:
-                        session_manager = self.app_context.get_manager(SessionPersistenceManager)
-                        session_manager.update_project(file_path)
-                    except Exception as e:  # noqa: BLE001
-                        self.logger.warning("Failed to persist last_project_path: %s", e)
+                    # Remember this project so it can be restored on next launch. An
+                    # untitled copy has no file to restore from, so record "no project",
+                    # as NewProjectCommand does; keeping the previous path would reopen a
+                    # project the user had already replaced.
+                    remember_session_project(self.app_context, None if self.as_untitled_copy else file_path)
 
                     self.logger.info(f"Project '{project.name}' loaded successfully from '{file_path}'")
 
@@ -299,29 +338,33 @@ class LoadProjectCommand(Command):
                         except Exception:
                             self.logger.exception("on_loaded callback failed")
                 else:
-                    error_msg = "Missing project or file path in load result"
-                    self.ui_controller.show_error_message("Load Failed", error_msg)
-                    self.logger.error(error_msg)
+                    self.logger.error("Missing project or file path in load result")
+                    self.ui_controller.show_error_message(
+                        "Load Failed",
+                        "Couldn't open the project.",
+                        error=describe_failure("The project could not be loaded from this file."),
+                    )
             else:
-                error_msg = result.get("error", "Unknown load error")
-                self.ui_controller.show_error_message("Load Failed", error_msg)
-                self.logger.error(f"Load failed: {error_msg}")
+                self.logger.error("Load failed: %s", result.get("error", "Unknown load error"))
+                self.ui_controller.show_error_message(
+                    "Load Failed",
+                    "Couldn't open the project.",
+                    error=result.get("error_description") or describe_failure("The project could not be loaded."),
+                )
 
         except Exception as e:
             self.logger.exception("Error handling load result")
-            self.ui_controller.show_error_message("Load Error", f"Error processing load result: {e!s}")
+            self.ui_controller.show_error_message("Load Error", "Couldn't open the project.", error=e)
 
     def _on_load_error(self, error_info: tuple[Any, Any, str]):
         """Handle error during load task."""
         try:
             self.is_loading = False
             error_type, error_value, error_traceback = error_info
-            error_msg = f"Load failed with {error_type.__name__}: {error_value!s}"
+            self.logger.error("Load task error: %s: %s", error_type.__name__, error_value)
+            self.logger.error("Traceback: %s", error_traceback)
 
-            self.logger.error(f"Load task error: {error_msg}")
-            self.logger.error(f"Traceback: {error_traceback}")
-
-            self.ui_controller.show_error_message("Load Project Error", error_msg)
+            self.ui_controller.show_error_message("Load Project Error", "Couldn't open the project.", error=error_value)
 
         except Exception:
             self.logger.exception("Error handling load error")
@@ -334,6 +377,11 @@ class LoadProjectCommand(Command):
 
         except Exception:
             self.logger.exception("Error in load finished handler")
+        if self.on_finished is not None:
+            try:
+                self.on_finished()
+            except Exception:
+                self.logger.exception("on_finished callback failed")
 
     def _on_load_progress(self, progress: float):
         """Handle progress updates from load task."""
@@ -378,8 +426,10 @@ class LoadProjectCommand(Command):
             self.app_state.load_project(self.previous_project)
             if self.previous_was_modified:
                 self.app_state.mark_modified()
+            remember_session_project(self.app_context, self.previous_project.project_file_path)
         else:
             self.app_state.close_project()
+            remember_session_project(self.app_context, None)
         return CommandResult.SUCCESS
 
     def redo(self) -> CommandResult:
@@ -410,6 +460,11 @@ class LoadProjectCommand(Command):
             self.app_state.load_project(self.loaded_project)
             if self.loaded_project_was_modified:
                 self.app_state.mark_modified()
+            # Saving the project restored by undo() records its path in the session
+            # without clearing the redo history, so put the session back on the
+            # project that is installed now. Use its current path: an untitled copy
+            # has none, unless it was saved to a file since it was loaded.
+            remember_session_project(self.app_context, self.loaded_project.project_file_path)
             return CommandResult.SUCCESS
         else:
             # Re-execute if we don't have the loaded project cached

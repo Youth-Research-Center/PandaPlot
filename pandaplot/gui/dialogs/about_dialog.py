@@ -3,7 +3,7 @@
 import platform
 from typing import override
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -14,6 +14,8 @@ from PySide6.QtWidgets import (
 
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
+from pandaplot.gui.resources.app_icon import create_app_icon
+from pandaplot.gui.resources.icon_library import icon_attributions
 from pandaplot.services.theme.theme_manager import ThemeManager
 from pandaplot.version import __app_name__, __description__, __version__
 
@@ -35,13 +37,11 @@ class AboutDialog(PDialog):
         layout.setContentsMargins(24, 24, 24, 20)
         layout.setSpacing(16)
 
-        self.icon_label = QLabel("🐼")
-        icon_font = self.icon_label.font()
+        self.icon_label = QLabel()
         # Fixed icon/heading sizes -- deliberately independent of
         # interface_font_size (a body-text preference), same as
         # test_info_dialog.py's monospace formula font.
-        icon_font.setPointSize(40)
-        self.icon_label.setFont(icon_font)
+        self.icon_label.setPixmap(create_app_icon().pixmap(QSize(64, 64)))
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.icon_label)
 
@@ -97,6 +97,11 @@ class AboutDialog(PDialog):
         self.license_label.setWordWrap(True)
         layout.addWidget(self.license_label)
 
+        self.attribution_label = QLabel("Icons: " + ", ".join(icon_attributions()))
+        self.attribution_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.attribution_label.setWordWrap(True)
+        layout.addWidget(self.attribution_label)
+
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         self.close_btn = PButton("Close", role="secondary", on_click=self.accept)
@@ -137,3 +142,4 @@ class AboutDialog(PDialog):
         self.version_label.setStyleSheet(f"color: {secondary_fg};")
         self.description_label.setStyleSheet(f"color: {secondary_fg};")
         self.license_label.setStyleSheet(f"color: {secondary_fg}; font-size: 11px;")
+        self.attribution_label.setStyleSheet(f"color: {secondary_fg}; font-size: 11px;")

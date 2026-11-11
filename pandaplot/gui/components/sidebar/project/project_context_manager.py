@@ -42,6 +42,12 @@ class ProjectViewPanelContextManager(QMenu):
             self.command_manager.rename_selected_item)
         self.addAction(self.rename_action)
 
+        # Project root only
+        self.project_details_action = QAction("Project Details...", self)
+        self.project_details_action.triggered.connect(
+            self.command_manager.edit_project_details)
+        self.addAction(self.project_details_action)
+
         self.addSeparator()
 
         # Add actions
@@ -116,6 +122,7 @@ class ProjectViewPanelContextManager(QMenu):
             self.logger.debug("Item has no associated data")
             self.create_chart_action.setVisible(False)
             self.analyze_measurements_action.setVisible(False)
+            self.project_details_action.setVisible(False)
             self.import_images_action.setVisible(False)
             self.exec(self.getGlobalPosition(position))
             return
@@ -124,6 +131,7 @@ class ProjectViewPanelContextManager(QMenu):
 
         # Delete is not available for project root; rename uses a dialog for it
         can_delete = item_type != "project"
+        self.project_details_action.setVisible(item_type == "project")
 
         # Show chart creation only for datasets
         self.create_chart_action.setVisible(item_type == "dataset")

@@ -1,12 +1,64 @@
 import json
 import logging
 import zipfile
+import zlib
+from collections.abc import Callable, Collection
+
+from PySide6.QtGui import QImage
 
 from pandaplot.models.migrations.runner import run_cross_item_migrations
 from pandaplot.models.migrations.schema_version import CURRENT_SCHEMA_VERSION
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Item
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
+from pandaplot.utils.errors import UserFacingError
+
+COVER_IMAGE_ENTRY = "cover.png"
+"""Reserved zip entry holding the project's cover image (#598)."""
+
+_logger = logging.getLogger(__name__)
+
+_COVER_READ_ERRORS = (zipfile.BadZipFile, zlib.error, OSError, EOFError, NotImplementedError, RuntimeError)
+
+
+def _decodes_as_image(data: bytes) -> bool:
+    """Return whether ``data`` fully decodes as an image.
+
+    A header check alone accepts a PNG cut off after its signature, so the pixels are decoded too. Stored covers are
+    downscaled to at most 800 pixels per side, so this is cheap.
+    """
+    return not QImage.fromData(data).isNull()
+
+
+def read_cover_entry(entry: object, names: Collection[str], read: Callable[[str], bytes]) -> bytes | None:
+    """Return the cover image bytes of a project archive, or None when absent, damaged or not an image.
+
+    The cover is decorative, so a damaged entry (CRC or decompression error) must not stop a project opening
+    or an example being listed.
+
+    Args:
+        entry: The ``cover_image`` value of project.json.
+        names: The entry names present in the archive.
+        read: Reads one archive entry by name.
+
+    Returns:
+        The stored image bytes, or None (with a warning logged) when the entry is missing, unreadable or
+        does not decode as an image.
+    """
+    if entry is None:
+        return None
+    if entry != COVER_IMAGE_ENTRY or COVER_IMAGE_ENTRY not in names:
+        _logger.warning("Project references a missing cover image entry %r; ignoring it", entry)
+        return None
+    try:
+        data = read(COVER_IMAGE_ENTRY)
+    except _COVER_READ_ERRORS:
+        _logger.warning("Project cover image %r is damaged and cannot be read; ignoring it", entry, exc_info=True)
+        return None
+    if not _decodes_as_image(data):
+        _logger.warning("Project cover image %r is not a readable image; ignoring it", entry)
+        return None
+    return data
 
 
 class _ZipBytesProxy:
@@ -42,6 +94,11 @@ class ProjectDataManager:
                 manager = self.data_factory.get_manager(type_name)
                 manager.save(item, zf, item_file)
 
+            if project.cover_image is not None:
+                # Already PNG-compressed, so deflating it again only costs time.
+                zf.writestr(COVER_IMAGE_ENTRY, project.cover_image, compress_type=zipfile.ZIP_STORED)
+                project_dict["cover_image"] = COVER_IMAGE_ENTRY
+
             # Save project.json last
             zf.writestr("project.json", json.dumps(project_dict, indent=2))
 
@@ -55,13 +112,14 @@ class ProjectDataManager:
         with zipfile.ZipFile(filepath, "r") as zf:
             names = set(zf.namelist())
             if "project.json" not in names:
-                raise ValueError(f"Invalid project file: missing project.json in {filepath}")
-            raw_data = {name: zf.read(name) for name in names}
+                raise UserFacingError("This is not a valid PandaPlot project file: it has no project data.")
+            raw_data = {name: zf.read(name) for name in names - {COVER_IMAGE_ENTRY}}
+            project_dict = json.loads(raw_data["project.json"].decode("utf-8"))
+            cover_image = read_cover_entry(project_dict.get("cover_image"), names, zf.read)
         # ← zip closed here; Windows file lock released before any deserialization
 
         # Phase 2: Deserialize entirely from in-memory bytes (no file lock held).
         zip_proxy = _ZipBytesProxy(raw_data)
-        project_dict = json.loads(raw_data["project.json"].decode("utf-8"))
         project = Project.from_dict(project_dict)
         schema_version = project_dict.get("schema_version", 0)
         if schema_version > CURRENT_SCHEMA_VERSION:
@@ -76,11 +134,9 @@ class ProjectDataManager:
             # would open with items silently missing, and a later save
             # would overwrite the original file with that truncated
             # project. Refuse up front instead, before any item is loaded.
-            raise ValueError(
-                f"Project file {filepath!r} was saved with schema_version="
-                f"{schema_version}, newer than this app supports "
-                f"(CURRENT_SCHEMA_VERSION={CURRENT_SCHEMA_VERSION}). "
-                "Open it with a newer version of the app."
+            raise UserFacingError(
+                "This project was saved by a newer version of PandaPlot and cannot be opened by this one. "
+                "Update PandaPlot to open it."
             )
 
         items = {}
@@ -91,6 +147,8 @@ class ProjectDataManager:
                 items[item_id] = curr_item
             else:
                 failed_items.append(item_id)
+
+        project.cover_image = cover_image
 
         project_root = project_dict.get("root", {})
         project.root.id = project_root.get("id", project.root.id)
@@ -112,8 +170,9 @@ class ProjectDataManager:
             self.logger.info(
                 f"Loaded item {item_id} of type {info['type']} from {path}")
             return item
-        except Exception as ex:  # noqa: BLE001 -- Best-effort item load -- one corrupt/incompatible item must not abort loading the rest of the project
-            self.logger.error(f"Failed to load item {item_id}: {ex}")
+        except Exception:
+            self.logger.exception("Failed to load item %s", item_id)
+            return None
 
     def _add_items_to_project(self, project: Project, items: dict[str, Item], project_tree: list[dict]) -> None:
         """Recursively add items to the project based on the project tree structure."""

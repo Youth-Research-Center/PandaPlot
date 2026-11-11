@@ -70,7 +70,7 @@ class Item:
         self.modified_at = datetime.now().isoformat()  # noqa: DTZ005 -- local-time display bookkeeping, never compared across timezones
 
     def update_name(self, new_name: str) -> None:
-        """Update the note name and modification timestamp."""
+        """Update the item name and modification timestamp."""
         self.name = new_name
         self.update_modified_time()
 
@@ -167,8 +167,12 @@ class ItemCollection(Item):
         """Get all items in this collection."""
         return list(self.items.values())
     
-    def __len__(self):
-        """Get total number of items including sub-collections."""
+    def __len__(self) -> int:
+        """Count the non-collection items in this subtree.
+
+        Sub-collections themselves are not counted, so a folder holding only
+        empty folders has length 0 (and is falsy).
+        """
         num_items = 0
         for item in self.items.values():
             if isinstance(item, ItemCollection):

@@ -40,6 +40,7 @@ from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.data_import import (
     CSV_FORMAT,
@@ -103,7 +104,8 @@ class ImportWizardDialog(PDialog):
 
     @override
     def _init_ui(self):
-        self.setWindowTitle("📥 Import Dataset")
+        self.setWindowTitle("Import Dataset")
+        self.setWindowIcon(themed_icon(self.app_context, "download-simple"))
         self.setModal(True)
         self.resize(820, 620)
         self.setMinimumSize(720, 540)
@@ -258,6 +260,13 @@ class ImportWizardDialog(PDialog):
         except Exception as error:  # noqa: BLE001 - surfaced to the user below
             self.logger.warning("Failed to detect import defaults for %s: %s", path, error)
             self._set_status(f"Could not inspect file: {error}", error=True)
+            # The widgets still hold the previous file's options; importing
+            # this file with them must not be possible, and the preview of
+            # the previous file must not stay on screen.
+            self.preview_table.clear()
+            self.preview_table.setRowCount(0)
+            self.preview_table.setColumnCount(0)
+            self._set_import_enabled(enabled=False)
             return
 
         self._apply_options_to_widgets(options)

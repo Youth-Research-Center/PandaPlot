@@ -39,7 +39,8 @@ def test_swap_action_swaps_the_rendered_axes_and_is_undoable():
     app_ctx, chart, widget = _make_editor()
 
     widget._on_swap_axes()
-    assert widget.status_label.text() == "Swapped X and Y ✓"
+    assert widget.status_label.text() == "Swapped X and Y"
+    assert not widget.status_icon.isHidden()
     widget.update_chart()
 
     line = widget.chart_canvas.axes.get_lines()[0]
@@ -81,7 +82,8 @@ def test_swap_action_draws_a_fit_band_horizontally_after_the_swap():
     ))
 
     widget._on_swap_axes()
-    assert widget.status_label.text() == "Swapped X and Y ✓"
+    assert widget.status_label.text() == "Swapped X and Y"
+    assert not widget.status_icon.isHidden()
     widget.update_chart()
 
     band = widget.chart_canvas.axes.collections[-1]

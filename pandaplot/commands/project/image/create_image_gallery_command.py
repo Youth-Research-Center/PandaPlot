@@ -94,9 +94,9 @@ class CreateImageGalleryCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to create image gallery: {e!s}"
+            error_msg = "Couldn't create image gallery."
             self.logger.exception("CreateImageGalleryCommand Error: %s", error_msg)
-            self.ui_controller.show_error_message("Create Image Gallery Error", error_msg)
+            self.ui_controller.show_error_message("Create Image Gallery Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     @override
@@ -139,9 +139,9 @@ class CreateImageGalleryCommand(Command):
                 return CommandResult.NOOP
 
         except Exception as e:
-            error_msg = f"Failed to undo create image gallery: {e!s}"
+            error_msg = "Couldn't undo create image gallery."
             self.logger.exception("CreateImageGalleryCommand Undo Error: %s", error_msg)
-            self.ui_controller.show_error_message("Undo Error", error_msg)
+            self.ui_controller.show_error_message("Undo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     @override
@@ -174,9 +174,9 @@ class CreateImageGalleryCommand(Command):
                 return CommandResult.FAILURE
 
         except Exception as e:
-            error_msg = f"Failed to redo create image gallery: {e!s}"
+            error_msg = "Couldn't redo create image gallery."
             self.logger.exception("CreateImageGalleryCommand Redo Error: %s", error_msg)
-            self.ui_controller.show_error_message("Redo Error", error_msg)
+            self.ui_controller.show_error_message("Redo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     @override

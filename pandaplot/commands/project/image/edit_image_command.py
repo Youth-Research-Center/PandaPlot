@@ -112,9 +112,9 @@ class EditImageCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to edit image: {e!s}"
+            error_msg = "Couldn't edit image."
             self.logger.exception("EditImageCommand Error: %s", error_msg)
-            self.ui_controller.show_error_message("Edit Image Error", error_msg)
+            self.ui_controller.show_error_message("Edit Image Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     @override
@@ -150,9 +150,9 @@ class EditImageCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to undo image edit: {e!s}"
+            error_msg = "Couldn't undo image edit."
             self.logger.exception(error_msg)
-            self.ui_controller.show_error_message("Undo Error", error_msg)
+            self.ui_controller.show_error_message("Undo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     @override

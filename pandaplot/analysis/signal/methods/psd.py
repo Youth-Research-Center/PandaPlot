@@ -7,6 +7,8 @@ from typing import Any
 import pandas as pd
 from scipy import signal
 
+from pandaplot.utils.errors import UserFacingError
+
 from ..signal_types import SignalAnalysisResult, SignalAnalysisType
 
 
@@ -21,10 +23,10 @@ def run(
     """ Compute Power Spectral Density using Welch's method. """
 
     if sampling_rate <= 0:
-        raise ValueError("Sampling rate must be greater than zero.")
+        raise UserFacingError("Sampling rate must be greater than zero.")
 
     if not 0 <= overlap < 1:
-        raise ValueError("Overlap must be between 0 and 1.")
+        raise UserFacingError("Overlap must be between 0 and 1.")
 
     signal_data = (
         pd.to_numeric(column, errors="coerce")
@@ -33,7 +35,7 @@ def run(
     )
 
     if signal_data.size < 2:
-        raise ValueError(
+        raise UserFacingError(
             "Signal must contain at least two valid samples."
         )
 

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
 from pandaplot.models.project.items import Chart
@@ -58,10 +59,7 @@ class CreateVisualizationDialog(PDialog):
 
         header_layout = QHBoxLayout()
         header_layout.setSpacing(10)
-        self.icon_label = QLabel("📊")
-        icon_font = self.icon_label.font()
-        icon_font.setPointSize(22)
-        self.icon_label.setFont(icon_font)
+        self.icon_label = IconLabel(self.app_context, "chart-bar", size=28)
         header_layout.addWidget(self.icon_label)
 
         self.title_label = QLabel("Create Visualizations")

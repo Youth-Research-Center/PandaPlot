@@ -78,9 +78,16 @@ def test_unsubscribe_widget_tree_covers_nested_pwidget_children():
 
 
 def test_unsubscribe_widget_tree_tolerates_plain_qwidget():
-    """A widget with no WidgetExtension mixin at all must not raise."""
+    """A widget with no WidgetExtension mixin at all must not raise, and still reaches the subscribers nested under it."""
+    app_context = _FakeAppContext()
     widget = QWidget()
-    unsubscribe_widget_tree(widget)  # no-op, must not raise
+    leaf = _Leaf(app_context=app_context, parent=widget)
+    leaf._initialize()
+    assert leaf._on_theme_changed in app_context.event_bus._subscribers[ThemeEvents.THEME_CHANGED]
+
+    unsubscribe_widget_tree(widget)
+
+    assert leaf._on_theme_changed not in app_context.event_bus._subscribers[ThemeEvents.THEME_CHANGED]
 
 
 def test_unsubscribe_widget_tree_tolerates_already_deleted_widget():

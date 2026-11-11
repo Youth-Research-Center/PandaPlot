@@ -164,22 +164,8 @@ class TestExitCommandUndoRedo:
 
 
 class TestExitCommandInheritance:
-    """Test ExitCommand inheritance from base Command."""
-    
-    def test_is_instance_of_command(self, exit_command):
-        """Test that ExitCommand is an instance of Command."""
-        assert isinstance(exit_command, Command)
-    
-    def test_implements_command_interface(self, exit_command):
-        """Test that ExitCommand implements the Command interface."""
-        # All abstract methods should be implemented
-        assert hasattr(exit_command, "execute")
-        assert hasattr(exit_command, "undo")
-        assert hasattr(exit_command, "redo")
-        assert callable(exit_command.execute)
-        assert callable(exit_command.undo)
-        assert callable(exit_command.redo)
-    
+    """Test ExitCommand behaviour inherited from base Command."""
+
     def test_repr_method_inherited(self, exit_command):
         """Test that __repr__ method works correctly."""
         repr_str = repr(exit_command)
@@ -284,14 +270,6 @@ class TestExitCommandEdgeCases:
         with pytest.raises(RuntimeError, match="Event bus error"):
             command.execute()
     
-    def test_command_state_after_initialization(self, exit_command):
-        """Test command state immediately after initialization."""
-        # Should be able to call execute without any prior operations
-        assert hasattr(exit_command, "app_context")
-        assert hasattr(exit_command, "execute")
-        assert hasattr(exit_command, "undo")
-        assert hasattr(exit_command, "redo")
-    
     def test_command_immutability_of_app_context_reference(self, mock_app_context):
         """Test that the app_context reference doesn't change after initialization."""
         command = ExitCommand(mock_app_context)
@@ -340,32 +318,35 @@ class TestExitCommandUnsavedChangesGuard:
 
     def test_asks_and_proceeds_when_modified_and_confirmed(self):
         app_context, _ = self._make_context(has_project=True, is_modified=True, project_file_path=None)
-        app_context.get_ui_controller.return_value.show_question.return_value = True
+        app_context.get_ui_controller.return_value.show_save_as_discard_cancel.return_value = "discard"
         command = ExitCommand(app_context)
 
         assert command.execute() is CommandResult.SUCCESS
-        app_context.get_ui_controller.return_value.show_question.assert_called_once()
+        app_context.get_ui_controller.return_value.show_save_as_discard_cancel.assert_called_once()
         app_context.event_bus.emit.assert_called_once_with(AppEvents.APP_CLOSING)
 
     def test_cancels_when_modified_and_declined(self):
         app_context, _ = self._make_context(has_project=True, is_modified=True, project_file_path=None)
-        app_context.get_ui_controller.return_value.show_question.return_value = False
+        app_context.get_ui_controller.return_value.show_save_as_discard_cancel.return_value = "cancel"
         command = ExitCommand(app_context)
 
         assert command.execute() is CommandResult.NOOP
         app_context.event_bus.emit.assert_not_called()
 
-    def test_prompt_says_discard_for_a_never_saved_project(self):
+    def test_never_saved_project_is_offered_save_as_and_never_claims_autosave(self):
         """A project with no file path yet has nothing for
-        _flush_save_on_quit to write to, so exiting really does discard it."""
+        _flush_save_on_quit to write to, so exiting offers Save As... instead."""
         app_context, _ = self._make_context(has_project=True, is_modified=True, project_file_path=None)
-        app_context.get_ui_controller.return_value.show_question.return_value = True
+        ui_controller = app_context.get_ui_controller.return_value
+        ui_controller.show_save_as_discard_cancel.return_value = "discard"
         command = ExitCommand(app_context)
 
         command.execute()
 
-        _, message = app_context.get_ui_controller.return_value.show_question.call_args[0]
-        assert "discard" in message
+        _, message = ui_controller.show_save_as_discard_cancel.call_args[0]
+        assert "Save As" in message
+        assert "autosave" not in message.lower()
+        ui_controller.show_question.assert_not_called()
 
     def test_exits_without_asking_and_saves_for_an_already_saved_project(self):
         """Regression (#410): there's nothing to confirm for an autosaving
@@ -430,28 +411,9 @@ def test_marks_project_modified_is_false():
     assert ExitCommand(Mock()).marks_project_modified() is False
 
 
-class TestExitCommandDocumentation:
-    """Test command documentation and metadata."""
-    
-    def test_class_docstring(self):
-        """Test that the class has proper documentation."""
-        assert ExitCommand.__doc__ is not None
-        assert "Command to exit the application" in ExitCommand.__doc__
-    
-    def test_execute_method_docstring(self, exit_command):
-        """Test that execute method has documentation."""
-        assert exit_command.execute.__doc__ is not None
-        assert "Execute the exit command" in exit_command.execute.__doc__
-    
-    def test_undo_method_docstring(self, exit_command):
-        """Test that undo method has documentation."""
-        assert exit_command.undo.__doc__ is not None
-        assert "not applicable" in exit_command.undo.__doc__.lower()
-    
-    def test_redo_method_docstring(self, exit_command):
-        """Test that redo method has documentation."""
-        assert exit_command.redo.__doc__ is not None
-        assert "not applicable" in exit_command.redo.__doc__.lower()
+def test_occupies_undo_slot_is_false():
+    """Exit has no undo/redo (both raise), so it must never be pushed onto the undo stack."""
+    assert ExitCommand(Mock()).occupies_undo_slot() is False
 
 
 class TestExitCommandCleanup:

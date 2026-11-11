@@ -2,21 +2,25 @@
 Previous/Next navigation across the list without closing the dialog."""
 
 from collections.abc import Callable
+from typing import override
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QFontMetrics, QKeyEvent, QPixmap, QResizeEvent
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from pandaplot.gui.components.common.image_thumbnail_tile import build_gallery_tile_icon
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.core.widget_extension import PDialog
+from pandaplot.gui.resources.themed_icons import ActionIcons
 from pandaplot.models.project.items import Image
+from pandaplot.models.state.app_context import AppContext
 
 _INITIAL_WIDTH = 1200
 _INITIAL_HEIGHT = 900
 _TITLE_ELIDE_WIDTH = 500
 
 
-class ImageLightboxDialog(QDialog):
+class ImageLightboxDialog(PDialog):
     """
     Modal full-size image preview over an ordered list of sibling Images,
     with Previous/Next buttons and Left/Right arrow keys to move between
@@ -34,25 +38,38 @@ class ImageLightboxDialog(QDialog):
     def __init__(self, images: list[Image], start_index: int,
                  load_pixmap: Callable[[Image], QPixmap | None],
                  parent: QWidget | None = None, *,
-                 on_edit: Callable[[Image], None] | None = None):
-        super().__init__(parent)
+                 on_edit: Callable[[Image], None] | None = None,
+                 app_context: AppContext):
+        super().__init__(app_context, parent)
         self._images = images
         self._index = start_index
         self._load_pixmap = load_pixmap
         self._on_edit = on_edit
+        # Must exist before _initialize() builds the buttons, which bind their icons.
+        self._icons = ActionIcons(app_context)
 
         self.resize(_INITIAL_WIDTH, _INITIAL_HEIGHT)
         self._user_has_resized = False
 
+        self._initialize()
+        self._render_current()
+
+    @override
+    def _init_ui(self) -> None:
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.image_label.mousePressEvent = lambda event: self.close()
         self.image_label.setMinimumSize(1, 1)
         self.image_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
 
-        self.previous_button = PButton("◀ Previous", on_click=self._go_previous)
-        self.next_button = PButton("Next ▶", on_click=self._go_next)
+        self.previous_button = PButton("Previous", on_click=self._go_previous)
+        self.next_button = PButton("Next", on_click=self._go_next)
+        # Right-to-left layout puts the Next icon after its text, mirroring the Previous button.
+        self.next_button.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self.edit_button = PButton("Edit Image...", on_click=self._trigger_edit)
+        self._icons.bind(self.previous_button, "caret-left")
+        self._icons.bind(self.next_button, "caret-right")
+        self._icons.bind(self.edit_button, "pencil-simple")
 
         nav_row = QHBoxLayout()
         nav_row.addWidget(self.previous_button)
@@ -68,7 +85,9 @@ class ImageLightboxDialog(QDialog):
         layout.addWidget(self.image_label, stretch=1)
         layout.addLayout(nav_row)
 
-        self._render_current()
+    @override
+    def _apply_theme(self) -> None:
+        self._icons.retint()
 
     def _current_image(self) -> Image:
         return self._images[self._index]

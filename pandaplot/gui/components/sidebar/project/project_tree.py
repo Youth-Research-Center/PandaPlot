@@ -1,12 +1,16 @@
 import logging
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QTreeWidget,
 )
 
 from pandaplot.commands.project.item import MoveItemCommand
 from pandaplot.models.project.items import ItemCollection
+
+# Row types that hold other items: a drop on the row's center lands inside it, and new items are
+# created inside the selected one. A drop on any other item row lands beside it.
+CONTAINER_TYPES = ("folder", "imagegallery")
 
 
 class ProjectTreeWidget(QTreeWidget):
@@ -33,7 +37,12 @@ class ProjectTreeWidget(QTreeWidget):
     def startDrag(self, supportedActions):
         """Override to track drag start."""
         self._is_dragging = True
-        super().startDrag(supportedActions)
+        try:
+            super().startDrag(supportedActions)
+        finally:
+            # QAbstractItemView.startDrag blocks until the drag ends, including
+            # cancelled drags and drops outside the tree that never reach dropEvent.
+            self._is_dragging = False
 
     def dropEvent(self, event):
         """Handle drop events to persist item moves."""
@@ -76,12 +85,12 @@ class ProjectTreeWidget(QTreeWidget):
                 target_type = target_data.get("type", "")
 
                 # If dropping on a folder, make it the parent
-                if target_type in ["folder", "imagegallery"] and not self._is_beside_drop(target_item, event):
+                if target_type in CONTAINER_TYPES and not self._is_beside_drop(target_item, event):
                     new_parent_id = target_data.get("id", "root")
                     self.logger.debug(
                         "ProjectTreeWidget: dropping on folder new_parent_id=%s", new_parent_id)
-                # If dropping on another item, use its parent folder
-                elif target_type in ["note", "dataset", "chart", "image", "folder", "imagegallery", "sketch"]:
+                # If dropping on any other item, use its parent folder
+                elif target_type != "project":
                     target_item_obj = target_data.get("data")
                     if target_item_obj is not None and target_item_obj.parent_id:
                         # Check if the parent_id is the root collection ID
@@ -98,9 +107,7 @@ class ProjectTreeWidget(QTreeWidget):
                         new_parent_id = "root"
                         self.logger.debug(
                             "ProjectTreeWidget: target item has no parent; new_parent_id=root")
-                # If dropping on project root, use root
-                elif target_type == "project":
-                    new_parent_id = "root"
+                # Dropping on the project root row keeps new_parent_id = "root"
 
         # Get current parent folder ID
         current_item_obj = source_data.get("data")
@@ -135,20 +142,13 @@ class ProjectTreeWidget(QTreeWidget):
             )
             self.parent_panel.app_context.get_command_executor().execute_command(command)
 
-            # The command owns the move and the panel rebuilds the tree from the
-            # resulting event. A MoveAction would make Qt delete the dragged row
-            # itself, which loses it from the view when the command is rejected.
-            event.setDropAction(Qt.DropAction.IgnoreAction)
-            event.accept()
-        else:
-            # No change needed, but allow the visual move
-            super().dropEvent(event)
-
-        # Clear drag state after drop
-        self._is_dragging = False
-
-        # Also set a timer to clear drag state in case events are out of order
-        QTimer.singleShot(100, lambda: setattr(self, "_is_dragging", False))
+        # The command owns the move and the panel rebuilds the tree from the
+        # resulting event. Never hand the drop to Qt: a MoveAction would make Qt
+        # delete the dragged row itself (losing it when the command is rejected),
+        # and Qt's own InternalMove would reorder or nest rows without changing
+        # the project, since item order within a folder is not persisted.
+        event.setDropAction(Qt.DropAction.IgnoreAction)
+        event.accept()
 
     @staticmethod
     def _rejects_drop_into(target_data, source_data) -> bool:
@@ -194,17 +194,17 @@ class ProjectTreeWidget(QTreeWidget):
                             "ProjectTreeWidget: drag over item %s %s", target_type, target_id)
 
                         # Valid drop targets: folders (drop into), project root, or any item (to drop beside it)
-                        if target_type in ["folder", "project", "note", "dataset", "chart", "imagegallery", "image"]:
+                        if target_type:
                             # Only highlight folders and project root for "drop into" operations
                             # For other items, provide subtle feedback since it's a "drop beside" operation
-                            is_into_drop = target_type in ["folder", "imagegallery"] and not self._is_beside_drop(target_item, event)
+                            is_into_drop = target_type in CONTAINER_TYPES and not self._is_beside_drop(target_item, event)
                             if is_into_drop and self._rejects_drop_into(target_data, self._dragged_data()):
                                 self.setToolTip("This item cannot be dropped here")
                                 event.ignore()
                                 return
                             if target_type == "project" or is_into_drop:
                                 self._highlight_item(target_item)
-                                if target_type in ("folder", "imagegallery"):
+                                if target_type in CONTAINER_TYPES:
                                     self.setToolTip("Drop into folder")
                                 else:
                                     self.setToolTip("Drop at project root")
@@ -263,7 +263,7 @@ class ProjectTreeWidget(QTreeWidget):
 
             from PySide6.QtGui import QColor
 
-            if target_type in ("folder", "imagegallery"):
+            if target_type in CONTAINER_TYPES:
                 # Green for folders (items will be moved INTO the folder)
                 highlight_color = QColor(144, 238, 144, 120)  # Light green
             elif target_type == "project":

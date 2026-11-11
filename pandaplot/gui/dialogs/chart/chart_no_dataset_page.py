@@ -11,9 +11,10 @@ from pandaplot.gui.components.common.card import Card
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.core.widget_extension import PWizardPage
-from pandaplot.gui.dialogs.chart.wizard_footer import WizardFooter
+from pandaplot.gui.dialogs.chart.wizard_footer import WizardFooter, connect_footer_help
 from pandaplot.gui.dialogs.chart.wizard_step_rail import WizardStepRail
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.help.help_types import WIZARD_TOPIC_NO_DATASET
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -76,11 +77,14 @@ class ChartNoDatasetPage(PWizardPage):
         empty_layout.addWidget(self.empty_button)
         options_row.addWidget(empty_card, 1)
 
+        self.help_topic: str = WIZARD_TOPIC_NO_DATASET
         self.footer = WizardFooter(
             step_number=2, total_steps=3, show_empty_link=False, show_next=False,
+            help_topic=self.help_topic, help_label="Create a chart",
         )
         self.footer.backClicked.connect(lambda: self.wizard().back())
         self.footer.cancelClicked.connect(lambda: self.wizard().reject())
+        connect_footer_help(self, self.footer)
         outer.addWidget(self.footer)
 
     def _apply_theme(self):

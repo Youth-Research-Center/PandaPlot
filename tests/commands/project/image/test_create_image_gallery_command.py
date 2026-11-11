@@ -153,3 +153,13 @@ class TestCreateImageGalleryCommandLogging:
         with caplog.at_level(logging.WARNING):
             assert command.redo() is CommandResult.FAILURE
         assert "CreateImageGalleryCommand.redo" in caplog.text
+
+
+def test_a_failed_create_shows_a_plain_message_with_the_cause(app_context_with_project):
+    failure = RuntimeError("subscriber failed")
+    app_context_with_project.get_app_state().event_bus.emit.side_effect = failure
+
+    assert CreateImageGalleryCommand(app_context_with_project, gallery_name="Trip").execute() is CommandResult.FAILURE
+    app_context_with_project.get_ui_controller().show_error_message.assert_called_once_with(
+        "Create Image Gallery Error", "Couldn't create image gallery.", error=failure
+    )

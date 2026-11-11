@@ -5,18 +5,23 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QPointF, Qt, QTimer
+from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QInputDialog, QLineEdit
 from pytestqt.qtbot import QtBot
 
+from pandaplot.commands.project.dataset.create_empty_dataset_command import CreateEmptyDatasetCommand
 from pandaplot.gui.components.sidebar.project.project_view_panel import ProjectViewPanel
 from pandaplot.gui.components.tabs.sketch.sketch_tab import SketchTab
 from pandaplot.gui.components.tabs.sketch.tools.tool_manager import ToolMode
 from pandaplot.gui.components.tabs.tab_container import TabContainer
+from pandaplot.gui.dialogs.chart.add_series_dialog import AddSeriesDialog
 from pandaplot.gui.dialogs.chart.chart_wizard import ChartWizard
 from pandaplot.gui.dialogs.import_wizard_dialog import ImportWizardDialog
+from pandaplot.gui.dialogs.sketch.export_sketch_dialog import ExportSketchDialog
 from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.models.project.items import Chart, Dataset, Sketch
 from pandaplot.models.project.items.sketch import RectangleElement
+from pandaplot.services.data_managers.project_manager import ProjectManager
 
 
 def click_menu(qtbot: QtBot, window: PandaMainWindow, menu_name: str, action_name: str) -> None:
@@ -202,7 +207,7 @@ def test_create_draw_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot
         tree_item for tree_item in tree.findItems("New Sketch 1", Qt.MatchFlag.MatchContains | Qt.MatchFlag.MatchRecursive)
         if tree_item.data(0, Qt.ItemDataRole.UserRole).get("id") == sketch.id
     )
-    assert row.text(0) == "✏️ New Sketch 1"
+    assert row.text(0) == "New Sketch 1"
     tree.scrollToItem(row)
     position = tree.visualItemRect(row).center()
     qtbot.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=position)
@@ -218,6 +223,8 @@ def test_create_draw_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot
 
     rectangle_button = tab.toolbar.widgetForAction(tab.tool_actions[ToolMode.RECTANGLE])
     qtbot.mouseClick(rectangle_button, Qt.MouseButton.LeftButton)
+    tab.property_bar.width_input.setFocus()
+    qtbot.keyClick(tab.property_bar.width_input.focusProxy(), Qt.Key.Key_PageUp)
     viewport = tab.canvas.viewport()
     start = tab.canvas.mapFromScene(QPointF(100.0, 100.0))
     end = tab.canvas.mapFromScene(QPointF(300.0, 200.0))
@@ -228,10 +235,32 @@ def test_create_draw_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot
     [box] = sketch.active_layer.elements
     assert isinstance(box, RectangleElement)
     assert (box.width, box.height) == pytest.approx((200.0, 100.0), abs=1.0 / tab.canvas.zoom)
+    # PageUp in the property bar's width field: 2.0 plus ten 0.5 px steps.
+    assert box.stroke_width == 7.0
     assert tab.canvas.element_item(box.id) is not None
     assert sketch.layers[0].elements == []
     qtbot.mouseClick(tab.layer_panel.rows[sketch.layers[1].id].lock_button, Qt.MouseButton.LeftButton)
     assert sketch.layers[1].locked
+
+    exported_path = tmp_path / "sketch.png"
+    monkeypatch.setattr(
+        "pandaplot.gui.controllers.ui_controller.QFileDialog.getSaveFileName",
+        lambda *args, **kwargs: (str(exported_path.with_suffix("")), "PNG image (*.png)"),
+    )
+
+    def export_half_size_transparent(dialog: ExportSketchDialog) -> None:
+        qtbot.mouseClick(dialog.transparent_radio, Qt.MouseButton.LeftButton)
+        dialog.scale_input.setValue(0.5)
+        qtbot.mouseClick(dialog.export_button, Qt.MouseButton.LeftButton)
+
+    timer, errors = drive_modal(qtbot, ExportSketchDialog, export_half_size_transparent)
+    qtbot.mouseClick(tab.toolbar.widgetForAction(tab.export_action), Qt.MouseButton.LeftButton)
+    timer.stop()
+    assert not errors
+    exported = QImage(str(exported_path))
+    assert (exported.width(), exported.height()) == (round(sketch.canvas_width / 2), round(sketch.canvas_height / 2))
+    assert exported.pixelColor(0, 0).alpha() == 0
+    assert tab.status_label.text() == "Exported to sketch.png"
 
     saved_path = tmp_path / "sketch.pplot"
     monkeypatch.setattr(
@@ -257,3 +286,192 @@ def test_create_draw_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot
     assert isinstance(restored, Sketch)
     assert restored.to_dict() == sketch.to_dict()
     assert [(layer.name, layer.locked) for layer in restored.layers] == [("Layer 1", False), ("Layer 2", True)]
+
+
+def test_empty_chart_gets_first_series_from_empty_state(
+    app_window: PandaMainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    new_project(qtbot, app_window)
+    dataset = import_csv(qtbot, app_window, monkeypatch, tmp_path)
+    click_menu(qtbot, app_window, "Chart", "Create New")
+    qtbot.waitUntil(lambda: any(isinstance(w, ChartWizard) and w.isVisible() for w in QApplication.topLevelWidgets()))
+    wizard = next(w for w in QApplication.topLevelWidgets() if isinstance(w, ChartWizard) and w.isVisible())
+    qtbot.mouseClick(wizard.type_page.footer.empty_link, Qt.MouseButton.LeftButton)
+    project = app_window.app_context.app_state.current_project
+    qtbot.waitUntil(lambda: any(isinstance(item, Chart) for item in project.get_all_items()))
+    chart = next(item for item in project.get_all_items() if isinstance(item, Chart))
+    assert chart.data_series == []
+    tabs = app_window.app_context.get_manager(TabContainer)
+    qtbot.waitUntil(lambda: tabs.get_tab_widget(chart.id) is not None)
+    editor = tabs.get_tab_widget(chart.id).chart_editor
+    qtbot.waitUntil(lambda: editor.preview_stack.currentWidget() is editor.empty_state_panel)
+
+    add_series_button = next(button for button in editor.empty_state_panel.action_buttons if button.text() == "Add Series")
+    clicked_dialogs: list[AddSeriesDialog] = []
+
+    def complete_dialog() -> None:
+        dialog = QApplication.activeModalWidget()
+        if not isinstance(dialog, AddSeriesDialog) or dialog in clicked_dialogs:
+            return
+        try:
+            assert dialog.card.dataset_combo.currentData() == dataset.id
+            for role, column in (("x", "x"), ("y", "y")):
+                combo = dialog.card._role_combos[role]
+                index = combo.findData(dataset.column_id(column))
+                assert index >= 0
+                combo.setCurrentIndex(index)
+            assert dialog.add_button.isEnabled()
+            clicked_dialogs.append(dialog)
+            qtbot.mouseClick(dialog.add_button, Qt.MouseButton.LeftButton)
+        except AssertionError:
+            dialog.reject()
+            raise
+
+    dialog_timer = QTimer()
+    dialog_timer.timeout.connect(complete_dialog)
+    dialog_timer.start(10)
+    try:
+        qtbot.mouseClick(add_series_button, Qt.MouseButton.LeftButton)
+        qtbot.waitUntil(lambda: len(chart.data_series) == 1, timeout=10000)
+    finally:
+        dialog_timer.stop()
+    assert len(clicked_dialogs) == 1
+    assert chart.data_series[0].dataset_id == dataset.id
+    assert chart.data_series[0].x_column_id == dataset.column_id("x")
+    assert chart.data_series[0].y_column_id == dataset.column_id("y")
+    qtbot.waitUntil(lambda: editor.preview_stack.currentWidget() is editor.canvas_scroll)
+    qtbot.waitUntil(lambda: len(editor.chart_canvas.axes.lines) > 0)
+
+    assert app_window.main_menu.undo_action.isEnabled()
+    app_window.main_menu.undo_action.trigger()
+    qtbot.waitUntil(lambda: chart.data_series == [])
+    qtbot.waitUntil(lambda: editor.preview_stack.currentWidget() is editor.empty_state_panel)
+
+
+def test_edit_project_details_from_the_file_menu_with_undo_and_redo(app_window: PandaMainWindow, qtbot: QtBot) -> None:
+    from pandaplot.gui.dialogs.project.project_details_dialog import ProjectDetailsDialog
+
+    new_project(qtbot, app_window)
+    project = app_window.app_context.app_state.current_project
+    original_description = project.description
+
+    def edit(dialog: ProjectDetailsDialog) -> None:
+        dialog.name_edit.setText("Renamed project")
+        dialog.description_edit.setPlainText("Findings. More text.")
+        dialog.example_checkbox.setChecked(True)
+        dialog.tag_checkboxes["physics"].setChecked(True)
+        qtbot.mouseClick(dialog.ok_button, Qt.MouseButton.LeftButton)
+
+    timer, errors = drive_modal(qtbot, ProjectDetailsDialog, edit)
+    click_menu(qtbot, app_window, "File", "Project Details...")
+    timer.stop()
+    assert not errors
+
+    assert project.name == "Renamed project"
+    assert project.description == "Findings. More text."
+    assert project.example_info.is_example
+    assert project.example_info.tag_ids == ("physics",)
+    assert app_window.windowTitle().startswith("Renamed project")
+
+    app_window.main_menu.undo_action.trigger()
+    assert project.name == "GUI workflow"
+    assert project.description == original_description
+    assert not project.example_info.is_example
+    assert app_window.windowTitle().startswith("GUI workflow")
+
+    app_window.main_menu.redo_action.trigger()
+    assert project.name == "Renamed project"
+    assert project.example_info.tag_ids == ("physics",)
+
+
+def test_example_opens_as_untitled_copy_and_save_never_overwrites_it(
+    app_window: PandaMainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from pandaplot.services.session.recent_projects import get_recent_projects
+    from pandaplot.utils.examples import discover_example_projects
+
+    example = Path(discover_example_projects()[0].path)
+    original_bytes = example.read_bytes()
+    state = app_window.app_context.app_state
+
+    app_window.tab_container.command_manager.handle_example_project(str(example))
+    qtbot.waitUntil(lambda: state.has_project, timeout=10000)
+    project = state.current_project
+    assert project.project_file_path is None
+    assert project.name
+    assert not state.is_modified
+    assert str(example) not in [entry["path"] for entry in get_recent_projects(app_window.app_context)]
+
+    executed = app_window.app_context.get_command_executor().execute_command(
+        CreateEmptyDatasetCommand(app_window.app_context, dataset_name="Edit after opening")
+    )
+    assert executed
+    assert state.is_modified
+    assert state.project_file_path is None
+    saved_path = tmp_path / "my_copy.pplot"
+    dialog_calls: list[tuple[object, ...]] = []
+
+    def pick_path(*args: object, **kwargs: object) -> tuple[str, str]:
+        dialog_calls.append(args)
+        return str(saved_path), "Project files"
+
+    monkeypatch.setattr("pandaplot.gui.controllers.ui_controller.QFileDialog.getSaveFileName", pick_path)
+
+    click_menu(qtbot, app_window, "File", "Save")
+    qtbot.waitUntil(lambda: any(title == "Project Saved" for title, _ in app_window.test_messages), timeout=10000)
+
+    assert len(dialog_calls) == 1
+    assert saved_path.exists()
+    assert state.project_file_path == str(saved_path)
+    assert example.read_bytes() == original_bytes
+
+
+def test_closing_an_edited_example_offers_save_as_and_clears_the_recovery_copy(
+    app_window: PandaMainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from pandaplot.services.autosave import AutoSaveManager
+    from pandaplot.services.autosave.recovery import session_recovery_path
+    from pandaplot.utils.examples import discover_example_projects
+
+    example = Path(discover_example_projects()[0].path)
+    context = app_window.app_context
+    state = context.app_state
+
+    app_window.tab_container.command_manager.handle_example_project(str(example))
+    qtbot.waitUntil(lambda: state.has_project, timeout=10000)
+    assert context.get_command_executor().execute_command(
+        CreateEmptyDatasetCommand(context, dataset_name="Edit after opening")
+    )
+    assert state.is_modified
+    assert state.project_file_path is None
+
+    manager = context.get_manager(AutoSaveManager)
+    manager._on_timer()
+    qtbot.waitUntil(lambda: not manager._recovery_write_in_flight, timeout=10000)
+
+    assert session_recovery_path().is_file()
+    assert state.project_file_path is None
+    assert state.is_modified
+
+    saved_path = tmp_path / "closed_with_save_as.pplot"
+    prompts: list[tuple[str, str]] = []
+
+    def answer_save_as(title: str, message: str) -> str:
+        prompts.append((title, message))
+        return "save_as"
+
+    monkeypatch.setattr(context.ui_controller, "show_save_as_discard_cancel", answer_save_as)
+    monkeypatch.setattr(
+        "pandaplot.gui.controllers.ui_controller.QFileDialog.getSaveFileName",
+        lambda *args, **kwargs: (str(saved_path), "Project files"),
+    )
+
+    assert app_window.close()
+
+    assert len(prompts) == 1
+    assert saved_path.is_file()
+    assert state.project_file_path == str(saved_path)
+    assert not state.is_modified
+    assert not session_recovery_path().exists()
+    reopened = context.get_manager(ProjectManager).load_project(str(saved_path))
+    assert any(item.name == "Edit after opening" for item in reopened.get_all_items())

@@ -61,6 +61,24 @@ def test_flush_all_reports_failure_when_a_dirty_sources_save_raises():
     other.save.assert_called_once()
 
 
-def test_unregistering_a_source_that_was_never_registered_does_not_raise():
+def test_unregistering_a_source_that_was_never_registered_leaves_registered_sources_untouched():
     registry = UnsavedChangesRegistry()
-    registry.unregister(Mock())  # must not raise
+    registered = _source(unsaved=True)
+    registry.register(registered)
+
+    registry.unregister(Mock())
+
+    assert registry.flush_all() is True
+    registered.save.assert_called_once()
+
+
+def test_flush_all_logs_a_source_whose_save_raises(caplog):
+    registry = UnsavedChangesRegistry()
+    source = _source(unsaved=True)
+    source.save.side_effect = RuntimeError("disk full")
+    registry.register(source)
+
+    with caplog.at_level("ERROR"):
+        assert registry.flush_all() is False
+
+    assert "Failed to flush unsaved changes" in caplog.text

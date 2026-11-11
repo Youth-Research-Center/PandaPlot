@@ -11,7 +11,7 @@ from pandaplot.models.state import AppContext, AppState
 
 class DeleteItemCommand(Command):
     """
-    Generic command to delete a project item, retaining collection subtrees for undo.
+    Generic command to delete a project item, retaining a detached snapshot of it (and any subtree) for undo.
     This command works with any item type that extends the Item base class.
 
     Also cascades to any item that references something being deleted (directly,
@@ -187,8 +187,8 @@ class DeleteItemCommand(Command):
             # about to remove, before it actually disappears -- otherwise
             # those references silently dangle (see class docstring).
             # to_dict omits child types and in-memory dataset/image payloads, so
-            # every item also keeps a detached snapshot for undo. Undo state is
-            # only stored once the delete has actually succeeded.
+            # every item also keeps a detached deep-copy snapshot for undo. Undo
+            # state is only stored once the delete has actually succeeded.
             item_data = item.to_dict()
             item_snapshot = deepcopy(item)
             sibling_index = self._sibling_index(project, item)
@@ -220,10 +220,10 @@ class DeleteItemCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to delete item: {e!s}"
+            error_msg = "Couldn't delete item."
             self.logger.exception("DeleteItemCommand Error: %s", error_msg)
             self.ui_controller.show_error_message(
-                "Delete Item Error", error_msg)
+                "Delete Item Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     def undo(self) -> CommandResult:
@@ -242,10 +242,12 @@ class DeleteItemCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            # Restore a fresh copy of the snapshot (it carries dataset data and
-            # image bytes that to_dict omits), falling back to deserializing
+            # Restore the detached snapshot itself: redo() takes a new snapshot
+            # before deleting again, so copying it here would only duplicate
+            # large payloads (DataFrames, image bytes). Without a snapshot
+            # (command built from serialized data only) fall back to from_dict.
             restored_item = (
-                deepcopy(self._deleted_snapshot)
+                self._deleted_snapshot
                 if self._deleted_snapshot is not None
                 else self.deleted_item_class.from_dict(self.deleted_item_data)
             )
@@ -282,9 +284,9 @@ class DeleteItemCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to undo delete item: {e!s}"
+            error_msg = "Couldn't undo delete item."
             self.logger.exception("DeleteItemCommand Undo Error: %s", error_msg)
-            self.ui_controller.show_error_message("Undo Error", error_msg)
+            self.ui_controller.show_error_message("Undo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
@@ -333,7 +335,7 @@ class DeleteItemCommand(Command):
                 # ABORTED: the command stays on the redo stack instead of
                 # moving to the undo stack and replaying over a live item.
                 self.logger.exception("DeleteItemCommand: redo aborted, removal failed (id=%s)", self.item_id)
-                self.ui_controller.show_error_message("Redo Error", f"Failed to redo delete item: {remove_error!s}")
+                self.ui_controller.show_error_message("Redo Error", "Couldn't redo delete item.", error=remove_error)
                 return CommandResult.ABORTED
             self.deleted_item_data = item_data
             self._deleted_index = sibling_index
@@ -359,9 +361,9 @@ class DeleteItemCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to redo delete item: {e!s}"
+            error_msg = "Couldn't redo delete item."
             self.logger.exception("DeleteItemCommand Redo Error: %s", error_msg)
-            self.ui_controller.show_error_message("Redo Error", error_msg)
+            self.ui_controller.show_error_message("Redo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     @override

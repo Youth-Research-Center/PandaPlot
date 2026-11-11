@@ -17,6 +17,7 @@ from pandaplot.commands.background_task_command import BackgroundTaskCommand
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.services.fit.fit_service import FitResult, FitService
 from pandaplot.services.qtasks.task_scheduler import TaskScheduler
+from pandaplot.utils.error_messages import ErrorDescription, describe_error
 
 
 class PerformFitCommand(BackgroundTaskCommand):
@@ -61,6 +62,7 @@ class PerformFitCommand(BackgroundTaskCommand):
 
         self.result: FitResult | None = None
         self.error_message: str | None = None
+        self.error_description: ErrorDescription | None = None
 
     @override
     def execute(self) -> CommandResult:
@@ -101,6 +103,7 @@ class PerformFitCommand(BackgroundTaskCommand):
         if outcome["success"]:
             self.result = outcome["result"]
             self.error_message = None
+            self.error_description = None
             self._notify_complete(CommandResult.SUCCESS)
         else:
             self.logger.warning(
@@ -109,12 +112,14 @@ class PerformFitCommand(BackgroundTaskCommand):
             )
             self.result = None
             self.error_message = outcome["error"]
+            self.error_description = outcome.get("error_description")
             self._notify_complete(CommandResult.FAILURE)
 
     def _on_fit_error(self, error_info) -> None:
         _, value, _ = error_info
         self.result = None
         self.error_message = str(value)
+        self.error_description = describe_error(value) if isinstance(value, BaseException) else None
         self._notify_complete(CommandResult.FAILURE)
 
     @override

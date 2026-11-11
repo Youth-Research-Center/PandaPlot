@@ -8,7 +8,7 @@ change or accent/font change is applied.
 Responsibilities:
     * Build a global Qt stylesheet (QSS) from current configuration
     * Apply palette / font size adjustments (minimal for now)
-    * Subscribe to ``config.loaded`` & ``config.updated`` events
+    * Subscribe to ``config.updated`` events
     * Emit ``theme.changed`` after applying style
 
 Non-goals (future phases): advanced component‑specific palettes, high‑contrast
@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
@@ -40,6 +41,8 @@ class ThemeContext:
 
 
 class ThemeManager:
+    _MIN_ICON_CONTRAST = 3.0  # WCAG 1.4.11 minimum contrast for graphical objects
+
     def __init__(self, event_bus: EventBus, config_provider, qt_app: QApplication | None = None):
         """Create manager.
 
@@ -88,6 +91,27 @@ class ThemeManager:
 
         r, g, b = channel(color.red()), channel(color.green()), channel(color.blue())
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+    @classmethod
+    def _contrast_ratio(cls, first: QColor, second: QColor) -> float:
+        """WCAG 2.x contrast ratio (1:1 to 21:1) between two colors."""
+        lighter, darker = sorted((cls._relative_luminance(first), cls._relative_luminance(second)), reverse=True)
+        return (lighter + 0.05) / (darker + 0.05)
+
+    @classmethod
+    def _accent_icon_color(cls, start: QColor, background: QColor, *, lighten: bool) -> QColor:
+        """Return `start`, lightened or darkened step by step until it reaches the WCAG 1.4.11 non-text contrast
+        (3:1) against `background`; falls back to black or white when no step is enough.
+
+        Used for icons that only exist as a glyph (the active sidebar icon), where text-contrast tweaks such as
+        `accent_active_text` can end up below 3:1 on the selected background (1.65:1 for the default accent in the
+        dark theme) because the accent is user-configurable while the selected background is fixed.
+        """
+        for factor in range(100, 405, 5):
+            candidate = start.lighter(factor) if lighten else start.darker(factor)
+            if cls._contrast_ratio(candidate, background) >= cls._MIN_ICON_CONTRAST:
+                return candidate
+        return cls._contrasting_text_color(background)
 
     @classmethod
     def _contrasting_text_color(cls, accent: QColor) -> QColor:
@@ -387,11 +411,11 @@ class ThemeManager:
             }}
             QPushButton[destructive="true"]:hover {{
                 background-color: {danger};
-                color: #FFFFFF;
+                color: {tokens['text_on_danger']};
             }}
             QPushButton[destructive="true"]:pressed {{
                 background-color: {danger_pressed};
-                color: #FFFFFF;
+                color: {tokens['text_on_danger']};
             }}
             QPushButton[destructive="true"]:disabled {{
                 border-color: {tokens['border_subtle']};
@@ -408,7 +432,7 @@ class ThemeManager:
             }}
             QPushButton[iconButton="true"][destructive="true"]:hover {{
                 background-color: {danger};
-                color: #FFFFFF;
+                color: {tokens['text_on_danger']};
             }}
         """
 
@@ -448,6 +472,9 @@ class ThemeManager:
         else:
             bg = QColor(255, 255, 255)
             fg = QColor(0, 0, 0)
+        # Controls the platform style draws itself (e.g. QWizard buttons on the Windows 11 style) follow Qt's colour scheme, which
+        # defaults to the operating system's. Without this, a light app theme on a dark OS drew white text on white buttons.
+        self._app.styleHints().setColorScheme(Qt.ColorScheme.Dark if ctx.theme == Theme.DARK else Qt.ColorScheme.Light)
         accent = QColor(ctx.accent)
         if not accent.isValid():
             accent = QColor(74, 86, 198)
@@ -513,6 +540,14 @@ class ThemeManager:
         c = QColor(accent)
         accent_active_text = c.darker(115).name() if c.isValid() else accent
         accent_disabled = c.lighter(140).name() if c.isValid() else "#AAB1E3"
+        accent_selected_bg = "#2E3350" if is_dark else "#EEF0FB"
+        # Foreground drawn on an accent background (the primary button's text colour, selected menu rows)
+        text_on_accent = self._contrasting_text_color(c).name() if c.isValid() else "#FFFFFF"
+        if c.isValid():
+            icon_start = c if is_dark else QColor(accent_active_text)
+            accent_icon_active = self._accent_icon_color(icon_start, QColor(accent_selected_bg), lighten=is_dark).name()
+        else:
+            accent_icon_active = accent_active_text
 
         if is_dark:
             return {
@@ -522,8 +557,9 @@ class ThemeManager:
                 "border_subtle": "#33363A",
                 "surface_white": "#2A2C2E", "surface_chrome": "#232527",
                 "surface_inset": "#26282B",
-                "accent": accent, "accent_active_text": accent_active_text,
-                "accent_selected_bg": "#2E3350", "accent_disabled": accent_disabled,
+                "accent": accent, "accent_active_text": accent_active_text, "accent_icon_active": accent_icon_active, "text_on_accent": text_on_accent,
+                "text_on_danger": "#FFFFFF",
+                "accent_selected_bg": accent_selected_bg, "accent_disabled": accent_disabled,
                 "status_modified_dot": "#E09A1F", "status_modified_text": "#E0A94A",
                 "status_success": "#3FA46A", "status_danger": "#C24141",
                 "y2_accent": "#B27FD1", "y2_accent_bg": "#3A2E45",
@@ -538,8 +574,9 @@ class ThemeManager:
             "border_subtle": "#ECEEF2",
             "surface_white": "#FFFFFF", "surface_chrome": "#FBFBFC",
             "surface_inset": "#F4F5F8",
-            "accent": accent, "accent_active_text": accent_active_text,
-            "accent_selected_bg": "#EEF0FB", "accent_disabled": accent_disabled,
+            "accent": accent, "accent_active_text": accent_active_text, "accent_icon_active": accent_icon_active, "text_on_accent": text_on_accent,
+            "text_on_danger": "#FFFFFF",
+            "accent_selected_bg": accent_selected_bg, "accent_disabled": accent_disabled,
             "status_modified_dot": "#E09A1F", "status_modified_text": "#B06A00",
             "status_success": "#3FA46A", "status_danger": "#DC3545",
             "y2_accent": "#8A4BB8", "y2_accent_bg": "#F5EEFB",

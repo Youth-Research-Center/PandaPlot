@@ -29,8 +29,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from pandaplot.utils.errors import UserFacingError
 
-class UnsafeExpressionError(ValueError):
+
+class UnsafeExpressionError(UserFacingError):
     """Raised for an expression that uses syntax or names outside the supported dialect."""
 
 
@@ -140,6 +142,15 @@ class _ModuleProxy:
         return [name for name in dir(self._module) if not _is_blocked_attribute(name)]
 
 
+def allowed_expression_names() -> tuple[str, ...]:
+    """Return the sorted names an expression may reference.
+
+    Returns:
+        The keys of :func:`build_safe_globals`, sorted alphabetically.
+    """
+    return tuple(sorted(build_safe_globals()))
+
+
 def build_safe_globals() -> dict[str, Any]:
     """Build the globals dict used to eval() a transform expression.
 
@@ -193,16 +204,16 @@ def validate_expression(expression: str) -> tuple[bool, str]:
 
     for pattern in _DANGEROUS_PATTERNS:
         if re.search(pattern, expression, re.IGNORECASE):
-            return False, f"Potentially unsafe operation detected: {pattern}"
+            return False, "This formula uses an operation that is not allowed, such as importing modules or accessing files."
 
     try:
         compile_expression(expression)
-    except SyntaxError as e:
-        return False, f"Syntax error: {e}"
+    except SyntaxError:
+        return False, "The formula has a typo, for example a missing bracket, quote or operator."
     except UnsafeExpressionError as e:
         return False, str(e)
-    except Exception as e:  # noqa: BLE001 -- Validating an untrusted, user-authored expression -- arbitrary/unknown exceptions are expected here
-        return False, f"Code validation error: {e}"
+    except Exception:  # noqa: BLE001 -- Validating an untrusted, user-authored expression -- arbitrary/unknown exceptions are expected here
+        return False, "The formula could not be checked. Review it for mistakes."
 
     return True, ""
 
@@ -212,10 +223,18 @@ def _is_private(name: str) -> bool:
     return name.startswith("_") and name != "_"
 
 
+# Plain names for the Python constructs users most often type that expressions do not allow.
+_NODE_LABELS: dict[type[ast.AST], str] = {
+    ast.NamedExpr: "assignments with :=", ast.GeneratorExp: "generator expressions",
+    ast.Await: "await", ast.Yield: "yield", ast.YieldFrom: "yield", ast.Starred: "* unpacking",
+}
+
+
 def _check_node(node: ast.AST) -> None:
     """Raise UnsafeExpressionError if ``node`` is outside the allowed dialect."""
     if not isinstance(node, _ALLOWED_NODES):
-        raise UnsafeExpressionError(f"{type(node).__name__} is not allowed in an expression")
+        label = _NODE_LABELS.get(type(node), "this kind of expression")
+        raise UnsafeExpressionError(f"Formulas cannot use {label}.")
 
     if isinstance(node, ast.Name) and _is_private(node.id):
         raise UnsafeExpressionError(f"The name '{node.id}' is not allowed in an expression")

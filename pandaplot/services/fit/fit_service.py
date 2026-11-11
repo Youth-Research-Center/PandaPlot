@@ -4,8 +4,19 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from pandaplot.utils.errors import UserFacingError
+
 MIN_FIT_POINTS = 2
+# Name of the user-defined fit model.
+CUSTOM_FUNCTION_FIT = "Custom Function"
 _MAX_EXP_ARGUMENT = 700
+
+# NumPy functions a custom fit expression may call by bare name (``arctan(x)``
+# rather than ``np.arctan(x)``); ``np.`` is an implementation detail users need not know.
+CUSTOM_FUNCTION_NAMES: tuple[str, ...] = (
+    "sin", "cos", "tan", "arcsin", "arccos", "arctan", "arctan2",
+    "sinh", "cosh", "tanh", "sqrt", "exp", "log", "log10", "log2", "abs",
+)
 
 
 def _polynomial(x: np.ndarray, *coefficients: float) -> np.ndarray:
@@ -299,7 +310,7 @@ FIT_CATEGORIES: dict[str, tuple[str, ...]] = {}
 for _fit_name, _fit_definition in FIT_DEFINITIONS.items():
     _category = _fit_definition["category"]
     FIT_CATEGORIES[_category] = (*FIT_CATEGORIES.get(_category, ()), _fit_name)
-FIT_CATEGORIES["Custom"] = ("Custom Function",)
+FIT_CATEGORIES["Custom"] = (CUSTOM_FUNCTION_FIT,)
 
 
 @dataclass
@@ -330,8 +341,27 @@ class FitService:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.fixed_params = {}
 
+    @staticmethod
+    def _as_finite_float_arrays(x_data: np.ndarray, y_data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Return the fit inputs as float arrays, checked before any initial guess is computed.
+
+        Column ``.values`` can be object arrays of numbers, which curve_fit converts; do the same
+        here so the finiteness check sees numbers, not objects.
+
+        Raises:
+            UserFacingError: When a value is not a number, or is empty (NaN) or infinite.
+        """
+        try:
+            x = np.asarray(x_data, dtype=float)
+            y = np.asarray(y_data, dtype=float)
+        except (TypeError, ValueError) as e:
+            raise UserFacingError("The selected columns must contain numbers to fit.") from e
+        if not (np.all(np.isfinite(x)) and np.all(np.isfinite(y))):
+            raise UserFacingError("The selected data contains empty or infinite values that the fit cannot use.")
+        return x, y
+
     def _get_fit_name(self, fit_type: str) -> str:
-        if fit_type in FIT_DEFINITIONS or fit_type == "Custom Function":
+        if fit_type in FIT_DEFINITIONS or fit_type == CUSTOM_FUNCTION_FIT:
             return fit_type
         return fit_type.split(" (")[0]
 
@@ -343,7 +373,7 @@ class FitService:
             fixed_parameters: str | None = None,
     ):
         fit_name = self._get_fit_name(fit_type)
-        if fit_name == "Custom Function":
+        if fit_name == CUSTOM_FUNCTION_FIT:
             return self._create_custom_function(
                 custom_function,
                 custom_parameters,
@@ -369,19 +399,7 @@ class FitService:
         initial_str = (initial_str or "").strip()
 
         if not function_str or not params_str:
-            raise ValueError("Custom function and parameters must be specified")
-
-        function_names = ["sin", "cos", "tan", "sqrt", "exp", "log", "arcsin", "arccos"]
-
-        for func in function_names:
-            function_str = function_str.replace(
-                f"{func}(",
-                f"np.{func}("
-            )
-            function_str = function_str.replace(
-                f"np.np.{func}(",
-                f"np.{func}("
-            )
+            raise UserFacingError("Enter a custom function and its parameter names.")
 
         params = [p.strip() for p in params_str.split(",")]
 
@@ -398,7 +416,8 @@ class FitService:
         ]
 
         def custom_func(x, *free_args):
-            local_vars = {"x": x, "np": np}
+            local_vars = {name: getattr(np, name) for name in CUSTOM_FUNCTION_NAMES}
+            local_vars.update({"x": x, "np": np})
 
             for key, value in fixed_params.items():
                 local_vars[key] = value
@@ -434,7 +453,8 @@ class FitService:
         from scipy.optimize import curve_fit
 
         if len(x_data) < MIN_FIT_POINTS:
-            raise ValueError(f"At least {MIN_FIT_POINTS} data points are required for fitting.")
+            raise UserFacingError(f"At least {MIN_FIT_POINTS} data points are required for fitting.")
+        x_data, y_data = self._as_finite_float_arrays(x_data, y_data)
 
         try:
             fit_func, param_names = self._get_fit_func(
@@ -457,7 +477,7 @@ class FitService:
                 for name, value in fixed_params.items():
                     lower, upper = fit_definition.get("bounds", {}).get(name, (-np.inf, np.inf))
                     if not lower <= value <= upper:
-                        raise ValueError(f"Fixed parameter {name}={value:g} must be within [{lower:g}, {upper:g}] for a {fit_type} fit.")
+                        raise UserFacingError(f"Fixed parameter {name}={value:g} must be within [{lower:g}, {upper:g}] for a {fit_type} fit.")
             if fit_definition is not None and fixed_params:
                 original_fit_func = fit_func
 
@@ -466,9 +486,9 @@ class FitService:
                     parameter_values.update(fixed_params)
                     return original_fit_func(x, *(parameter_values[name] for name in param_names))
             if not free_param_names:
-                raise ValueError("At least one fit parameter must remain free.")
+                raise UserFacingError("At least one fit parameter must remain free.")
             if len(x_data) < max(MIN_FIT_POINTS, len(free_param_names)):
-                raise ValueError(
+                raise UserFacingError(
                     f"At least {len(free_param_names)} data points are required for a {fit_type} fit."
                 )
 
@@ -504,12 +524,19 @@ class FitService:
                 fit_options["sigma"] = sigma_y
                 fit_options["absolute_sigma"] = True
 
-            popt, pcov = curve_fit(
-                fit_func,
-                x_data,
-                y_data,
-                **fit_options,
-            )
+            try:
+                popt, pcov = curve_fit(
+                    fit_func,
+                    x_data,
+                    y_data,
+                    **fit_options,
+                )
+            except RuntimeError as e:
+                # scipy reports non-convergence as a RuntimeError with this message; anything
+                # else is unexpected and keeps its own type for the error dialog's details.
+                if not str(e).startswith("Optimal parameters not found"):
+                    raise
+                raise UserFacingError("The fit did not converge for this data. Try another model or a narrower X range.") from e
 
             perr = np.sqrt(np.diag(pcov))
 
@@ -593,7 +620,7 @@ class FitService:
     def format_equation(self, fit_type: str, params: dict, custom_function: str | None = None) -> str:
 
         fit_name = self._get_fit_name(fit_type)
-        if fit_name == "Custom Function":
+        if fit_name == CUSTOM_FUNCTION_FIT:
             equation = (custom_function or "").strip()
         else:
             fit = FIT_DEFINITIONS.get(fit_name)

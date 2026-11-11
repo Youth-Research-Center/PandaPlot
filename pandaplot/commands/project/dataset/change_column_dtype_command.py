@@ -1,3 +1,4 @@
+from collections.abc import Hashable
 from typing import Any, override
 
 import numpy as np
@@ -112,28 +113,32 @@ class ChangeColumnDtypeCommand(Command):
                 return CommandResult.FAILURE
 
             # Get column information
-            self.column_name = self.dataset.data.columns[self.column_index]
-            self.original_data = self.dataset.data[self.column_name].copy()
-            self.original_dtype = str(self.dataset.data[self.column_name].dtype)
-            
+            column_name = self.dataset.data.columns[self.column_index]
+            original_dtype = str(self.dataset.data[column_name].dtype)
+
             # Check if conversion is needed
-            if self.original_dtype == self.target_dtype:
+            if original_dtype == self.target_dtype:
                 self.ui_controller.show_info_message(
                     "Change Column Type", 
-                    f"Column '{self.column_name}' is already of type {self.target_dtype}."
+                    f"Column '{column_name}' is already of type {self.target_dtype}."
                 )
                 return CommandResult.NOOP
 
             # Perform the conversion
-            conversion_result = self._convert_column_dtype()
+            conversion_result = self._convert_column_dtype(column_name)
 
             if not conversion_result:
                 self.logger.warning(
                     "ChangeColumnDtypeCommand.execute: conversion to '%s' failed for column '%s' in dataset '%s'",
-                    self.target_dtype, self.column_name, self.dataset_id,
+                    self.target_dtype, column_name, self.dataset_id,
                 )
                 return CommandResult.FAILURE
-                
+
+            # Record undo state only now that the conversion has succeeded
+            self.column_name = column_name
+            self.original_data = self.dataset.data[column_name].copy()
+            self.original_dtype = original_dtype
+
             # Apply the converted data
             self.dataset.data[self.column_name] = conversion_result["converted_data"]
             self.dataset.set_data(self.dataset.data)
@@ -167,21 +172,25 @@ class ChangeColumnDtypeCommand(Command):
             return CommandResult.SUCCESS
             
         except Exception as e:
-            error_msg = f"Failed to change column type for column {self.column_index}: {e!s}"
-            self.logger.exception(error_msg)
-            self.ui_controller.show_error_message("Change Column Type Error", error_msg)
+            self.logger.exception("Failed to change column type for column %s", self.column_index)
+            self.ui_controller.show_error_message("Change Column Type Error", "Couldn't change the column type.", error=e)
             return CommandResult.FAILURE
 
-    def _convert_column_dtype(self) -> dict[str, Any] | None:
+    def _convert_column_dtype(self, column_name: Hashable) -> dict[str, Any] | None:
         """
-        Convert column data to target dtype with error handling.
-        Returns dict with converted_data and conversion stats, or None if failed.
+        Convert a column's data to the target dtype with error handling.
+
+        Args:
+            column_name: Label of the column to convert.
+
+        Returns:
+            Dict with converted_data and conversion stats, or None if failed.
         """
         try:
-            if self.dataset is None or self.dataset.data is None or self.column_name is None:
+            if self.dataset is None or self.dataset.data is None:
                 return None
                 
-            original_series = self.dataset.data[self.column_name]
+            original_series = self.dataset.data[column_name]
             errors_count = 0
             converted_data = None
             
@@ -243,14 +252,16 @@ class ChangeColumnDtypeCommand(Command):
                 "target_dtype": self.target_dtype
             }
             
-        except Exception:
+        except Exception as e:
             self.logger.exception("Error converting column data")
+            self.ui_controller.show_error_message("Change Column Type Error", "Couldn't change the column type.", error=e)
             return None
 
     def undo(self) -> CommandResult:
         """Restore the original column data and dtype."""
-        if (self.original_data is not None and self.dataset and
-            self.dataset.data is not None and self.column_name):
+        # column_name is itself a valid label when None, so it cannot serve as
+        # the "unset" marker; original_data is only recorded by a successful execute().
+        if self.original_data is not None and self.dataset and self.dataset.data is not None:
 
             self.dataset.data[self.column_name] = self.original_data
             self.dataset.set_data(self.dataset.data)
@@ -267,18 +278,17 @@ class ChangeColumnDtypeCommand(Command):
             return CommandResult.SUCCESS
 
         self.logger.warning(
-            "ChangeColumnDtypeCommand.undo: cannot undo for dataset '%s' (original_data set=%s, dataset found=%s, column_name set=%s)",
-            self.dataset_id, self.original_data is not None, self.dataset is not None, bool(self.column_name),
+            "ChangeColumnDtypeCommand.undo: cannot undo for dataset '%s' (original_data set=%s, dataset found=%s)",
+            self.dataset_id, self.original_data is not None, self.dataset is not None,
         )
         return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
         """Reapply the column dtype change."""
-        if (self.conversion_report and self.dataset and
-            self.dataset.data is not None and self.column_name):
+        if self.conversion_report and self.dataset and self.dataset.data is not None:
 
             # Re-execute the conversion
-            conversion_result = self._convert_column_dtype()
+            conversion_result = self._convert_column_dtype(self.column_name)
             if conversion_result:
                 self.dataset.data[self.column_name] = conversion_result["converted_data"]
                 self.dataset.set_data(self.dataset.data)
@@ -300,8 +310,8 @@ class ChangeColumnDtypeCommand(Command):
             return CommandResult.FAILURE
 
         self.logger.warning(
-            "ChangeColumnDtypeCommand.redo: cannot redo for dataset '%s' (conversion_report set=%s, dataset found=%s, column_name set=%s)",
-            self.dataset_id, bool(self.conversion_report), self.dataset is not None, bool(self.column_name),
+            "ChangeColumnDtypeCommand.redo: cannot redo for dataset '%s' (conversion_report set=%s, dataset found=%s)",
+            self.dataset_id, bool(self.conversion_report), self.dataset is not None,
         )
         return CommandResult.FAILURE
 

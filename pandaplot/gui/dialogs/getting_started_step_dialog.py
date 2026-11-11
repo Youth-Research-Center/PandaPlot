@@ -7,17 +7,19 @@ from typing import override
 
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout
 
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.core.widget_extension import PDialog
+from pandaplot.gui.resources.themed_icons import IconRole
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class GettingStartedStepDialog(PDialog):
     """Shows a step's icon, an intro paragraph, and a bulleted list of tips."""
 
-    def __init__(self, app_context, icon: str, title: str, intro: str,
+    def __init__(self, app_context, icon_name: str, title: str, intro: str,
                  tips: Sequence[str], parent=None):
         super().__init__(app_context=app_context, parent=parent)
-        self._icon = icon
+        self._icon_name = icon_name
         self._title = title
         self._intro = intro
         self._tips = tips
@@ -36,10 +38,7 @@ class GettingStartedStepDialog(PDialog):
         header_layout = QHBoxLayout()
         header_layout.setSpacing(10)
 
-        self.icon_label = QLabel(self._icon)
-        icon_font = self.icon_label.font()
-        icon_font.setPointSize(22)
-        self.icon_label.setFont(icon_font)
+        self.icon_label = IconLabel(self.app_context, self._icon_name, size=28, role=IconRole.ACTIVE)
         header_layout.addWidget(self.icon_label)
 
         self.title_label = QLabel(self._title)

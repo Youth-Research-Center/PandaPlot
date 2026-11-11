@@ -13,6 +13,7 @@ import pandas as pd
 from pandaplot.models.project.items.column_role import ColumnRole
 from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.models.project.items.item import Item
+from pandaplot.utils.errors import UserFacingError
 
 
 class Dataset(Item):
@@ -249,7 +250,7 @@ class Dataset(Item):
                 raise ValueError(f"Column id '{column_id}' is not assigned the measured role.")
             normalized_group = group.strip()
             if not normalized_group:
-                raise ValueError(f"Measured column '{self.column_name(column_id)}' needs a variable name.")
+                raise UserFacingError(f"Measured column '{self.column_name(column_id)}' needs a variable name.")
             restored[column_id] = normalized_group
         if restored == self.column_measurement_groups:
             return
@@ -299,8 +300,9 @@ class Dataset(Item):
 
         # Set inherited attributes
         dataset.parent_id = data.get("parent_id")
-        dataset.created_at = data.get("created_at", datetime.now().isoformat())  # noqa: DTZ005 -- local-time display bookkeeping, never compared across timezones
-        dataset.modified_at = data.get("modified_at", dataset.created_at)
+        dataset.created_at = data.get("created_at") or datetime.now().isoformat()  # noqa: DTZ005 -- local-time display bookkeeping, never compared across timezones
+        dataset.modified_at = data.get("modified_at") or dataset.created_at
+        dataset.metadata = data.get("metadata", {})
 
         # Restore the saved column-id registry. The DataFrame is loaded
         # separately; when set_data runs, _sync_column_ids keeps these ids for

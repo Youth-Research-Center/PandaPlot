@@ -1,11 +1,14 @@
 from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
-from pandaplot.commands.project.project.unsaved_changes import flush_pending_edits
+from pandaplot.commands.project.project.unsaved_changes import (
+    confirm_discard_unsaved_changes,
+    flush_pending_edits,
+    remember_session_project,
+)
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project import Project
 from pandaplot.models.state import AppContext, AppState
-from pandaplot.services.session import SessionPersistenceManager
 
 
 class NewProjectCommand(Command):
@@ -57,10 +60,11 @@ class NewProjectCommand(Command):
             # Only prompt if closing the current project would actually
             # discard something -- an unmodified project has nothing to lose.
             if self.app_state.has_project and self.app_state.is_modified:
-                response = self.ui_controller.show_question(
-                    "Create New Project",
-                    "The current project has unsaved changes.\n"
-                    "Creating a new project will discard them.\n\nDo you want to continue?"
+                response = confirm_discard_unsaved_changes(
+                    self.app_context,
+                    title="Create New Project",
+                    discard_message="The current project has unsaved changes.\n"
+                    "Creating a new project will discard them.\n\nDo you want to continue?",
                 )
                 if not response:
                     return CommandResult.FAILURE  # User cancelled
@@ -85,21 +89,15 @@ class NewProjectCommand(Command):
 
             # A brand new project has no file yet; don't restore the previous
             # project's path next launch until this one is saved.
-            try:
-                session_manager = self.app_context.get_manager(SessionPersistenceManager)
-                session_manager.update_project(None)
-            except Exception as e:  # noqa: BLE001
-                self.logger.warning("Failed to clear last_project_path: %s", e)
+            remember_session_project(self.app_context, None)
 
             self.logger.info(
                 "Created new project '%s'", new_project.name
             )
             return CommandResult.SUCCESS
         except Exception as e:
-            error_msg = f"Failed to create new project: {e}"
-            self.logger.exception("NewProjectCommand Error: %s", error_msg)
-            self.ui_controller.show_error_message(
-                "New Project Error", error_msg)
+            self.logger.exception("Failed to create new project")
+            self.ui_controller.show_error_message("New Project Error", "Couldn't create the project.", error=e)
             raise
 
     def undo(self) -> CommandResult:
@@ -147,9 +145,8 @@ class NewProjectCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to undo new project: {e}"
-            self.logger.exception("NewProjectCommand Undo Error: %s", error_msg)
-            self.ui_controller.show_error_message("Undo Error", error_msg)
+            self.logger.exception("Failed to undo new project")
+            self.ui_controller.show_error_message("Undo Error", "Couldn't undo creating the project.", error=e)
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
@@ -194,20 +191,15 @@ class NewProjectCommand(Command):
             # A brand new project has no file yet; don't restore the previous
             # project's path next launch until this one is saved (mirrors
             # execute()).
-            try:
-                session_manager = self.app_context.get_manager(SessionPersistenceManager)
-                session_manager.update_project(None)
-            except Exception as e:  # noqa: BLE001
-                self.logger.warning("Failed to clear last_project_path: %s", e)
+            remember_session_project(self.app_context, None)
 
             self.logger.info(
                 "Redid new project '%s'", self.created_project.name
             )
             return CommandResult.SUCCESS
         except Exception as e:
-            error_msg = f"Failed to redo new project: {e}"
-            self.logger.exception("NewProjectCommand Redo Error: %s", error_msg)
-            self.ui_controller.show_error_message("Redo Error", error_msg)
+            self.logger.exception("Failed to redo new project")
+            self.ui_controller.show_error_message("Redo Error", "Couldn't redo creating the project.", error=e)
             return CommandResult.FAILURE
 
     @override

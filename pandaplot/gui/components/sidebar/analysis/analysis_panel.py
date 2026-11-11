@@ -23,10 +23,12 @@ from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import AnalysisEvents, DatasetEvents, DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.help.help_types import PANEL_TOPIC_ANALYSIS
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -34,6 +36,8 @@ class AnalysisPanel(SidebarPanel):
     """
     Side panel for mathematical analysis operations on dataset columns.
     """
+
+    ICON_NAME = "chart-bar"
 
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
@@ -51,7 +55,7 @@ class AnalysisPanel(SidebarPanel):
         self._init_panel_layout()
 
         # Panel title
-        self._set_title("📊 Analysis Operations")
+        self._set_title("Analysis Operations", help_topic=PANEL_TOPIC_ANALYSIS)
 
         # Content widget
         content_widget = QWidget()
@@ -126,6 +130,7 @@ class AnalysisPanel(SidebarPanel):
 
         self.apply_info_label_theme(self.start_value_label)
         self.apply_info_label_theme(self.end_value_label)
+        self.status_message.retint()
 
     def apply_info_label_theme(self, label):
         """Apply theme styling to info labels."""
@@ -272,7 +277,10 @@ class AnalysisPanel(SidebarPanel):
         self.preview_text.setReadOnly(True)
         self.preview_text.setPlaceholderText("Preview results will appear here...")
         
+        self.status_message = StatusMessage(self.app_context)
+
         group_layout.addWidget(self.preview_btn)
+        group_layout.addWidget(self.status_message)
         group_layout.addWidget(self.preview_text)
         
         group.setLayout(group_layout)
@@ -442,6 +450,7 @@ class AnalysisPanel(SidebarPanel):
     
     def preview_analysis(self):
         """Preview the analysis operation."""
+        self.status_message.clear()
         try:
             if not self.validate_inputs():
                 return
@@ -472,13 +481,18 @@ class AnalysisPanel(SidebarPanel):
                 for key, value in result.statistics.items():
                     preview_text += f"  {key.replace('_', ' ').title()}: {value:.6f}\n"
                 
-                self.preview_text.setText(preview_text)
+                self.preview_text.setPlainText(preview_text)
             else:
-                self.preview_text.setText("Preview failed. Please check your parameters.")
+                self._show_status(StatusKind.ERROR, "Preview failed. Please check your parameters.")
                 
         except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self.preview_text.setText(f"Preview error: {e!s}")
+            self._show_status(StatusKind.ERROR, f"Preview error: {e!s}")
     
+    @override
+    def _status_output(self) -> QTextEdit:
+        """The text area a status message replaces."""
+        return self.preview_text
+
     def execute_analysis_preview(self, x_data, y_data, config):
         """Execute analysis for preview purposes."""
         analysis_type = config["analysis_type"]
@@ -521,7 +535,7 @@ class AnalysisPanel(SidebarPanel):
             config = self.get_analysis_config()
 
             if not self.current_dataset_id:
-                self.preview_text.setText("❌ Failed to apply analysis. Please check your inputs.")
+                self._show_status(StatusKind.ERROR, "Failed to apply analysis. Please check your inputs.")
                 return
 
             dataset_id = self.current_dataset_id
@@ -542,14 +556,15 @@ class AnalysisPanel(SidebarPanel):
                             "analysis_type": config["analysis_type"],
                             "analysis_config": config
                         })
-                        self.preview_text.setText(
-                            f"✅ Analysis applied successfully!\nColumn '{config['new_column_name']}' added to dataset."
+                        self._show_status(
+                            StatusKind.SUCCESS,
+                            f"Analysis applied successfully!\nColumn '{config['new_column_name']}' added to dataset.",
                         )
                     else:
                         self.logger.error("Command execution failed for dataset %s", dataset_id)
-                        self.preview_text.setText("❌ Command execution failed. Please check your inputs.")
+                        self._show_status(StatusKind.ERROR, "Command execution failed. Please check your inputs.")
                 except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-                    self.preview_text.setText(f"❌ Error applying analysis: {e!s}")
+                    self._show_status(StatusKind.ERROR, f"Error applying analysis: {e!s}")
 
             command = AnalysisCommand(self.app_context, dataset_id, config, on_complete=_on_complete)
             # Keep a strong reference so the command (and its on_complete
@@ -566,30 +581,30 @@ class AnalysisPanel(SidebarPanel):
                 self.busy_spinner.stop()
                 self.apply_btn.setEnabled(True)
                 self._pending_analysis_command = None
-                self.preview_text.setText("❌ Command execution failed. Please check your inputs.")
+                self._show_status(StatusKind.ERROR, "Command execution failed. Please check your inputs.")
 
         except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.busy_spinner.stop()
             self.apply_btn.setEnabled(True)
             self._pending_analysis_command = None
-            self.preview_text.setText(f"❌ Error applying analysis: {e!s}")
+            self._show_status(StatusKind.ERROR, f"Error applying analysis: {e!s}")
     
     def validate_inputs(self) -> bool:
         """Validate all inputs."""
         if self.current_dataset is None:
-            self.preview_text.setText("❌ No dataset selected.")
+            self._show_status(StatusKind.ERROR, "No dataset selected.")
             return False
 
         if self.current_dataset.data is None:
-            self.preview_text.setText("❌ Dataset data is not available.")
+            self._show_status(StatusKind.ERROR, "Dataset data is not available.")
             return False
         
         if not self.x_column_combo.currentText() or not self.y_column_combo.currentText():
-            self.preview_text.setText("❌ Please select both X and Y columns.")
+            self._show_status(StatusKind.ERROR, "Please select both X and Y columns.")
             return False
         
         if not self.result_column_name.text().strip():
-            self.preview_text.setText("❌ Please enter a result column name.")
+            self._show_status(StatusKind.ERROR, "Please enter a result column name.")
             return False
         
         return True
@@ -664,6 +679,7 @@ class AnalysisPanel(SidebarPanel):
         self.start_index.setValue(self.start_index.minimum())
         self.end_index.setValue(self.end_index.maximum())
         self.preview_text.clear()
+        self.status_message.clear()
         
         # Reset to defaults
         self.analysis_type_combo.setCurrentIndex(0)

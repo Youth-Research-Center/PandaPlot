@@ -488,61 +488,21 @@ class TestEventBus:
         callback1.assert_not_called()
         callback2.assert_called_once_with(expected_data)
 
-    def test_defaultdict_behavior(self):
-        """Test that _subscribers uses defaultdict correctly."""
+    def test_emit_does_not_mutate_the_original_data(self):
+        """The subscriber gets an enriched copy; the caller's dict is left alone."""
         event_bus = EventBus()
+        callback = Mock()
 
-        # Accessing non-existent key should create empty list
-        subscribers = event_bus._subscribers["nonexistent_event"]
-        assert isinstance(subscribers, list)
-        assert len(subscribers) == 0
+        original_data = {"key": "value"}
+        event_bus.subscribe("test_event", callback)
+        event_bus.emit("test_event", original_data)
 
-        # Should now exist in the dict
-        assert "nonexistent_event" in event_bus._subscribers
+        assert original_data == {"key": "value"}
 
-    def test_stress_test_many_callbacks(self):
-        """Test with many callbacks subscribed to the same event."""
-        event_bus = EventBus()
-        callbacks = []
-
-        # Create 100 mock callbacks
-        for _i in range(100):
-            callback = Mock()
-            callbacks.append(callback)
-            event_bus.subscribe("stress_test", callback)
-
-        test_data = {"data": "test_data"}
-        event_bus.emit("stress_test", test_data)
-
-        # All callbacks should have been called with metadata added
-        expected_data = {"data": "test_data",
-                         "event_type": "stress_test", "original_event": "stress_test"}
-        for callback in callbacks:
-            callback.assert_called_once_with(expected_data)
-
-    def test_stress_test_many_events(self):
-        """Test with many different events."""
-        event_bus = EventBus()
-        callbacks = {}
-
-        # Create 100 different events with callbacks
-        for i in range(100):
-            event_name = f"event_{i}"
-            callback = Mock()
-            callbacks[event_name] = callback
-            event_bus.subscribe(event_name, callback)
-
-        # Emit all events
-        for i in range(100):
-            event_name = f"event_{i}"
-            event_bus.emit(event_name, {"data": f"data_{i}"})
-
-        # Verify all callbacks were called with correct data
-        for i in range(100):
-            event_name = f"event_{i}"
-            expected_data = {"data": f"data_{i}",
-                             "event_type": event_name, "original_event": event_name}
-            callbacks[event_name].assert_called_once_with(expected_data)
+        call_args = callback.call_args[0][0]
+        assert call_args["key"] == "value"
+        assert call_args["event_type"] == "test_event"
+        assert call_args["original_event"] == "test_event"
 
     def test_event_names_are_strings(self):
         """Test various event name formats."""
@@ -719,3 +679,98 @@ class TestEventBus:
         assert "LOG: INFO - User logged out" in log_entries
 
         assert metrics["events_processed"] == 3
+
+
+class TestEventBusHierarchy:
+    """Events fan out to their parents in EventHierarchy.HIERARCHY_MAP."""
+
+    def test_specific_event_also_reaches_generic_and_pattern_subscribers(self):
+        event_bus = EventBus()
+        specific_callback = Mock()
+        generic_callback = Mock()
+        pattern_callback = Mock()
+        event_bus.subscribe("dataset.column_added", specific_callback)
+        event_bus.subscribe("dataset.changed", generic_callback)
+        event_bus.subscribe("dataset.*", pattern_callback)
+
+        event_bus.emit("dataset.column_added", {"column_name": "new_col"})
+
+        specific_callback.assert_called_once_with(
+            {"column_name": "new_col", "event_type": "dataset.column_added", "original_event": "dataset.column_added"}
+        )
+        generic_callback.assert_called_once_with(
+            {"column_name": "new_col", "event_type": "dataset.changed", "original_event": "dataset.column_added"}
+        )
+        assert pattern_callback.call_count >= 2
+
+    def test_pattern_subscriber_sees_the_escalated_generic_event(self):
+        event_bus = EventBus()
+        callback = Mock()
+        event_bus.subscribe("dataset.*", callback)
+
+        event_bus.emit("dataset.data_changed", {"dataset_id": "123"})
+
+        # dataset.data_changed escalates to dataset.changed, so the pattern
+        # subscriber sees both calls, most recent last.
+        callback.assert_called_with({"dataset_id": "123", "event_type": "dataset.changed", "original_event": "dataset.data_changed"})
+
+    def test_dataset_deleted_bubbles_to_project_changed(self):
+        """Regression: undoing a command that created a dataset must refresh the project tree.
+
+        ProjectViewPanel only listens for ProjectEvents.PROJECT_CHANGED, and dataset.deleted was
+        missing from EventHierarchy.HIERARCHY_MAP, so the tree never refreshed.
+        """
+        event_bus = EventBus()
+        project_changed_callback = Mock()
+        event_bus.subscribe("project.changed", project_changed_callback)
+
+        event_bus.emit("dataset.deleted", {"dataset_id": "ds-1"})
+
+        project_changed_callback.assert_called_once()
+
+    def test_dataset_deleted_does_not_bubble_to_project_item_removed(self):
+        """dataset.deleted carries "dataset_id", not the "item_id" that PROJECT_ITEM_REMOVED subscribers read."""
+        event_bus = EventBus()
+        item_removed_callback = Mock()
+        event_bus.subscribe("project.item_removed", item_removed_callback)
+
+        event_bus.emit("dataset.deleted", {"dataset_id": "ds-1"})
+
+        item_removed_callback.assert_not_called()
+
+    def test_analysis_completed_does_not_bubble_to_dataset_column_added(self):
+        """Regression (#322): the analysis.completed payload is not shaped like DatasetColumnsAddedData.
+
+        PandasTableModel.on_add_column_event crashed building that dataclass from it whenever
+        analysis.completed bubbled up to dataset.column_added. ApplyAnalysisResultCommand already
+        announces the real column add with the correct shape.
+        """
+        event_bus = EventBus()
+        column_added_callback = Mock()
+        event_bus.subscribe("dataset.column_added", column_added_callback)
+
+        event_bus.emit(
+            "analysis.completed",
+            {"dataset_id": "ds-1", "new_column_name": "derivative", "analysis_type": "derivative", "analysis_config": {}},
+        )
+
+        column_added_callback.assert_not_called()
+
+
+def test_emit_reaches_every_subscriber_when_one_unsubscribes_itself():
+    event_bus = EventBus()
+    calls = []
+
+    def one_shot(_data):
+        calls.append("one_shot")
+        event_bus.unsubscribe("x.y", one_shot)
+
+    def second(_data):
+        calls.append("second")
+
+    event_bus.subscribe("x.y", one_shot)
+    event_bus.subscribe("x.y", second)
+
+    event_bus.emit("x.y", {})
+
+    assert calls == ["one_shot", "second"]

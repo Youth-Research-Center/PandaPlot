@@ -94,10 +94,9 @@ class EditCommand(Command):
                     end_index=(self.index[0], self.index[1])
                 ).to_dict())
             return CommandResult.SUCCESS
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            error_msg = f"Failed to edit cell at index: {self.index} {e!s}"
-            self.logger.error(error_msg)
-            self.ui_controller.show_error_message("Edit Error", error_msg)
+        except Exception as e:
+            self.logger.exception("Failed to edit cell at index: %s", self.index)
+            self.ui_controller.show_error_message("Edit Error", "Couldn't change the cell.", error=e)
             self.dataset = None
             self.project = None
             return CommandResult.FAILURE

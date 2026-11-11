@@ -20,3 +20,5 @@ A shorter window preserves detail but leaves more noise. Polynomial order contro
 the local fitted curve; it must be smaller than the window length. Differentiation
 amplifies remaining noise, and endpoint artifacts should not be treated as real
 features. The project note suggests comparisons to try in the Analysis panel.
+
+The examples-browser metadata (summary, description, section, level, tags, featured charts, start note and data credit) is set in the generator script, not in the `.pplot` file by hand.

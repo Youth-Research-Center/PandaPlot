@@ -175,7 +175,8 @@ class PandaMainWindow(PMainWindow):
         will_autosave=True for the same reason as ExitCommand: this path
         also ends in app.launch()'s aboutToQuit -> _flush_save_on_quit,
         which unconditionally saves an existing saved project rather than
-        discarding it.
+        discarding it. An untitled project instead gets the guard's
+        Save As... / Discard / Cancel prompt.
         """
         if self._is_closing:
             # Already mid-close via ExitCommand -> APP_CLOSING ->
@@ -192,8 +193,9 @@ class PandaMainWindow(PMainWindow):
         """Handle app closing event from the internal event bus.
 
         This initiates the normal Qt window close sequence via self.close(),
-        which invokes Qt's own default closeEvent handling (there is no
-        custom closeEvent override on this class or its PMainWindow base).
+        which runs this class's closeEvent override. _is_closing is set
+        first, so closeEvent accepts without repeating the unsaved-changes
+        prompt that this path (ExitCommand) has already shown.
         We avoid doing cleanup work here to prevent duplication and to ensure the
         correct event type is passed to Qt's close handling.
         """

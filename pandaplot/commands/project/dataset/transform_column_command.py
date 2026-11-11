@@ -13,6 +13,7 @@ from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.transform import formula_engine
+from pandaplot.utils.error_messages import ErrorDescription, describe_error
 
 
 class TransformColumnCommand(Command):
@@ -49,9 +50,12 @@ class TransformColumnCommand(Command):
         self.column_existed_before = False
         self.dataset = None
 
-        # Set to the reason execute()/undo() returned False, so callers (the
-        # transform panel) can surface it instead of a generic message.
+        # Set to the reason execute()/redo() returned CommandResult.FAILURE, so
+        # callers (the transform panel) can surface it instead of a generic message.
         self.error_message: str | None = None
+        # Plain-language account of the failure when it came from an exception (None for
+        # failures that only have the fixed error_message text).
+        self.error_description: ErrorDescription | None = None
 
         # Extract config
         self.new_column_name = transform_config["new_column_name"]
@@ -87,6 +91,7 @@ class TransformColumnCommand(Command):
                 snapshot taken by the first run is kept, and a column that run
                 created gets its original stable id back.
         """
+        self.error_description = None
         try:
             self.logger.info("Executing TransformColumnCommand")
             # Get dataset from app context
@@ -165,9 +170,10 @@ class TransformColumnCommand(Command):
                 f"Transform applied: '{self.new_column_name}' created from {self.source_columns}")
             return CommandResult.SUCCESS
 
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
+        except Exception as e:
             self.error_message = str(e)
-            self.logger.error(f"Transform execution failed: {e}")
+            self.error_description = describe_error(e)
+            self.logger.exception("Transform execution failed")
             return CommandResult.FAILURE
 
     @override
@@ -295,9 +301,10 @@ class TransformColumnCommand(Command):
                 self.logger.error(self.error_message)
                 return False
             df = self.dataset.data
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
+        except Exception as e:
             self.error_message = f"Cannot access dataset dataframe: {e}"
-            self.logger.error(self.error_message)
+            self.error_description = describe_error(e)
+            self.logger.exception("Cannot access dataset dataframe")
             return False
 
         # Check if source columns exist
@@ -340,9 +347,10 @@ class TransformColumnCommand(Command):
                 source_columns=self.source_columns,
                 row_sources_only=self.as_formula,
             )
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
+        except Exception as e:
             self.error_message = str(e)
-            self.logger.error(f"Transform logic execution failed: {e}")
+            self.error_description = describe_error(e)
+            self.logger.exception("Transform logic execution failed")
             return None
 
     # ------------------------------------------------------------------

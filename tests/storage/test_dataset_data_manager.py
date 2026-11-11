@@ -141,8 +141,9 @@ def test_dataset_with_no_data_round_trips_without_error(tmp_path):
     # Dataset.__init__ treats a None `data` argument as "start with an
     # empty DataFrame" (see Dataset.__init__), so that's what a "no data"
     # save/load round trip is expected to produce too.
-    assert loaded.data is not None
-    assert loaded.data.empty
+    assert loaded.id == "ds"
+    assert loaded.name == "Empty"
+    pd.testing.assert_frame_equal(loaded.data, pd.DataFrame())
 
 
 def test_round_trip_preserves_formula_columns(tmp_path):
@@ -173,3 +174,16 @@ def test_round_trip_of_a_dataset_saved_before_formula_columns_existed(tmp_path):
     loaded = _round_trip(dataset, tmp_path)
 
     assert loaded.formula_columns == {}
+
+
+def test_round_trip_preserves_timestamps_and_metadata(tmp_path):
+    dataset = Dataset(name="ds", data=pd.DataFrame({"x": [1, 2]}))
+    dataset.created_at = "2024-01-02T03:04:05"
+    dataset.modified_at = "2024-02-03T04:05:06"
+    dataset.metadata = {"note": "kept"}
+
+    loaded = _round_trip(dataset, tmp_path)
+
+    assert loaded.created_at == "2024-01-02T03:04:05"
+    assert loaded.modified_at == "2024-02-03T04:05:06"
+    assert loaded.metadata == {"note": "kept"}

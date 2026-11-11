@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.state.config import ApplicationConfig, Theme
 from pandaplot.services.config import ConfigManager
@@ -24,7 +26,7 @@ def test_design_tokens_has_all_required_keys(tmp_path):
         "text_primary", "text_secondary", "text_muted", "text_hint", "text_disabled",
         "border_panel", "border_control", "border_subtle",
         "surface_white", "surface_chrome", "surface_inset",
-        "accent", "accent_active_text", "accent_selected_bg", "accent_disabled",
+        "accent", "accent_active_text", "accent_icon_active", "accent_selected_bg", "accent_disabled",
         "status_modified_dot", "status_modified_text", "status_success",
         "y2_accent", "y2_accent_bg", "series_palette",
         "radius_swatch", "radius_control", "radius_card", "radius_chip",
@@ -79,3 +81,55 @@ def test_build_stylesheet_includes_shared_widget_rules(tmp_path):
     assert 'QFrame[card="true"]' in qss
     assert 'QPushButton[segment="true"]' in qss
     assert 'QPushButton[chip="true"]' in qss
+
+
+def _contrast_ratio(foreground: str, background: str) -> float:
+    """WCAG 2.x contrast ratio between two #rrggbb colours (computed independently of ThemeManager)."""
+    def luminance(color: str) -> float:
+        channels = []
+        for start in (1, 3, 5):
+            value = int(color[start:start + 2], 16) / 255
+            channels.append(value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4)
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+
+    lighter, darker = sorted((luminance(foreground), luminance(background)), reverse=True)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+@pytest.mark.parametrize("accent", ["#4A56C6", "#1F2A8C", "#FF0000", "#00AA55", "#FFFFFF", "#000000"])
+def test_accent_icon_active_has_non_text_contrast_on_the_selected_background(tmp_path, theme, accent):
+    tokens = _make_manager(tmp_path, theme=theme, accent=accent).get_design_tokens()
+
+    assert _contrast_ratio(tokens["accent_icon_active"], tokens["accent_selected_bg"]) >= 3.0
+
+
+def test_accent_icon_active_is_lighter_than_the_accent_in_the_dark_theme(tmp_path):
+    tokens = _make_manager(tmp_path, theme=Theme.DARK).get_design_tokens()
+
+    assert tokens["accent_icon_active"] != tokens["accent_active_text"]
+    assert _contrast_ratio(tokens["accent_active_text"], tokens["accent_selected_bg"]) < 3.0
+    assert _contrast_ratio(tokens["accent_icon_active"], tokens["accent_selected_bg"]) >= 3.0
+
+
+def test_accent_icon_active_matches_active_text_in_the_light_theme(tmp_path):
+    tokens = _make_manager(tmp_path, theme=Theme.LIGHT).get_design_tokens()
+
+    assert tokens["accent_icon_active"] == tokens["accent_active_text"]
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+@pytest.mark.parametrize("accent", ["#4A56C6", "#1F2A8C", "#FF0000", "#00AA55", "#FFFFFF", "#000000"])
+def test_text_on_accent_is_readable_on_the_accent(tmp_path, theme, accent):
+    tokens = _make_manager(tmp_path, theme=theme, accent=accent).get_design_tokens()
+
+    assert _contrast_ratio(tokens["text_on_accent"], accent) >= 4.5
+
+
+def test_text_on_accent_is_white_for_the_default_accent(tmp_path):
+    assert _make_manager(tmp_path).get_design_tokens()["text_on_accent"].upper() == "#FFFFFF"
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+def test_text_on_danger_is_white_in_both_themes(tmp_path, theme):
+    assert _make_manager(tmp_path, theme=theme).get_design_tokens()["text_on_danger"].upper() == "#FFFFFF"

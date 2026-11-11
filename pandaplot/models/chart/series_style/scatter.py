@@ -8,11 +8,12 @@ from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style.base import SeriesStyleBase
 from pandaplot.models.chart.series_style.fill import FillStyleFields
+from pandaplot.models.chart.value_label_arrow import ValueLabelArrowFields
 from pandaplot.models.chart.value_label_subset import ValueLabelSubset
 
 
 @dataclass
-class ScatterSeriesStyle(FillStyleFields, SeriesStyleBase):
+class ScatterSeriesStyle(FillStyleFields, ValueLabelArrowFields, SeriesStyleBase):
     color: str = "#1f77b4"
     marker: MarkerStyle = field(default_factory=MarkerStyle)
     error_bars: ErrorBarConfig = field(default_factory=ErrorBarConfig)
@@ -39,5 +40,6 @@ class ScatterSeriesStyle(FillStyleFields, SeriesStyleBase):
     value_label_subset_mode: ValueLabelSubset = ValueLabelSubset.ALL
 
     def __post_init__(self) -> None:
-        """Normalize an unknown `value_label_subset_mode` (e.g. from a hand-edited project) to ALL."""
+        """Normalize invalid value-label settings (e.g. from a hand-edited project) to their defaults."""
+        super().__post_init__()
         self.value_label_subset_mode = ValueLabelSubset.coerce(self.value_label_subset_mode)

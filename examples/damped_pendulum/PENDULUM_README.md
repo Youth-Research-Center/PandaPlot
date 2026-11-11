@@ -143,3 +143,5 @@ The example demonstrates several advanced concepts:
 - **Comprehensive documentation** with theory and methodology
 
 This example serves as a template for creating other physics simulations and scientific data analysis projects.
+
+The examples-browser metadata (summary, description, section, level, tags, featured charts, start note and data credit) is set in the generator script, not in the `.pplot` file by hand.

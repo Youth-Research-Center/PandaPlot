@@ -5,9 +5,10 @@ This module defines hierarchical event types following the pattern:
 - Specific events for detailed component handling
 
 Usage patterns:
-- Generic subscription: subscribe_to_event(DatasetEvents.DATASET_CHANGED, handler)
-- Specific subscription: subscribe_to_event(DatasetOperationEvents.DATASET_COLUMN_ADDED, handler)
-- Multi-level publishing: publish both specific and generic events
+- Generic subscription: event_bus.subscribe(DatasetEvents.DATASET_CHANGED, handler)
+- Specific subscription: event_bus.subscribe(DatasetOperationEvents.DATASET_COLUMN_ADDED, handler)
+- Publishing: emit only the specific event; EventBus.emit fans it out to the
+  generic parents listed in EventHierarchy
 """
 
 from typing import ClassVar
@@ -115,6 +116,9 @@ class UIEvents:
     # note search to jump into a result. Payload: note_id, line_number,
     # match_start, match_end.
     NOTE_REVEAL_MATCH = "ui.note_reveal_match"
+    # Request the Help window to open, optionally on a specific topic.
+    # Payload: topic_id (str | None).
+    HELP_REQUESTED = "ui.help_requested"
 
 
 class FitEvents:
@@ -153,7 +157,6 @@ class ProjectEvents:
     PROJECT_ITEM_RENAMED = "project.item_renamed"  # Generic item renamed
     PROJECT_ITEM_CONTENT_CHANGED = "project.item_content_changed"  # Generic item content edit (not a rename)
     PROJECT_ITEM_MOVED = "project.item_moved"  # Generic item moved
-    PROJECT_STRUCTURE_CHANGED = "project.structure_changed"  # Structure change - folders/items reorganized
 
 
 class NoteEvents:
@@ -232,6 +235,7 @@ class EventHierarchy:
         # UI events (no hierarchy needed)
         "ui.tab_changed": ["ui.tab_changed"],
         "ui.tab_closed": ["ui.tab_closed"],
+        "ui.help_requested": ["ui.help_requested"],
 
         # Project events (already top-level)
         "project.created": ["project.created"],
@@ -246,7 +250,6 @@ class EventHierarchy:
         "project.item_renamed": ["project.item_renamed", "project.changed"],
         "project.item_content_changed": ["project.item_content_changed", "project.changed"],
         "project.item_moved": ["project.item_moved", "project.changed"],
-        "project.structure_changed": ["project.structure_changed", "project.changed"],
 
         "config.reset": ["config.reset", "config.updated"],
         "config.saved": ["config.saved"],

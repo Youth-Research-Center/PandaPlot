@@ -18,7 +18,7 @@ from matplotlib.ticker import (
     NullLocator,
     ScalarFormatter,
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QImage
 from PySide6.QtWidgets import (
     QFrame,
@@ -26,13 +26,18 @@ from PySide6.QtWidgets import (
     QLabel,
     QScrollArea,
     QSizePolicy,
+    QStackedWidget,
     QToolBar,
     QVBoxLayout,
     QWidget,
 )
 from shiboken6 import isValid
 
+from pandaplot.commands.project.chart import AddSeriesFromDialogCommand
 from pandaplot.commands.project.chart.swap_chart_axes_command import SwapChartAxesCommand
+from pandaplot.commands.project.dataset.import_data_command import ImportDataCommand
+from pandaplot.gui.components.common.empty_state_panel import EmptyStatePanel
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.tabs.chart.chart_canvas import (
     ChartCanvas,
     cm_to_inches,
@@ -44,6 +49,7 @@ from pandaplot.gui.components.tabs.chart.chart_heatmap import resolve_color_limi
 from pandaplot.gui.components.tabs.chart.series_data import SeriesData
 from pandaplot.gui.components.tabs.chart.series_renderers import (
     SERIES_RENDERERS,
+    SERIES_RENDERERS_OMITTING_HIDDEN,
     SERIES_RENDERERS_REPORTING_NO_DATA,
 )
 from pandaplot.gui.components.tabs.chart.series_renderers.box import BOX_POSITIONS_KEY, apply_box_ticks, box_numeric_values
@@ -51,13 +57,14 @@ from pandaplot.gui.components.tabs.chart.series_renderers.density import compute
 from pandaplot.gui.components.tabs.chart.series_renderers.hist import finite_numeric_values
 from pandaplot.gui.components.tabs.chart.series_renderers.stacked_bar import BarStack, place_on_stack
 from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.gui.resources.themed_icons import DEFAULT_ICON_SIZE, ActionIcons, IconRole
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.series_style import DensitySeriesStyle, LineSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_data import SeriesSelectedData
-from pandaplot.models.events.event_types import ChartEvents, ConfigEvents
+from pandaplot.models.events.event_types import ChartEvents, ConfigEvents, ProjectEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.config import (
@@ -496,9 +503,9 @@ class ChartRenderResult:
 def resolve_series_data(project, series, chart_type=None) -> SeriesData:
     """Resolve a DataSeries against the project's datasets.
 
-    Returns (x_data, y_data, x_err, y_err, x_err_minus, y_err_minus, None) on
-    success, or all-None with a message when the dataset or a required
-    column cannot be found. An empty x_column means "plot against the
+    Returns a SeriesData whose `error` is None on success; when the dataset
+    or a required column cannot be found, the data fields are None and
+    `error` holds the message. An empty x_column means "plot against the
     DataFrame index" (SERIES_TYPE_SPECS[...].needs_x_column) -- keyed by
     `chart_type` when passed explicitly (wizard_preview.py's throwaway
     DataSeries lack a reliable series_type), otherwise by the series' own
@@ -988,6 +995,9 @@ def render_chart(
                         render_twin_y_trace(canvas, renderer, series, series_data, target_axes, alpha, render_extra))
 
             if mappable is None and series_type in SERIES_RENDERERS_REPORTING_NO_DATA:
+                # A hidden HIST series returns None by design; that isn't missing data.
+                if not series.visible and series_type in SERIES_RENDERERS_OMITTING_HIDDEN:
+                    continue
                 series_errors.append(f"{series.label or f'Series {i + 1}'}: no plottable data")
                 continue
             # A Vector/Vector3D renderer only returns a mappable when
@@ -1418,9 +1428,14 @@ def render_chart(
     return ChartRenderResult(series_errors=series_errors, colorbar=colorbar)
 
 
-def render_chart_to_png(chart, resolved_series_data, size_defaults) -> bytes | None:
+def render_chart_to_png(chart, resolved_series_data, size_defaults, *, max_size_px: tuple[int, int] | None = None) -> bytes | None:
     """Render `chart` to PNG bytes using a headless canvas -- no Qt widget
     involved, safe to call from any thread (see HeadlessChartCanvas).
+
+    `max_size_px` (width, height), when given, lowers the saved image's DPI so
+    the picture fits that box (never raises it above the chart's own DPI): a
+    small thumbnail does not need the full-size render. The figure's size in
+    inches is unchanged, so the layout is the same as at full resolution.
 
     Returns None on any render failure (logged at debug level) rather than
     raising, so a background-task caller can treat it the same as today's
@@ -1442,20 +1457,59 @@ def render_chart_to_png(chart, resolved_series_data, size_defaults) -> bytes | N
         # A snapshot is a static image: without an explicit figure background it
         # would stay transparent and dark text would vanish on a dark preview.
         facecolor = chart.style.figure_background_color or "white"
-        canvas.fig.savefig(buf, format="png", dpi=canvas.fig.dpi, bbox_inches="tight", facecolor=facecolor)
+        save_dpi = canvas.fig.dpi
+        if max_size_px is not None:
+            width_in, height_in = canvas.fig.get_size_inches()
+            save_dpi = min(save_dpi, max_size_px[0] / width_in, max_size_px[1] / height_in)
+        canvas.fig.savefig(buf, format="png", dpi=save_dpi, bbox_inches="tight", facecolor=facecolor)
         return buf.getvalue()
     except Exception as e:  # noqa: BLE001 -- background-render boundary -- any failure must become a cache miss, not crash the task
         logger.debug("Failed to render chart %s headlessly: %s", chart.id, e)
     return None
 
 
-def render_chart_to_qimage(chart, resolved_series_data, size_defaults) -> QImage | None:
+def render_chart_to_qimage(
+    chart, resolved_series_data, size_defaults, *, max_size_px: tuple[int, int] | None = None,
+) -> QImage | None:
     """render_chart_to_png(), decoded into a QImage; None on any render failure."""
-    png_bytes = render_chart_to_png(chart, resolved_series_data, size_defaults)
+    png_bytes = render_chart_to_png(chart, resolved_series_data, size_defaults, max_size_px=max_size_px)
     if png_bytes is None:
         return None
     qimg = QImage()
     return qimg if qimg.loadFromData(png_bytes) else None
+
+
+# Series types whose renderers convert X/Y/Z with np.asarray(dtype=float): text
+# such as "10" is drawn at 10 (and text that is not a number draws nothing),
+# never as a category, so their range must not use matplotlib's categorical
+# index (see compute_axis_data_range).
+NUMERIC_COORDINATE_SERIES_TYPES = frozenset({
+    SeriesType.HEATMAP, SeriesType.SURFACE, SeriesType.WIREFRAME, SeriesType.TRISURF, SeriesType.BAR3D,
+})
+
+
+def axis_positions(values, categories: dict) -> np.ndarray:
+    """Positions `values` take on an axis: themselves when numeric, otherwise
+    (text labels such as "Q1 2024") the index matplotlib's categorical axis
+    gives each distinct label, in order of first appearance. Text that looks
+    like a number ("1") is still a label, as it is for matplotlib.
+
+    Args:
+        values: One series' values for the axis.
+        categories: Label -> index, shared by every series on the axis and
+            extended in place with labels not seen yet.
+
+    Returns:
+        A float array with one position per value.
+    """
+    labels = np.asarray(values)
+    has_text = labels.dtype.kind in "USO" and any(isinstance(label, (str, bytes)) for label in labels)
+    if not has_text:
+        try:
+            return np.asarray(labels, dtype=float)
+        except (TypeError, ValueError):
+            pass
+    return np.array([categories.setdefault(label, len(categories)) for label in labels], dtype=float)
 
 
 def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False,
@@ -1473,7 +1527,10 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
     it needs an x-column, so mixed-type charts do not apply one series'
     column requirements to another. A stacked series (SeriesTypeSpec.
     is_stacked) contributes the tops of its stacked bars to "y"/"y2", not
-    its raw values.
+    its raw values. Text values (a categorical axis) count as their category
+    index, 0..n-1 in order of first appearance across the series (see
+    axis_positions), except for series types in
+    NUMERIC_COORDINATE_SERIES_TYPES, whose renderers read text as numbers.
 
     `positive_only` should be True for a Log-scaled axis: matplotlib's
     autoscale silently ignores non-positive values on a log axis, and this
@@ -1490,6 +1547,7 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
     # Only ever one axis' series reach the stacking below ("y" and "y2" are
     # filtered apart above), so one stack covers them all.
     bar_stack: BarStack = {}
+    categories: dict = {}
     box_count = 0
     for series in data_series:
         on_twin_axis = False
@@ -1541,7 +1599,13 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
                 # its own values -- stacked in the same order update_chart draws
                 # them, so the range matches what's actually on screen.
                 arr = place_on_stack(data.x_data, data.y_data, bar_stack) + np.asarray(data.y_data, dtype=float)
-            values = np.asarray(arr, dtype=float)
+            if series.series_type in NUMERIC_COORDINATE_SERIES_TYPES:
+                try:
+                    values = np.asarray(arr, dtype=float)
+                except (TypeError, ValueError):
+                    continue
+            else:
+                values = axis_positions(arr, categories)
             values = values[np.isfinite(values)]
         if positive_only:
             values = values[values > 0]
@@ -1590,6 +1654,11 @@ class ChartEditorWidget(PWidget):
         # queued to re-check it (see _schedule_hover_flush).
         self._pending_hover_event = None
         self._hover_flush_scheduled: bool = False
+        # True while the preview stack shows the empty-state page; used to detect the empty -> canvas switch.
+        self._showing_empty_state: bool = False
+
+        # Must exist before _initialize() builds the toolbar, which binds its actions.
+        self._toolbar_icons = ActionIcons(app_context)
 
         self._initialize()
         self.load_chart_config()
@@ -1639,12 +1708,16 @@ class ChartEditorWidget(PWidget):
         
         # Apply styling to status label (preserve color logic based on current text)
         self._update_status_label_style()
+        self.status_icon.retint()
         
         # Apply theme to toolbar if it exists
         self._apply_toolbar_theme()
+        self._toolbar_icons.retint()
 
         # Apply theme to chart canvas navigation if it exists
         self.chart_canvas.apply_navigation_theme(base_fg, card_bg, card_border)
+
+        self.empty_state_panel.set_tokens(theme_manager.get_design_tokens())
 
     def _apply_toolbar_theme(self):
         """Apply theme-aware styling to the preview toolbar."""
@@ -1716,6 +1789,37 @@ class ChartEditorWidget(PWidget):
         """Set up event subscriptions for the chart editor."""
         # Subscribe to config updates to adjust display settings like DPI
         self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
+        # The status line names the chart's datasets, so a rename, removal or restore must refresh it.
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_RENAMED, self._on_project_item_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_REMOVED, self._on_project_item_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_ADDED, self._on_project_item_added)
+
+    def _on_project_item_changed(self, event_data: dict) -> None:
+        """Refresh the status line when one of the chart's datasets is renamed or removed."""
+        if event_data.get("item_id") in {series.dataset_id for series in self.chart.data_series}:
+            self._update_dataset_label()
+
+    def _on_project_item_added(self, event_data: dict) -> None:
+        """Refresh the status line when one of the chart's datasets is added back.
+
+        Undoing a delete emits PROJECT_ITEM_ADDED only for the restored item, so a dataset
+        restored inside a folder is found by checking the folder's subtree. A fit keeps its
+        source dataset's id when that dataset is deleted, and its chart gets no CHART_UPDATED
+        on undo, so without this the line would keep showing the id instead of the name.
+        """
+        item_id = event_data.get("item_id")
+        dataset_ids = {series.dataset_id for series in self.chart.data_series}
+        if not item_id or not dataset_ids:
+            return
+        if item_id in dataset_ids:
+            self._update_dataset_label()
+            return
+        project = self.app_context.get_app_state().current_project
+        if project is None:
+            return
+        item = project.find_item(item_id)
+        if item is not None and any(project.is_item_or_descendant(item, dataset_id) for dataset_id in dataset_ids):
+            self._update_dataset_label()
 
     def _on_config_updated(self, data):
         """Handle config.updated events to apply display changes (e.g., DPI)."""
@@ -1753,6 +1857,8 @@ class ChartEditorWidget(PWidget):
         # Preview toolbar with chart actions and size controls
         self.preview_toolbar = QToolBar()
         self.preview_toolbar.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.preview_toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.preview_toolbar.setIconSize(QSize(DEFAULT_ICON_SIZE, DEFAULT_ICON_SIZE))
 
         # Add chart actions
         self.create_chart_toolbar_actions(self.preview_toolbar)
@@ -1814,7 +1920,21 @@ class ChartEditorWidget(PWidget):
         canvas_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         self.canvas_scroll = canvas_scroll
-        preview_layout.addWidget(canvas_scroll)
+
+        self.empty_state_panel = EmptyStatePanel(
+            self.app_context,
+            heading="This chart has no data yet",
+            description="Add a series to plot columns from one of your datasets.",
+            icon_name="chart-line",
+            actions=[("Add Series", self._on_empty_add_series), ("Import Data", self._on_empty_import_data)],
+        )
+
+        # The canvas page is shown once the chart has a series; the empty-state page until then.
+        self.preview_stack = QStackedWidget()
+        self.preview_stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.preview_stack.addWidget(canvas_scroll)
+        self.preview_stack.addWidget(self.empty_state_panel)
+        preview_layout.addWidget(self.preview_stack)
 
         layout.addWidget(self.preview_frame)
 
@@ -1830,12 +1950,17 @@ class ChartEditorWidget(PWidget):
         status_layout.setContentsMargins(8, 1, 8, 1)
         status_layout.setSpacing(4)
 
-        datasets = self.chart.get_all_datasets()
-        dataset_text = f"Datasets: {', '.join(datasets)}" if datasets else "Sample Data"
-        self.dataset_label = QLabel(dataset_text)
+        self.dataset_label = QLabel()
         status_layout.addWidget(self.dataset_label)
+        self._update_dataset_label()
 
         status_layout.addStretch()
+
+        self.status_icon = IconLabel(self.app_context, "check", role=IconRole.SUCCESS)
+        # The status frame's QFrame rule would otherwise draw its border and padding around the icon.
+        self.status_icon.setStyleSheet("border: none; padding: 0; background: transparent;")
+        self.status_icon.hide()
+        status_layout.addWidget(self.status_icon)
 
         self.status_label = QLabel("Ready")
         status_layout.addWidget(self.status_label)
@@ -1847,25 +1972,29 @@ class ChartEditorWidget(PWidget):
         # Refresh action: re-read the current dataset values and redraw. The
         # chart already refreshes automatically on dataset changes, but this
         # lets the user force a redraw on demand.
-        refresh_action = QAction("♻️ Refresh", self)
+        refresh_action = QAction("Refresh", self)
+        self._toolbar_icons.bind(refresh_action, "arrows-clockwise")
         refresh_action.setToolTip("Reload data from the datasets and redraw the chart")
         refresh_action.triggered.connect(self._on_refresh)
         toolbar.addAction(refresh_action)
 
         # Reset action
-        reset_action = QAction("🔄 Reset", self)
+        reset_action = QAction("Reset", self)
+        self._toolbar_icons.bind(reset_action, "arrow-counter-clockwise")
         reset_action.triggered.connect(self.reset_chart)
         toolbar.addAction(reset_action)
 
         # Reset zoom button (the nav toolbar's own Home/Back/Forward are
         # removed since they rely on a view stack that goes stale whenever
         # the chart re-renders; this uses the chart's own tracked limits)
-        reset_zoom_action = QAction("🔍 Reset Zoom", self)
+        reset_zoom_action = QAction("Reset Zoom", self)
+        self._toolbar_icons.bind(reset_zoom_action, "magnifying-glass-minus")
         reset_zoom_action.setToolTip("Reset chart zoom to fit all data")
         reset_zoom_action.triggered.connect(self._on_reset_zoom)
         toolbar.addAction(reset_zoom_action)
 
-        self._swap_axes_action = QAction("⇄ Swap X/Y", toolbar)
+        self._swap_axes_action = QAction("Swap X/Y", toolbar)
+        self._toolbar_icons.bind(self._swap_axes_action, "arrows-left-right")
         self._swap_axes_action.setToolTip("Swap the X and Y axes, including their titles, scales and ranges")
         self._swap_axes_action.triggered.connect(self._on_swap_axes)
         toolbar.addAction(self._swap_axes_action)
@@ -1883,8 +2012,8 @@ class ChartEditorWidget(PWidget):
             return
 
         self._update_swap_axes_visibility()
-        if not self.chart.data_series:
-            self.dataset_label.setText("No Data Loaded")
+        self._update_empty_state()
+        self._update_dataset_label()
 
         try:
             project = self.app_context.get_app_state().current_project
@@ -1907,6 +2036,47 @@ class ChartEditorWidget(PWidget):
         except Exception as e:
             self.logger.exception("Error updating chart")
             self.update_status(f"Chart error: {e!s}")
+
+    def _update_empty_state(self) -> None:
+        """Show the empty-state page while the chart has no series, and the canvas page otherwise.
+
+        The navigation toolbar is disabled while the empty-state page is shown. When the first series appears on a
+        chart without a saved size, the canvas is fitted to the preview panel once the page switch has been laid out.
+        """
+        empty = not self.chart.data_series
+        was_empty = self._showing_empty_state
+        self._showing_empty_state = empty
+        self.preview_stack.setCurrentWidget(self.empty_state_panel if empty else self.canvas_scroll)
+
+        nav_toolbar = getattr(self.chart_canvas, "navigation_toolbar", None)
+        if nav_toolbar is not None and isValid(nav_toolbar):
+            nav_toolbar.setEnabled(not empty)
+
+        if was_empty and not empty and self.chart.config.width_cm is None and self.chart.config.height_cm is None:
+            QTimer.singleShot(0, self._apply_initial_fit_size)
+
+    def _update_dataset_label(self) -> None:
+        """Show "No series" or the names of the datasets the chart's series draw from."""
+        if not isValid(self.dataset_label):
+            return
+        if not self.chart.data_series:
+            self.dataset_label.setText("No series")
+            return
+        project = self.app_context.get_app_state().current_project
+        names = []
+        for dataset_id in dict.fromkeys(series.dataset_id for series in self.chart.data_series):
+            item = project.find_item(dataset_id) if project is not None else None
+            names.append(item.name if item is not None else str(dataset_id))
+        self.dataset_label.setText(f"Datasets: {', '.join(names)}")
+
+    def _on_empty_add_series(self) -> None:
+        """Open the Add Series dialog for this chart from the empty-state panel."""
+        command = AddSeriesFromDialogCommand(self.app_context, self.chart.id, parent=self.window())
+        self.app_context.get_command_executor().execute_command(command)
+
+    def _on_empty_import_data(self) -> None:
+        """Open the data import flow from the empty-state panel."""
+        self.app_context.get_command_executor().execute_command(ImportDataCommand(self.app_context))
 
     def _resolve_series_index_for_handle(self, handle):
         """Resolve a legend handle to a series/fit index via this widget's
@@ -2029,18 +2199,24 @@ class ChartEditorWidget(PWidget):
         """Reset chart to default configuration."""
         self.chart._init_default_config()
         self.update_chart()
-        self.update_status("Reset to defaults ✓")
+        self.update_status("Reset to defaults", success=True)
 
         # Reset status after 2 seconds
         QTimer.singleShot(2000, lambda: self.update_status("Ready"))
 
-    def update_status(self, status: str):
-        """Update the status label."""
+    def update_status(self, status: str, *, success: bool = False) -> None:
+        """Update the status label.
+
+        Args:
+            status: The plain status text.
+            success: Show the check icon beside the text; any other status hides it again.
+        """
         # Guard: Check if widget still exists
         if not isValid(self.status_label):
             return
 
         self.status_label.setText(status)
+        self.status_icon.setVisible(success)
         self._update_status_label_style()
 
     def _apply_initial_fit_size(self):
@@ -2052,8 +2228,13 @@ class ChartEditorWidget(PWidget):
         chart already has a per-chart width/height saved in its config
         (in which case that saved size takes precedence and must not be
         overwritten by the fit-to-panel heuristic).
+        Does nothing while the empty-state page is shown, because the canvas
+        page has no meaningful viewport size then.
         """
         if not isValid(self.canvas_scroll) or not isValid(self.chart_canvas):
+            return
+
+        if self._showing_empty_state:
             return
 
         if self.chart.config.width_cm is not None or self.chart.config.height_cm is not None:
@@ -2077,7 +2258,7 @@ class ChartEditorWidget(PWidget):
     def _on_refresh(self):
         """Reload data from the datasets and redraw the chart on demand."""
         self.refresh_chart()
-        self.update_status("Refreshed ✓")
+        self.update_status("Refreshed", success=True)
 
         # Reset status after 2 seconds
         QTimer.singleShot(2000, lambda: self.update_status("Ready"))
@@ -2108,7 +2289,7 @@ class ChartEditorWidget(PWidget):
         else:
             command = SwapChartAxesCommand(self.app_context, chart_id=self.chart.id)
             if self.app_context.command_executor.execute_command(command):
-                self.update_status("Swapped X and Y ✓")
+                self.update_status("Swapped X and Y", success=True)
             else:
                 self.update_status("Couldn't swap X and Y")
         QTimer.singleShot(2000, lambda: self.update_status("Ready"))
@@ -2124,8 +2305,3 @@ class ChartEditorWidget(PWidget):
             return
 
         self.update_chart()
-
-        # Update dataset label in status
-        datasets = self.chart.get_all_datasets()
-        dataset_text = f"Datasets: {', '.join(datasets)}" if datasets else "Sample Data"
-        self.dataset_label.setText(dataset_text)

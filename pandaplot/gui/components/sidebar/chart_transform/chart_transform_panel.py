@@ -29,6 +29,7 @@ from pandaplot.commands.project.chart.transform_chart_series_command import (
 )
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
 )
@@ -43,8 +44,10 @@ from pandaplot.gui.components.sidebar.chart.series_source_picker import (
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
+from pandaplot.gui.resources.themed_icons import ActionIcons
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.help.help_types import PANEL_TOPIC_CHART_TRANSFORM
 from pandaplot.services.theme.theme_manager import ThemeManager
 from pandaplot.services.transform import expression_engine
 
@@ -62,8 +65,12 @@ _EXPRESSION_REFERENCE_HTML = (
 class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     """Side panel for expression transforms on chart data/fit series."""
 
+    ICON_NAME = "wrench"
+
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
+        # Must exist before _initialize() builds the toolbar, which binds its icon.
+        self._icons = ActionIcons(app_context)
         self.current_chart: Chart | None = None
         self.current_chart_id: str | None = None
 
@@ -74,7 +81,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     @override
     def _init_ui(self):
         self._init_panel_layout()
-        self._set_title("🔧 Chart Transform")
+        self._set_title("Chart Transform", help_topic=PANEL_TOPIC_CHART_TRANSFORM)
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
@@ -131,7 +138,9 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
 
         toolbar = QHBoxLayout()
         self.insert_function_btn = QToolButton()
-        self.insert_function_btn.setText("ƒ  Insert function ▾")
+        self.insert_function_btn.setText("Insert function")
+        self.insert_function_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._icons.bind(self.insert_function_btn, "function")
         self.insert_function_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.insert_function_btn.setMenu(self._build_function_menu())
         self.reference_btn = QToolButton()
@@ -204,6 +213,8 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
         self.preview_text.setMaximumHeight(140)
         self.preview_text.setPlaceholderText("Preview results will appear here...")
         vbox.addWidget(self.preview_btn)
+        self.status_message = StatusMessage(self.app_context)
+        vbox.addWidget(self.status_message)
         vbox.addWidget(self.preview_text)
         layout.addWidget(group)
 
@@ -246,10 +257,16 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- actions -------------------------------------------------------
 
+    @override
+    def _status_output(self) -> QTextEdit:
+        """The text area a status message replaces."""
+        return self.preview_text
+
     def preview(self):
+        self.status_message.clear()
         command = self._make_command()
         if command is None:
-            self.preview_text.setText("❌ Select a series and enter an expression to transform.")
+            self._show_status(StatusKind.ERROR, "Select a series and enter an expression to transform.")
             return
         try:
             df, default_name = command.run_transform()
@@ -258,27 +275,26 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
                 f"Series: {self.source_combo.currentText()}",
                 f"Result: {len(df)} points → dataset '{self.result_name.text().strip() or default_name}'",
             ]
-            self.preview_text.setText(format_series_result_preview(header_lines, df))
+            self.preview_text.setPlainText(format_series_result_preview(header_lines, df))
         except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self.preview_text.setText(format_preview_error(e))
+            self._show_status(StatusKind.ERROR, format_preview_error(e))
 
     def apply(self):
         command = self._make_command()
         if command is None:
-            self.preview_text.setText("❌ Select a series and enter an expression to transform.")
+            self._show_status(StatusKind.ERROR, "Select a series and enter an expression to transform.")
             return
         if self.app_context.get_command_executor().execute_command(command):
-            self.preview_text.setText(
-                "✅ Created a new dataset and added it to the chart as a series."
-            )
+            self._show_status(StatusKind.SUCCESS, "Created a new dataset and added it to the chart as a series.")
         else:
-            self.preview_text.setText(format_apply_failure("transform"))
+            self._show_status(StatusKind.ERROR, format_apply_failure("transform"))
 
     def clear_inputs(self):
         self.result_name.clear()
         self.expression_text.clear()
         self.target_combo.setCurrentIndex(0)
         self.preview_text.clear()
+        self.status_message.clear()
 
     # -- chart context ---------------------------------------------------
 
@@ -289,7 +305,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
         self.result_name.setPlaceholderText(f"{self.source_combo.currentText()} ({target} transformed)")
 
     def _populate_sources(self):
-        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
+        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart, app_context=self.app_context)
         self.apply_btn.setEnabled(has_sources)
         self.preview_btn.setEnabled(has_sources)
         self.source_hint.setText(
@@ -303,6 +319,8 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
 
     @override
     def _apply_theme(self):
+        self._retint_source_combos()
+        self._icons.retint()
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         tokens = theme_manager.get_design_tokens()
@@ -335,6 +353,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
             }}
         """)
         self._apply_title_theme(base_fg, card_border)
+        self.status_message.retint()
         self.source_hint.setStyleSheet(
             f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
         )

@@ -8,6 +8,7 @@ from unittest.mock import Mock
 import numpy as np
 import pandas as pd
 import pytest
+from PySide6.QtCore import QSize
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.analysis import SIGNAL_ANALYSES, SignalAnalysisType
@@ -17,9 +18,13 @@ from pandaplot.commands.project.chart import AddAnalysisSeriesCommand, CreateCha
 from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
     ApplySignalAnalysisResultCommand,
 )
+from pandaplot.gui.components.common.icon_label import IconLabel
+from pandaplot.gui.components.common.status_message import StatusKind
 from pandaplot.gui.components.sidebar.chart_signal.chart_signal_analysis_panel import (
     ChartSignalAnalysisPanel,
 )
+from pandaplot.gui.resources.item_icons import item_icon
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
@@ -28,6 +33,12 @@ from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+
+
+def same_pixels(first, second) -> bool:
+    size = QSize(16, 16)
+    return first.pixmap(size).toImage() == second.pixmap(size).toImage()
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -58,7 +69,7 @@ def project():
 def app_context(project):
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
     app_state = Mock(spec=AppState)
     app_state.current_project = project
     ctx.get_app_state.return_value = app_state
@@ -299,7 +310,9 @@ class TestRunAnalysisAsyncDispatch:
 
         assert panel.busy_spinner.is_running is False
         assert panel.add_btn.isEnabled() is False
-        assert "boom" in panel.results_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Analysis failed: boom"
+        assert panel.results_text.toPlainText() == ""
 
 
 class TestResultFolderMatchesChart:
@@ -536,7 +549,7 @@ class TestStaleCompletionDiscard:
         command.on_complete(CommandResult.SUCCESS)
 
         assert panel.last_result is None
-        assert "added to project" not in panel.results_text.toPlainText()
+        assert panel.status_message.message() == ""
 
     def test_run_discards_a_stale_result_after_a_chart_update_bumps_generation(self, panel):
         """Same-params case: the underlying data changed (e.g. a dataset
@@ -732,8 +745,46 @@ class TestChartSignalAnalysisPanelQuickPlot:
         assert panel.plot_result_cb.isEnabled() is True
 
     def test_destination_combo_defaults_to_new_chart(self, panel):
-        assert panel.plot_target_combo.itemText(0) == "➕ New chart"
+        assert panel.plot_target_combo.itemText(0) == "New chart"
         assert panel.plot_target_combo.currentData() is None
+
+    def test_new_chart_destination_has_the_plus_icon(self, panel, app_context):
+        assert same_pixels(panel.plot_target_combo.itemIcon(0), themed_icon(app_context, "plus"))
+
+    def test_source_entries_are_plain_labels_with_the_series_and_fit_icons(self, panel, app_context):
+        panel.current_chart.add_fit_series(
+            "ds-1", x_data=np.array([1.0, 2.0, 3.0]), y_data=np.array([1.0, 2.0, 3.0]),
+            label="Fit 1", style=FitStyle(fit_type="linear"),
+        )
+        panel._populate_sources()
+
+        combo = panel.source_combo
+        assert [combo.itemText(i) for i in range(combo.count())] == ["Signal", "Fit 1  (fit)"]
+        assert same_pixels(combo.itemIcon(0), item_icon(app_context, "chart"))
+        assert same_pixels(combo.itemIcon(1), themed_icon(app_context, "waveform"))
+
+    def test_apply_theme_retints_the_combo_icons(self, panel, app_context):
+        tokens = app_context.get_manager.return_value.get_design_tokens.return_value
+        tokens["text_primary"] = "#00AA00"
+
+        panel._apply_theme()
+
+        assert_tinted(strongest_pixel(panel.plot_target_combo.itemIcon(0)), "#00AA00")
+        assert_tinted(strongest_pixel(panel.source_combo.itemIcon(0)), "#00AA00")
+
+    def test_apply_theme_keeps_the_combo_selection_and_emits_no_index_change(self, panel):
+        combos = [panel.source_combo, panel.plot_target_combo]
+        for combo in combos:
+            combo.setCurrentIndex(combo.count() - 1)
+        selection = [(combo.currentIndex(), combo.currentData()) for combo in combos]
+        changes = []
+        for combo in combos:
+            combo.currentIndexChanged.connect(changes.append)
+
+        panel._apply_theme()
+
+        assert [(combo.currentIndex(), combo.currentData()) for combo in combos] == selection
+        assert changes == []
 
     def test_plot_target_row_hides_when_checkbox_unchecked(self, panel):
         assert panel.plot_target_row.isVisibleTo(panel) is True
@@ -760,7 +811,7 @@ class TestChartSignalAnalysisPanelQuickPlot:
         panel._populate_sources()
 
         labels = [panel.plot_target_combo.itemText(i) for i in range(panel.plot_target_combo.count())]
-        assert labels == ["➕ New chart"]
+        assert labels == ["New chart"]
 
     def test_cached_add_results_creates_a_new_chart_by_default(self, panel, app_context):
         executor = Mock()
@@ -808,12 +859,17 @@ class TestChartSignalAnalysisPanelQuickPlot:
         panel.last_result = Mock()
         panel._last_run_params = panel._get_dispatch_params()
         panel.plot_result_cb.setChecked(False)
+        panel.add_btn.setEnabled(True)
 
         panel.add_results_to_project()
 
-        assert executor.execute_command.called
+        executor.execute_command.assert_called_once()
         cmd = executor.execute_command.call_args[0][0]
-        assert isinstance(cmd, ApplySignalAnalysisResultCommand)
+        assert type(cmd) is ApplySignalAnalysisResultCommand
+        assert cmd.result is panel.last_result
+        assert cmd.result_name is None
+        assert cmd.folder_id == panel.current_chart.parent_id
+        assert panel.add_btn.isEnabled() is False
 
     def test_async_add_completes_when_its_own_quick_plot_fires_chart_updated(self, panel):
         """Regression: the composite command an in-flight (non-cached)
@@ -847,7 +903,8 @@ class TestChartSignalAnalysisPanelQuickPlot:
         # success message it left behind is unaffected, and nothing is left
         # dangling in the queue.
         assert panel.last_result is None
-        assert "added to project" in panel.results_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.status_message.message() == "Results added to project"
         assert panel._deferred_chart_updates == []
 
     def test_async_add_still_discards_an_unrelated_series_added_mid_flight(self, panel):
@@ -869,7 +926,7 @@ class TestChartSignalAnalysisPanelQuickPlot:
         command.on_complete(CommandResult.SUCCESS)
 
         assert panel.last_result is None
-        assert "added to project" not in panel.results_text.toPlainText()
+        assert panel.status_message.message() == ""
 
     def test_pending_quick_plot_cleared_on_synchronous_dispatch_failure(self, panel):
         """Regression: on_complete never runs for a dispatch that fails
@@ -943,7 +1000,8 @@ class TestChartSignalAnalysisPanelQuickPlot:
 
         command.on_complete(CommandResult.SUCCESS)
 
-        assert "added to project" in panel.results_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.status_message.message() == "Results added to project"
         assert panel.current_chart_id == "new-chart-id"  # replayed after on_complete settled
         assert panel._deferred_tab_change is None  # consumed
 
@@ -1186,3 +1244,69 @@ class TestChartSignalAnalysisPanelQuickPlot:
         assert panel._deferred_tab_change is None
         assert panel.current_chart is None
         assert panel.current_chart_id is None
+
+
+class TestChartSignalPanelStatusMessage:
+    def test_status_message_sits_directly_above_the_results_text(self, panel):
+        layout = panel.results_text.parentWidget().layout()
+
+        assert layout.indexOf(panel.status_message) == layout.indexOf(panel.results_text) - 1
+        assert panel.status_message.isHidden()
+
+    def test_the_report_stays_in_the_text_area_when_results_are_added(self, panel):
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: on_complete(
+            Mock(analysis_name="FFT", data=pd.DataFrame({"frequency": [1.0], "magnitude": [0.1]}), metadata={}), None
+        )
+        panel._build_command = lambda: fake_command
+        panel.run_analysis()
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+
+        panel.add_results_to_project()
+
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert "FFT" in panel.results_text.toPlainText()
+        assert "added to project" not in panel.results_text.toPlainText()
+
+    def test_a_malformed_result_is_an_error_status(self, panel):
+        broken_result = Mock()
+        broken_result.analysis_name = "FFT"
+        broken_result.data = object()
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: on_complete(broken_result, None)
+        panel._build_command = lambda: fake_command
+
+        panel.run_analysis()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message().startswith("Analysis failed: ")
+        assert panel.add_btn.isEnabled() is False
+
+    def test_a_new_result_clears_the_earlier_success_status(self, panel):
+        panel.status_message.set_message(StatusKind.SUCCESS, "Results added to project")
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: on_complete(
+            Mock(analysis_name="FFT", data=pd.DataFrame({"frequency": [1.0], "magnitude": [0.1]}), metadata={}), None
+        )
+        panel._build_command = lambda: fake_command
+
+        panel.run_analysis()
+
+        assert panel.status_message.message() == ""
+        assert "FFT" in panel.results_text.toPlainText()
+
+    def test_clear_clears_the_status_message(self, panel):
+        panel.status_message.set_message(StatusKind.ERROR, "boom")
+
+        panel.clear()
+
+        assert panel.status_message.message() == ""
+        assert panel.status_message.kind() is None
+
+    def test_theme_change_retints_the_status_icon(self, panel, app_context):
+        panel.status_message.set_message(StatusKind.ERROR, "boom")
+        app_context.get_manager.return_value.get_design_tokens.return_value["status_danger"] = "#00AA00"
+
+        panel._apply_theme()
+
+        assert_tinted(strongest_pixel(panel.status_message.findChild(IconLabel).pixmap()), "#00AA00")

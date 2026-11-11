@@ -97,8 +97,6 @@ class ProjectPanelCommandManager:
         if selected_info and selected_info["type"] == "imagegallery":
             gallery_id = selected_info["id"]
 
-        from PySide6.QtWidgets import QDialog
-
         from pandaplot.gui.dialogs.image.image_import_dialog import ImageImportDialog
 
         dialog = ImageImportDialog(self.app_context, parent=self.parent_widget)
@@ -239,6 +237,11 @@ class ProjectPanelCommandManager:
             return
         command = RenameProjectCommand(self.app_context, new_name)
         self.app_context.get_command_executor().execute_command(command)
+
+    def edit_project_details(self) -> None:
+        """Open the Project Details dialog for the current project."""
+        from pandaplot.gui.dialogs.project.project_details_dialog import edit_project_details
+        edit_project_details(self.app_context, self.parent_widget)
 
     def delete_selected_item(self):
         """Delete the selected item."""

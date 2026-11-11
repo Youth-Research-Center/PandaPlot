@@ -3,6 +3,7 @@ from collections.abc import Callable
 from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.utils.error_messages import describe_error, describe_failure
 
 
 class BackgroundTaskCommand(Command):
@@ -14,7 +15,7 @@ class BackgroundTaskCommand(Command):
     - Default non-undoable command behaviors (occupies_undo_slot=False,
       marks_project_modified=False, default undo/redo no-ops).
     - Standard outcome dictionary wrapping for thread signal safety
-      ({"success": bool, "result": Any, "error": str | None}).
+      ({"success": bool, "result": Any, "error": str | None}; failures also carry "error_description": ErrorDescription).
     - Dispatch project capturing and staleness checking.
     - Uniform completion callback notification (_notify_complete).
     """
@@ -67,11 +68,16 @@ class BackgroundTaskCommand(Command):
         try:
             res = fn(*args, **kwargs)
             if res is None:
-                return {"success": False, "result": None, "error": "Computation returned no result"}
+                return {
+                    "success": False,
+                    "result": None,
+                    "error": "Computation returned no result",
+                    "error_description": describe_failure("The calculation returned no result."),
+                }
             return {"success": True, "result": res, "error": None}
         except Exception as e:
             logging.getLogger("BackgroundTaskCommand").exception("Background computation failed")
-            return {"success": False, "result": None, "error": str(e)}
+            return {"success": False, "result": None, "error": str(e), "error_description": describe_error(e)}
 
     def _dispatch_task(
         self,

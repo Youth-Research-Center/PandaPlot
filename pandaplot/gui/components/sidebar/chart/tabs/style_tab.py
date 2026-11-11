@@ -1,6 +1,8 @@
 """Style tab: chart-style card (title/subtitle font, padding, size, dpi) plus
 the Line/Marker cards for whichever series/fit entry is currently selected.
 """
+import logging
+
 import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -23,7 +25,14 @@ from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.slider_with_spinbox import SliderWithSpinbox
 from pandaplot.gui.components.common.toggle_switch import ToggleSwitch
 from pandaplot.gui.components.common.value_combo_box import ValueComboBox
+from pandaplot.gui.components.sidebar.chart.series_source_picker import (
+    FIT_ICON_NAME,
+    SERIES_ICON_NAME,
+    add_icon_item,
+    retint_combo_icons,
+)
 from pandaplot.gui.components.sidebar.chart.tabs.axes_tab import AXES_SWATCH_PALETTE
+from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.chart.chart_configuration import (
     LineStyleType,
     MarkerType,
@@ -51,6 +60,12 @@ from pandaplot.models.chart.series_style.density import MAX_BANDWIDTH
 from pandaplot.models.chart.series_style.fill import FillStyleFields
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+from pandaplot.models.chart.value_label_arrow import (
+    DEFAULT_VALUE_LABEL_ARROW_COLOR,
+    DEFAULT_VALUE_LABEL_ARROW_WIDTH,
+    ValueLabelArrowLineStyle,
+    ValueLabelArrowStyle,
+)
 from pandaplot.models.chart.value_label_subset import ValueLabelSubset
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.project.items.chart import DataSeries
@@ -72,6 +87,8 @@ from pandaplot.utils.length_units import (
     unit_suffix,
 )
 
+# Text colour of the combo icons before the theme tokens are applied (the light theme's primary text colour).
+DEFAULT_ICON_COLOR = "#1C1E26"
 # Preset swatch palette offered by the Style tab's line/marker color pickers.
 STYLE_SWATCH_PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
 
@@ -120,6 +137,30 @@ VALUE_LABEL_SUBSET_OPTIONS = [
     ("Local min and max", ValueLabelSubset.LOCAL_EXTREMES),
 ]
 
+# How a value label's leader line is drawn (#504).
+VALUE_LABEL_ARROW_STYLE_OPTIONS: list[tuple[str, object]] = [
+    ("Line", ValueLabelArrowStyle.LINE),
+    ("Arrow", ValueLabelArrowStyle.ARROW),
+    ("Filled arrow", ValueLabelArrowStyle.FILLED_ARROW),
+]
+VALUE_LABEL_ARROW_LINE_STYLE_OPTIONS: list[tuple[str, object]] = [
+    ("Solid", ValueLabelArrowLineStyle.SOLID),
+    ("Dashed", ValueLabelArrowLineStyle.DASHED),
+    ("Dotted", ValueLabelArrowLineStyle.DOTTED),
+]
+
+# Marker shapes offered by the Markers card: display name, stored value, bundled icon.
+_MARKER_SHAPE_OPTIONS: list[tuple[str, MarkerType, str]] = [
+    ("Circle", MarkerType.CIRCLE, "circle"),
+    ("Square", MarkerType.SQUARE, "square"),
+    ("Triangle", MarkerType.TRIANGLE, "triangle"),
+    ("Diamond", MarkerType.DIAMOND, "diamond"),
+    ("Star", MarkerType.STAR, "star"),
+    ("Plus", MarkerType.PLUS, "plus"),
+    ("Cross", MarkerType.CROSS, "x"),
+]
+_MARKER_ICON_SIZE = 16
+
 
 def _make_bold_italic_checks_standalone() -> tuple[QCheckBox, QCheckBox]:
     """Same as the local closure `_make_bold_italic_checks` defined inside
@@ -156,6 +197,7 @@ class StyleTab(QWidget):
 
     def __init__(self, app_context, parent=None):
         super().__init__(parent)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.app_context = app_context
         self._chart = None
         self._updating_controls = False
@@ -433,7 +475,7 @@ class StyleTab(QWidget):
             ("Dash-Dot", LineStyleType.DASHDOT),
             ("None", LineStyleType.NONE),
         ]
-        _default_tokens = {"text_primary": "#1C1E26"}
+        _default_tokens = {"text_primary": DEFAULT_ICON_COLOR}
         self.line_style_control = ValueComboBox(
             _line_style_items,
             icons=[build_line_style_icon(style, _default_tokens) for _, style in _line_style_items],
@@ -621,15 +663,8 @@ class StyleTab(QWidget):
         self.marker_shape_label = QLabel("Shape:")
         marker_layout.addWidget(self.marker_shape_label, 1, 0)
         self.marker_shape_control = ValueComboBox(
-            [
-                ("● Circle", MarkerType.CIRCLE),
-                ("■ Square", MarkerType.SQUARE),
-                ("▲ Triangle", MarkerType.TRIANGLE),
-                ("◆ Diamond", MarkerType.DIAMOND),
-                ("★ Star", MarkerType.STAR),
-                ("+ Plus", MarkerType.PLUS),
-                ("✕ Cross", MarkerType.CROSS),
-            ]
+            [(label, marker) for label, marker, _icon_name in _MARKER_SHAPE_OPTIONS],
+            icons=[build_icon(icon_name, DEFAULT_ICON_COLOR, size=_MARKER_ICON_SIZE) for _label, _marker, icon_name in _MARKER_SHAPE_OPTIONS],
         )
         marker_layout.addWidget(self.marker_shape_control, 1, 1)
 
@@ -737,49 +772,77 @@ class StyleTab(QWidget):
         self.value_labels_arrow_toggle = ToggleSwitch()
         value_labels_layout.addWidget(self.value_labels_arrow_toggle, 2, 1)
 
+        self.value_labels_arrow_style_label = QLabel("Arrow style:")
+        value_labels_layout.addWidget(self.value_labels_arrow_style_label, 3, 0)
+        self.value_labels_arrow_style_control = ValueComboBox(VALUE_LABEL_ARROW_STYLE_OPTIONS)
+        value_labels_layout.addWidget(self.value_labels_arrow_style_control, 3, 1)
+
+        self.value_labels_arrow_match_color_label = QLabel("Match text color:")
+        value_labels_layout.addWidget(self.value_labels_arrow_match_color_label, 4, 0)
+        self.value_labels_arrow_match_color_toggle = ToggleSwitch()
+        value_labels_layout.addWidget(self.value_labels_arrow_match_color_toggle, 4, 1)
+
+        self.value_labels_arrow_color_label = QLabel("Arrow color:")
+        value_labels_layout.addWidget(self.value_labels_arrow_color_label, 5, 0)
+        self.value_labels_arrow_color_row = ColorSwatchRow(STYLE_SWATCH_PALETTE)
+        value_labels_layout.addWidget(self.value_labels_arrow_color_row, 5, 1)
+
+        self.value_labels_arrow_width_label = QLabel("Arrow width:")
+        value_labels_layout.addWidget(self.value_labels_arrow_width_label, 6, 0)
+        self.value_labels_arrow_width_slider = SliderWithSpinbox(minimum=0.1, maximum=5.0, decimals=1)
+        value_labels_layout.addWidget(self.value_labels_arrow_width_slider, 6, 1)
+
+        self.value_labels_arrow_line_style_label = QLabel("Arrow line style:")
+        value_labels_layout.addWidget(self.value_labels_arrow_line_style_label, 7, 0)
+        self.value_labels_arrow_line_style_control = ValueComboBox(
+            VALUE_LABEL_ARROW_LINE_STYLE_OPTIONS,
+            icons=[build_line_style_icon(LineStyleType(line_style), _default_tokens) for _, line_style in VALUE_LABEL_ARROW_LINE_STYLE_OPTIONS],
+        )
+        value_labels_layout.addWidget(self.value_labels_arrow_line_style_control, 7, 1)
+
         self.value_labels_offset_x_label = QLabel("Offset X:")
-        value_labels_layout.addWidget(self.value_labels_offset_x_label, 3, 0)
+        value_labels_layout.addWidget(self.value_labels_offset_x_label, 8, 0)
         self.value_labels_offset_x_spin = DecimalInput()
         self.value_labels_offset_x_spin.setRange(-100.0, 100.0)
         self.value_labels_offset_x_spin.setDecimals(1)
-        value_labels_layout.addWidget(self.value_labels_offset_x_spin, 3, 1)
+        value_labels_layout.addWidget(self.value_labels_offset_x_spin, 8, 1)
 
         self.value_labels_offset_y_label = QLabel("Offset Y:")
-        value_labels_layout.addWidget(self.value_labels_offset_y_label, 4, 0)
+        value_labels_layout.addWidget(self.value_labels_offset_y_label, 9, 0)
         self.value_labels_offset_y_spin = DecimalInput()
         self.value_labels_offset_y_spin.setRange(-100.0, 100.0)
         self.value_labels_offset_y_spin.setDecimals(1)
-        value_labels_layout.addWidget(self.value_labels_offset_y_spin, 4, 1)
+        value_labels_layout.addWidget(self.value_labels_offset_y_spin, 9, 1)
 
         self.value_labels_match_color_label = QLabel("Match series color:")
-        value_labels_layout.addWidget(self.value_labels_match_color_label, 5, 0)
+        value_labels_layout.addWidget(self.value_labels_match_color_label, 10, 0)
         self.value_labels_match_color_toggle = ToggleSwitch(checked=True)
-        value_labels_layout.addWidget(self.value_labels_match_color_toggle, 5, 1)
+        value_labels_layout.addWidget(self.value_labels_match_color_toggle, 10, 1)
 
         self.value_labels_text_color_label = QLabel("Text color:")
-        value_labels_layout.addWidget(self.value_labels_text_color_label, 6, 0)
+        value_labels_layout.addWidget(self.value_labels_text_color_label, 11, 0)
         self.value_labels_text_color_row = ColorSwatchRow(STYLE_SWATCH_PALETTE)
-        value_labels_layout.addWidget(self.value_labels_text_color_row, 6, 1)
+        value_labels_layout.addWidget(self.value_labels_text_color_row, 11, 1)
 
         self.value_labels_bg_enabled_label = QLabel("Background:")
-        value_labels_layout.addWidget(self.value_labels_bg_enabled_label, 7, 0)
+        value_labels_layout.addWidget(self.value_labels_bg_enabled_label, 12, 0)
         self.value_labels_bg_enabled_toggle = ToggleSwitch()
-        value_labels_layout.addWidget(self.value_labels_bg_enabled_toggle, 7, 1)
+        value_labels_layout.addWidget(self.value_labels_bg_enabled_toggle, 12, 1)
 
         self.value_labels_bg_color_label = QLabel("Background color:")
-        value_labels_layout.addWidget(self.value_labels_bg_color_label, 8, 0)
+        value_labels_layout.addWidget(self.value_labels_bg_color_label, 13, 0)
         self.value_labels_bg_color_row = ColorSwatchRow(STYLE_SWATCH_PALETTE)
-        value_labels_layout.addWidget(self.value_labels_bg_color_row, 8, 1)
+        value_labels_layout.addWidget(self.value_labels_bg_color_row, 13, 1)
 
         self.value_labels_bg_alpha_label = QLabel("Background alpha:")
-        value_labels_layout.addWidget(self.value_labels_bg_alpha_label, 9, 0)
+        value_labels_layout.addWidget(self.value_labels_bg_alpha_label, 14, 0)
         self.value_labels_bg_alpha_slider = SliderWithSpinbox(minimum=0.0, maximum=1.0, decimals=2)
-        value_labels_layout.addWidget(self.value_labels_bg_alpha_slider, 9, 1)
+        value_labels_layout.addWidget(self.value_labels_bg_alpha_slider, 14, 1)
 
         self.value_labels_subset_label = QLabel("Label points:")
-        value_labels_layout.addWidget(self.value_labels_subset_label, 10, 0)
+        value_labels_layout.addWidget(self.value_labels_subset_label, 15, 0)
         self.value_labels_subset_control = ValueComboBox(VALUE_LABEL_SUBSET_OPTIONS)
-        value_labels_layout.addWidget(self.value_labels_subset_control, 10, 1)
+        value_labels_layout.addWidget(self.value_labels_subset_control, 15, 1)
         subset_tooltip = (
             "Min and max are by Y value; if several points tie, the first one is used. "
             "With X labels, 'Only max' shows the X of the highest-Y point."
@@ -1033,7 +1096,12 @@ class StyleTab(QWidget):
         self.value_labels_enabled_toggle.toggled.connect(self._on_value_labels_enabled_toggled)
         self.value_labels_mode_control.currentValueChanged.connect(self._on_field_changed)
         self.value_labels_subset_control.currentValueChanged.connect(self._on_field_changed)
-        self.value_labels_arrow_toggle.toggled.connect(self._on_field_changed)
+        self.value_labels_arrow_toggle.toggled.connect(self._on_value_labels_arrow_toggled)
+        self.value_labels_arrow_style_control.currentValueChanged.connect(self._on_field_changed)
+        self.value_labels_arrow_match_color_toggle.toggled.connect(self._on_value_labels_arrow_match_color_toggled)
+        self.value_labels_arrow_color_row.colorChanged.connect(self._on_field_changed)
+        self.value_labels_arrow_width_slider.valueChanged.connect(self._on_field_changed)
+        self.value_labels_arrow_line_style_control.currentValueChanged.connect(self._on_field_changed)
         self.value_labels_offset_x_spin.valueChanged.connect(self._on_field_changed)
         self.value_labels_offset_y_spin.valueChanged.connect(self._on_field_changed)
         self.value_labels_match_color_toggle.toggled.connect(self._on_value_labels_match_color_toggled)
@@ -1130,8 +1198,8 @@ class StyleTab(QWidget):
         if self._config_event_subscribed:
             try:
                 self.app_context.event_bus.unsubscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
-            except Exception:  # noqa: BLE001, S110 -- best-effort cleanup on teardown
-                pass
+            except Exception:  # best-effort cleanup on teardown
+                self.logger.debug("Failed to unsubscribe from config updates", exc_info=True)
             self._config_event_subscribed = False
 
     # -- Chip selection / target routing -----------------------------------
@@ -1610,7 +1678,7 @@ class StyleTab(QWidget):
         chip_items = [("Chart", "chart"), ("Axes", "axes")]
         for index, series in enumerate(data_series):
             if series.is_fit:
-                label = f"\U0001f527 {series.label}"
+                label = series.label
             else:
                 label = series.label or f"{series.dataset_id}:{self._series_y_name(series)}"
             chip_items.append((label, index))
@@ -1821,16 +1889,17 @@ class StyleTab(QWidget):
             if other is series:
                 current_index = idx
                 break
-        items = [("Baseline", -1)]
+        self.fill_to_control.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+        self.fill_to_control.clear()
+        self.fill_to_control.addItem("Baseline", -1)
         for idx, other in enumerate(self._data_series):
             if idx == current_index:
                 continue
             label = other.label or f"Series {idx + 1}"
-            items.append((f"↕ {label}", idx))
-        self.fill_to_control.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
-        self.fill_to_control.clear()
-        for label, value in items:
-            self.fill_to_control.addItem(label, value)
+            if self.app_context is None:
+                self.fill_to_control.addItem(label, idx)
+            else:
+                add_icon_item(self.fill_to_control, self.app_context, FIT_ICON_NAME if other.is_fit else SERIES_ICON_NAME, label, idx)
         self.fill_to_control.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
     def _on_fill_enabled_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
@@ -2041,6 +2110,16 @@ class StyleTab(QWidget):
         self._update_value_labels_controls_visibility()
         self._on_field_changed()
 
+    def _on_value_labels_arrow_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
+        """Handle the Value Labels 'Arrow' toggle."""
+        self._update_value_labels_controls_visibility()
+        self._on_field_changed()
+
+    def _on_value_labels_arrow_match_color_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
+        """Handle the Value Labels 'Match text color' toggle for the arrow."""
+        self._update_value_labels_controls_visibility()
+        self._on_field_changed()
+
     def _on_value_labels_match_color_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Handle the Value Labels 'Match series color' toggle."""
         self._update_value_labels_controls_visibility()
@@ -2056,7 +2135,9 @@ class StyleTab(QWidget):
         is on -- hidden, not just greyed, when off (same convention as
         _update_fill_controls_visibility/_update_band_controls_visibility).
         Mode/arrow/offset are further hidden for a target whose style class
-        doesn't declare them (Bar -- see BarSeriesStyle). The text-color
+        doesn't declare them (Bar -- see BarSeriesStyle). The arrow's own
+        style/color/width/line-style controls show only while 'Arrow' is on,
+        and its color swatch only while 'Match text color' is off. The text-color
         swatch is hidden while 'Match series color' is checked, and the
         background color/alpha are hidden until 'Background' is checked
         (same show_color convention as Marker/Fill/Confidence-Band)."""
@@ -2074,6 +2155,18 @@ class StyleTab(QWidget):
             self.value_labels_subset_label, self.value_labels_subset_control,
         ):
             widget.setVisible(supports_mode)
+
+        show_arrow_options = supports_mode and self.value_labels_arrow_toggle.isChecked()
+        for widget in (
+            self.value_labels_arrow_style_label, self.value_labels_arrow_style_control,
+            self.value_labels_arrow_match_color_label, self.value_labels_arrow_match_color_toggle,
+            self.value_labels_arrow_width_label, self.value_labels_arrow_width_slider,
+            self.value_labels_arrow_line_style_label, self.value_labels_arrow_line_style_control,
+        ):
+            widget.setVisible(show_arrow_options)
+        show_arrow_color = show_arrow_options and not self.value_labels_arrow_match_color_toggle.isChecked()
+        self.value_labels_arrow_color_label.setVisible(show_arrow_color)
+        self.value_labels_arrow_color_row.setVisible(show_arrow_color)
 
         self.value_labels_match_color_label.setVisible(enabled)
         self.value_labels_match_color_toggle.setVisible(enabled)
@@ -2214,6 +2307,14 @@ class StyleTab(QWidget):
             style.value_label_offset_x = self.value_labels_offset_x_spin.value()
             style.value_label_offset_y = self.value_labels_offset_y_spin.value()
             style.value_label_subset_mode = self.value_labels_subset_control.currentValue()
+            style.value_label_arrow_style = ValueLabelArrowStyle.coerce(self.value_labels_arrow_style_control.currentValue())
+            # "" == the arrow takes the label's text color.
+            style.value_label_arrow_color = (
+                "" if self.value_labels_arrow_match_color_toggle.isChecked()
+                else self.value_labels_arrow_color_row.currentColor()
+            )
+            style.value_label_arrow_width = self.value_labels_arrow_width_slider.value()
+            style.value_label_arrow_line_style = ValueLabelArrowLineStyle.coerce(self.value_labels_arrow_line_style_control.currentValue())
         # Text/background color+alpha: all three value-label-capable types.
         # "" == match series color (text) / no background box (bg) -- same
         # "" -sentinel convention as marker_color/fill_color.
@@ -2440,6 +2541,26 @@ class StyleTab(QWidget):
             self.value_labels_bg_enabled_toggle.setChecked(checked=value_label_bg_color != "")
             self.value_labels_bg_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self.value_labels_bg_alpha_slider.setValue(getattr(style, "value_label_bg_alpha", 1.0))
+
+            self.value_labels_arrow_style_control.setCurrentValue(
+                ValueLabelArrowStyle.coerce(getattr(style, "value_label_arrow_style", ValueLabelArrowStyle.LINE))
+            )
+            # A label with no text color of its own is drawn in the marker color for Scatter and the line
+            # color otherwise (see render_scatter_series / render_line_series); the arrow follows the label.
+            inherited_label_color = (marker_color or color) if series.series_type == SeriesType.SCATTER else color
+            value_label_arrow_color = getattr(style, "value_label_arrow_color", DEFAULT_VALUE_LABEL_ARROW_COLOR)
+            self.value_labels_arrow_color_row.setCurrentColor(
+                value_label_arrow_color or value_label_text_color or inherited_label_color
+            )
+            self.value_labels_arrow_match_color_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.value_labels_arrow_match_color_toggle.setChecked(checked=value_label_arrow_color == "")
+            self.value_labels_arrow_match_color_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+            self.value_labels_arrow_width_slider.setValue(
+                getattr(style, "value_label_arrow_width", DEFAULT_VALUE_LABEL_ARROW_WIDTH)
+            )
+            self.value_labels_arrow_line_style_control.setCurrentValue(
+                ValueLabelArrowLineStyle.coerce(getattr(style, "value_label_arrow_line_style", ValueLabelArrowLineStyle.SOLID))
+            )
 
             self._update_value_labels_controls_visibility()
 
@@ -2944,12 +3065,16 @@ class StyleTab(QWidget):
     # -- Theme ----------------------------------------------------------------
 
     def apply_theme(self, tokens: dict):
+        if self.app_context is not None:
+            retint_combo_icons(self.fill_to_control, self.app_context)
         self.title_color_row.set_tokens(tokens)
         self.subtitle_color_row.set_tokens(tokens)
         self.subtitle_match_title_toggle.set_tokens(tokens)
         self.style_series_chips.set_tokens(tokens)
         self.line_color_row.set_tokens(tokens)
         self.line_style_control.set_tokens(tokens)
+        for _index, (_label, _marker, _icon_name) in enumerate(_MARKER_SHAPE_OPTIONS):
+            self.marker_shape_control.setItemIcon(_index, build_icon(_icon_name, tokens.get("text_primary", DEFAULT_ICON_COLOR), size=_MARKER_ICON_SIZE))
         for _index in range(self.line_style_control.count()):
             _style = self.line_style_control.itemData(_index)
             self.line_style_control.setItemIcon(_index, build_line_style_icon(_style, tokens))
@@ -2965,6 +3090,12 @@ class StyleTab(QWidget):
         self.error_direction_control.set_tokens(tokens)
         self.error_color_row.set_tokens(tokens)
         self.twin_y_color_row.set_tokens(tokens)
+        self.value_labels_arrow_match_color_toggle.set_tokens(tokens)
+        self.value_labels_arrow_color_row.set_tokens(tokens)
+        self.value_labels_arrow_width_slider.set_tokens(tokens)
+        for _index in range(self.value_labels_arrow_line_style_control.count()):
+            _style = self.value_labels_arrow_line_style_control.itemData(_index)
+            self.value_labels_arrow_line_style_control.setItemIcon(_index, build_line_style_icon(LineStyleType(_style), tokens))
         self.error_match_line_toggle.set_tokens(tokens)
         self.error_cap_size_slider.set_tokens(tokens)
         self.vector_card.set_tokens(tokens)

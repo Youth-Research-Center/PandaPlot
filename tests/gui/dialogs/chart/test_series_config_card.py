@@ -1,9 +1,16 @@
 """Tests for SeriesConfigCard."""
 import pytest
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
-from pandaplot.gui.dialogs.chart.series_config_card import SeriesConfigCard
+from pandaplot.gui.dialogs.chart.series_config_card import (
+    _FALLBACK_DISABLED_ICON_COLOR,
+    _FALLBACK_ICON_COLOR,
+    SeriesConfigCard,
+)
+from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
+from tests.gui.icon_testing import ICON_TOKENS, fresh_icon_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -291,3 +298,120 @@ def test_series_config_includes_minus_columns_and_symmetric_flag():
     assert "x_error_minus_column_id" in config
     assert "y_error_minus_column_id" in config
     assert config["error_symmetric"] is False
+
+
+def test_icon_only_expand_and_collapse_buttons_have_accessible_names():
+    card = _line_card()
+
+    assert card._expand_button.accessibleName() == "Expand series"
+    assert card._collapse_button.accessibleName() == "Collapse series"
+    assert card._expand_button.toolTip()
+    assert card._collapse_button.toolTip()
+
+
+def test_default_card_keeps_wizard_controls_and_collapsing():
+    card = _line_card()
+
+    assert card.remove_button.isVisible()
+    assert card._collapse_button.isVisible()
+    card.set_collapsed(collapsed=True)
+    assert card.is_collapsed()
+    assert card._summary_row.isVisible()
+    assert not card._form_widget.isVisible()
+
+
+def test_standalone_card_hides_remove_collapse_and_summary():
+    card = SeriesConfigCard(role_spec=get_chart_type_spec("line"), standalone=True)
+    card.show()
+
+    assert not card.remove_button.isVisible()
+    assert not card._collapse_button.isVisible()
+    assert not card._summary_row.isVisible()
+    assert card._form_widget.isVisible()
+
+
+def test_standalone_card_ignores_set_collapsed():
+    card = SeriesConfigCard(role_spec=get_chart_type_spec("line"), standalone=True)
+    card.show()
+
+    card.set_collapsed(collapsed=True)
+
+    assert not card.is_collapsed()
+    assert card._form_widget.isVisible()
+    assert not card._summary_row.isVisible()
+
+
+def test_every_role_label_has_its_combo_as_buddy():
+    from PySide6.QtWidgets import QLabel
+
+    card = SeriesConfigCard(role_spec=get_chart_type_spec("line"))
+    buddies = {label.text(): label.buddy() for label in card.findChildren(QLabel) if label.buddy() is not None}
+
+    assert buddies["Dataset:"] is card.dataset_combo
+    assert buddies["X column:"] is card.x_column_combo
+    assert buddies["Y column:"] is card.y_column_combo
+    assert buddies["Y error (+) column:"] is card.y_error_column_combo
+
+
+def test_missing_required_roles_lists_roles_without_a_column():
+    card = SeriesConfigCard(role_spec=get_chart_type_spec("heatmap"))
+    card.set_datasets([("ds-1", "Sales")])
+    card.set_dataset_columns("ds-1", [("col-x", "X"), ("col-y", "Y"), ("col-z", "Z")])
+
+    assert card.missing_required_roles() == ["x", "y", "z"]
+    assert not card.is_complete()
+
+    card.x_column_combo.setCurrentIndex(card.x_column_combo.findData("col-x"))
+    card.z_column_combo.setCurrentIndex(card.z_column_combo.findData("col-z"))
+
+    assert card.missing_required_roles() == ["y"]
+
+    card.y_column_combo.setCurrentIndex(card.y_column_combo.findData("col-y"))
+
+    assert card.missing_required_roles() == []
+    assert card.is_complete()
+
+
+def _icon_image(icon: QIcon, mode: QIcon.Mode = QIcon.Mode.Normal):
+    return icon.pixmap(16, 16, mode).toImage()
+
+
+def _expected_chevron(name: str, tokens: dict[str, str]) -> QIcon:
+    return build_icon(name, tokens["text_muted"], size=16, disabled_color=tokens["text_disabled"])
+
+
+def test_expand_and_collapse_buttons_show_chevron_icons_without_glyph_text_once_tokens_are_set():
+    card = _line_card()
+
+    card.set_tokens(fresh_icon_tokens())
+
+    for button, icon_name in ((card._expand_button, "caret-right"), (card._collapse_button, "caret-down")):
+        assert button.text() == ""
+        assert _icon_image(button.icon()) == _icon_image(_expected_chevron(icon_name, ICON_TOKENS))
+        assert _icon_image(button.icon(), QIcon.Mode.Disabled) == _icon_image(_expected_chevron(icon_name, ICON_TOKENS), QIcon.Mode.Disabled)
+
+
+def test_chevron_icons_follow_a_token_change():
+    card = _line_card()
+    card.set_tokens(fresh_icon_tokens())
+    dark = {**ICON_TOKENS, "text_muted": "#9AA0AB", "text_disabled": "#5B6270"}
+
+    card.set_tokens(dark)
+
+    assert _icon_image(card._expand_button.icon()) == _icon_image(_expected_chevron("caret-right", dark))
+    assert _icon_image(card._collapse_button.icon()) == _icon_image(_expected_chevron("caret-down", dark))
+
+
+def test_card_without_tokens_has_buttons_with_no_glyph_text_and_works():
+    card = _line_card()
+
+    fallback = {"text_muted": _FALLBACK_ICON_COLOR, "text_disabled": _FALLBACK_DISABLED_ICON_COLOR}
+    for button, icon_name in ((card._expand_button, "caret-right"), (card._collapse_button, "caret-down")):
+        assert button.text() == ""
+        assert not button.icon().isNull()
+        assert _icon_image(button.icon()) == _icon_image(_expected_chevron(icon_name, fallback))
+        assert _icon_image(button.icon(), QIcon.Mode.Disabled) == _icon_image(_expected_chevron(icon_name, fallback), QIcon.Mode.Disabled)
+    card._collapse_button.click()
+    assert card.is_collapsed()
+    card._expand_button.click()
+    assert not card.is_collapsed()

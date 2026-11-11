@@ -121,6 +121,21 @@ class TestPreprocessColumnCommand:
         assert command.execute() is CommandResult.FAILURE
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
+    def test_unexpected_failure_passes_the_exception_to_the_dialog(self, app_context_with_project, monkeypatch):
+        app_context, _, dataset = app_context_with_project
+        before = dataset.data.copy()
+        monkeypatch.setattr(
+            "pandaplot.commands.project.dataset.preprocess_column_command.PreprocessingEngine.transform",
+            Mock(side_effect=ValueError("could not convert string to float: 'x'")),
+        )
+        command = PreprocessColumnCommand(app_context, "ds-1", {"method": "center", "source_columns": ["A"]})
+
+        assert command.execute() is CommandResult.FAILURE
+        call = app_context.get_ui_controller.return_value.show_error_message.call_args
+        assert call.args == ("Preprocessing Error", "Couldn't preprocess the selected columns.")
+        assert isinstance(call.kwargs["error"], ValueError)
+        pd.testing.assert_frame_equal(dataset.data, before)
+
     def test_missing_column_fails(self, app_context_with_project):
         app_context, _, _ = app_context_with_project
         command = PreprocessColumnCommand(

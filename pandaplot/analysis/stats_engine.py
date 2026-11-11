@@ -13,6 +13,8 @@ from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 
+from pandaplot.utils.errors import UserFacingError
+
 from .stats_types import STAT_TESTS, StatTestResult, StatTestType
 
 logger = logging.getLogger(__name__)
@@ -460,7 +462,9 @@ class StatsEngine:
         ]
         # For normality the "significant" interpretation is inverted, so build a
         # custom conclusion rather than the generic reject/fail helper.
-        if p < alpha:
+        if np.isnan(p):
+            conclusion = f"The p-value could not be computed for '{name}', so normality cannot be assessed."
+        elif p < alpha:
             conclusion = (
                 f"Reject H0 (p = {_fmt_p(p)} < {alpha}): the data in '{name}' is likely NOT normally distributed. "
                 "Consider a nonparametric test."
@@ -484,7 +488,7 @@ class StatsEngine:
     @staticmethod
     def _require(*, condition: bool, requirement: str) -> None:
         if not condition:
-            raise ValueError(f"This test requires {requirement}.")
+            raise UserFacingError(f"This test requires {requirement}.")
 
     @staticmethod
     def _build(
@@ -509,7 +513,9 @@ class StatsEngine:
             metadata={"info": STAT_TESTS[test_type].label},
         )
         if subject:
-            if p_value < alpha:
+            if np.isnan(p_value):
+                conclusion = f"The p-value could not be computed, so no conclusion can be drawn about whether {subject}."
+            elif p_value < alpha:
                 conclusion = f"Reject H0 (p = {_fmt_p(p_value)} < {alpha}): evidence that {subject}."
             else:
                 conclusion = f"Fail to reject H0 (p = {_fmt_p(p_value)} >= {alpha}): no significant evidence that {subject}."

@@ -23,12 +23,13 @@ from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.value_combo_box import ValueComboBox
 from pandaplot.gui.core.widget_extension import PWizardPage
 from pandaplot.gui.dialogs.chart.chart_type_icons import chart_type_icon
-from pandaplot.gui.dialogs.chart.wizard_footer import WizardFooter
+from pandaplot.gui.dialogs.chart.wizard_footer import WizardFooter, connect_footer_help
 from pandaplot.gui.dialogs.chart.wizard_step_rail import WizardStepRail
 from pandaplot.models.chart.chart_category import ChartCategory
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES, CHART_TYPE_SPECS
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.help.help_types import WIZARD_TOPIC_TYPE
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -88,11 +89,13 @@ class ChartTypePage(PWizardPage):
         preview_column.addWidget(preview_card, 1)
         content.addLayout(preview_column, 1)
 
-        self.footer = WizardFooter(step_number=1, total_steps=3, show_empty_link=True)
+        self.help_topic: str = WIZARD_TOPIC_TYPE
+        self.footer = WizardFooter(step_number=1, total_steps=3, show_empty_link=True, help_topic=self.help_topic, help_label="Chart type")
         self.footer.nextClicked.connect(lambda: self.wizard().next())
         self.footer.cancelClicked.connect(lambda: self.wizard().reject())
         self.footer.emptyRequested.connect(self.emptyRequested.emit)
         self.empty_button = self.footer.empty_link
+        connect_footer_help(self, self.footer)
         outer.addWidget(self.footer)
 
         self.completeChanged.connect(lambda: self.footer.set_next_enabled(enabled=self.isComplete()))

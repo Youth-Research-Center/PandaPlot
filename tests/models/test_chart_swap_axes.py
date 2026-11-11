@@ -2,12 +2,13 @@
 import numpy as np
 import pytest
 
+from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
-from pandaplot.models.project.items.chart import Chart, DataSeries, YAxis, snapshot_chart_state
+from pandaplot.models.project.items.chart import SWAPPABLE_CHART_TYPES, Chart, DataSeries, YAxis, snapshot_chart_state
 
 
 def _chart_with_series(**series_kwargs) -> Chart:
@@ -187,3 +188,8 @@ def test_swap_leaves_partial_fill_ranges_untouched():
 
     assert chart.data_series[0].style.fill_sections == [(0, 4), (7, 9)]
     assert chart.data_series[0].style.fill_orientation == "horizontal"
+
+
+@pytest.mark.parametrize("chart_type", list(ChartType))
+def test_supports_swap_axes_matches_swappable_chart_types(chart_type):
+    assert Chart(name="C", chart_type=chart_type.value).supports_swap_axes == (chart_type in SWAPPABLE_CHART_TYPES)

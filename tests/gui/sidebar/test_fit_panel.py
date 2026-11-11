@@ -18,6 +18,7 @@ from PySide6.QtWidgets import QApplication, QFrame, QPlainTextEdit
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.fit.fit_panel import CUSTOM_SERIES_SENTINEL, FitPanel
 from pandaplot.models.chart.chart_type import ChartType
@@ -28,6 +29,9 @@ from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.fit.fit_service import FitResult
+from pandaplot.utils.error_messages import ErrorDescription
+from tests.commands.project.conftest import SyncTaskScheduler
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -40,7 +44,7 @@ def qapp():
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
     return ctx
 
 
@@ -50,9 +54,18 @@ def fit_panel(app_context):
 
 
 def test_fit_panel_constructs_with_expected_buttons(fit_panel):
-    assert isinstance(fit_panel.fit_button, PButton)
-    assert isinstance(fit_panel.apply_button, PButton)
-    assert isinstance(fit_panel.clear_button, PButton)
+    expected = [
+        (fit_panel.fit_button, "Perform Fit", "primary"),
+        (fit_panel.apply_button, "Apply", "secondary"),
+        (fit_panel.clear_button, "Clear Results", "secondary"),
+    ]
+    for button, text, role in expected:
+        assert isinstance(button, PButton)
+        assert button.text() == text
+        assert button.property(role) is True
+        assert button.receivers("2clicked(bool)") == 1
+    assert fit_panel.apply_button.isEnabled() is False
+    assert fit_panel.clear_button.isEnabled() is True
 
 
 def test_fit_button_enabled_state_matches_scipy_availability(app_context):
@@ -94,7 +107,7 @@ def test_equation_label_uses_theme_tokens_not_hardcoded_colors(app_context):
         "card_hover": "#26282B", "card_pressed": "#232527", "secondary_fg": "#C7CAD1",
         "accent": "#4A56C6",
     }
-    theme_manager.get_design_tokens.return_value = {"font_size_group_title": 9}
+    theme_manager.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
     app_context.get_manager.return_value = theme_manager
 
     panel = FitPanel(app_context)
@@ -1764,15 +1777,51 @@ def test_perform_fit_failure_path_shows_error_and_stops_spinner(app_context):
 
     command = executed["command"]
     command.error_message = "Fit did not converge"
+    command.error_description = ErrorDescription(reason="The fit did not converge.", next_step="Try another model.", details="")
     command.on_complete(CommandResult.FAILURE)
 
     assert panel.busy_spinner.is_running is False
     assert panel.fit_button.isEnabled() is True
     assert panel.apply_button.isEnabled() is False
     assert panel.fit_results is None
-    assert panel.results_text.toPlainText() == "Fit did not converge"
+    assert panel.results_text.toPlainText() == "The fit did not converge.\n\nTry another model."
     assert "color: red;" in panel.results_text.styleSheet()
     assert "background-color: transparent;" in panel.results_text.styleSheet()
+
+
+def test_scipy_non_convergence_shows_plain_text_without_library_wording(app_context, monkeypatch):
+    import scipy.optimize
+
+    from pandaplot.services.fit.fit_service import FitService
+
+    panel, executed = _build_panel_ready_to_fit(app_context)
+    panel._perform_fit()
+
+    command = executed["command"]
+    command.task_scheduler = SyncTaskScheduler()
+    command.fit_service = FitService()
+    monkeypatch.setattr(scipy.optimize, "curve_fit", Mock(side_effect=RuntimeError(
+        "Optimal parameters not found: Number of calls to function has reached maxfev = 800."
+    )))
+    command.execute()
+
+    text = panel.results_text.toPlainText()
+    assert text == "The fit did not converge for this data. Try another model or a narrower X range."
+    assert "RuntimeError" not in text
+    assert "Optimal parameters" not in text
+    assert "maxfev" not in text
+
+
+def test_failed_fit_without_a_description_shows_a_generic_plain_text(app_context):
+    panel, executed = _build_panel_ready_to_fit(app_context)
+    panel._perform_fit()
+
+    command = executed["command"]
+    command.error_message = "raw text"
+    command.error_description = None
+    command.on_complete(CommandResult.FAILURE)
+
+    assert panel.results_text.toPlainText() == "The fit could not be calculated."
 
 
 def test_perform_fit_sync_dispatch_failure_stops_spinner_without_on_complete(app_context):
@@ -1950,11 +1999,12 @@ class TestFitPanelSeriesSelectedEvent:
         panel.app_context.app_state = Mock()
         panel.app_context.app_state.current_project = project
         panel.load_chart_object(chart)
-        panel.fit_results = _make_fake_fit_result()
+        fit_result = _make_fake_fit_result()
+        panel.fit_results = fit_result
 
         panel._on_chart_updated({"chart_id": "chart-1"})
 
-        assert panel.fit_results is not None
+        assert panel.fit_results is fit_result
 
 
 def test_apply_stays_disabled_with_a_tooltip_on_a_chart_type_that_does_not_allow_fits(app_context):
@@ -2146,8 +2196,103 @@ def test_switching_to_unsupported_chart_clears_stale_points_and_range_warning(ap
     assert panel.data_points_warning_icon.isHidden() is True
 
 
+def test_data_points_warning_is_a_warning_icon_without_emoji(app_context):
+    panel = FitPanel(app_context)
+
+    icon = panel.data_points_warning_icon
+    assert isinstance(icon, IconLabel)
+    assert icon.icon_name == "warning"
+    assert icon.text() == ""
+    assert_tinted(strongest_pixel(icon.pixmap()), ICON_TOKENS["status_modified_text"])
+
+
+def test_data_points_warning_icon_shows_with_its_tooltip_when_no_data_is_selected(app_context):
+    panel = FitPanel(app_context)
+
+    panel.update_data_points_display()
+
+    icon = panel.data_points_warning_icon
+    assert icon.isHidden() is False
+    assert icon.toolTip() == "Select a chart series with valid data to perform a fit."
+
+
+def test_data_points_warning_icon_hides_again_once_data_is_available(app_context):
+    panel, _executed = _build_panel_ready_to_fit(app_context)
+
+    panel.update_data_points_display()
+
+    assert panel.data_points_warning_icon.isHidden() is True
+
+
+def test_data_points_warning_icon_follows_the_theme(app_context):
+    panel = FitPanel(app_context)
+    app_context.get_manager.return_value.get_design_tokens.return_value["status_modified_text"] = "#00AA00"
+
+    panel._apply_theme()
+
+    assert_tinted(strongest_pixel(panel.data_points_warning_icon.pixmap()), "#00AA00")
+
+
+def _panel_with_too_few_points(app_context):
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_type_combo.setCurrentText("Quintic (polynomial, degree 5)")
+    return panel
+
+
+@pytest.mark.parametrize("warning_colour", ["#B06A00", "#FFB74D"])
+def test_data_points_text_shares_the_warning_icon_colour(app_context, warning_colour):
+    app_context.get_manager.return_value.get_design_tokens.return_value = {
+        "font_size_group_title": 9,
+        **ICON_TOKENS,
+        "status_modified_text": warning_colour,
+    }
+
+    panel = _panel_with_too_few_points(app_context)
+
+    assert panel.data_points_label.text() == "4 points"
+    assert panel.data_points_warning_icon.isHidden() is False
+    assert f"color: {warning_colour}" in panel.data_points_label.styleSheet()
+    assert "red" not in panel.data_points_label.styleSheet()
+    assert_tinted(strongest_pixel(panel.data_points_warning_icon.pixmap()), warning_colour)
+
+
+def test_data_points_text_follows_a_theme_change(app_context):
+    panel = _panel_with_too_few_points(app_context)
+    app_context.get_manager.return_value.get_design_tokens.return_value["status_modified_text"] = "#00AA00"
+
+    panel._apply_theme()
+
+    assert "color: #00AA00" in panel.data_points_label.styleSheet()
+    assert_tinted(strongest_pixel(panel.data_points_warning_icon.pixmap()), "#00AA00")
+
+
+def test_range_warning_uses_the_theme_warning_colour(app_context):
+    app_context.get_manager.return_value.get_design_tokens.return_value = {
+        "font_size_group_title": 9,
+        **ICON_TOKENS,
+        "status_modified_text": "#123456",
+    }
+    panel = FitPanel(app_context)
+    panel._apply_theme()
+
+    assert "color: #123456" in panel.range_warning_label.styleSheet()
+    assert "red" not in panel.range_warning_label.styleSheet()
+
+    app_context.get_manager.return_value.get_design_tokens.return_value["status_modified_text"] = "#00AA00"
+    panel._apply_theme()
+
+    assert "color: #00AA00" in panel.range_warning_label.styleSheet()
+
+
 def test_availability_label_uses_theme_warning_color(app_context):
     app_context.get_manager.return_value.get_design_tokens.return_value = {
+        **ICON_TOKENS,
         "font_size_group_title": 9,
         "status_modified_text": "#123456",
     }

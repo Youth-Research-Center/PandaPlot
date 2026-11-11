@@ -34,7 +34,8 @@ def test_execute_surfaces_unexpected_failure_to_the_user():
     assert command.execute() is CommandResult.FAILURE
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
     _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
-    assert "disk error" in message
+    assert message == "Couldn't close the project."
+    assert app_context.get_ui_controller.return_value.show_error_message.call_args.kwargs["error"] is app_state.close_project.side_effect
 
 
 def test_execute_closes_without_asking_when_unmodified():
@@ -47,19 +48,19 @@ def test_execute_closes_without_asking_when_unmodified():
     app_state.close_project.assert_called_once()
 
 
-def test_execute_asks_for_confirmation_when_modified():
+def test_execute_offers_save_as_when_an_untitled_project_is_modified():
     app_context, app_state = _make_app_context(is_modified=True)
-    app_context.get_ui_controller.return_value.show_question.return_value = True
+    app_context.get_ui_controller.return_value.show_save_as_discard_cancel.return_value = "discard"
     command = CloseProjectCommand(app_context)
 
     assert command.execute() is CommandResult.SUCCESS
-    app_context.get_ui_controller.return_value.show_question.assert_called_once()
+    app_context.get_ui_controller.return_value.show_save_as_discard_cancel.assert_called_once()
     app_state.close_project.assert_called_once()
 
 
 def test_execute_aborts_close_when_user_declines_confirmation():
     app_context, app_state = _make_app_context(is_modified=True)
-    app_context.get_ui_controller.return_value.show_question.return_value = False
+    app_context.get_ui_controller.return_value.show_save_as_discard_cancel.return_value = "cancel"
     command = CloseProjectCommand(app_context)
 
     assert command.execute() is CommandResult.NOOP
@@ -114,10 +115,15 @@ def test_marks_project_modified_is_false():
     assert command.marks_project_modified() is False
 
 
-def test_cleanup_does_not_raise():
-    app_context, _app_state = _make_app_context()
+def test_cleanup_is_a_noop_that_leaves_the_command_and_app_state_untouched():
+    app_context, app_state = _make_app_context()
     command = CloseProjectCommand(app_context)
-    command.cleanup()
+    state_before = dict(vars(command))
+
+    assert command.cleanup() is None
+
+    assert vars(command) == state_before
+    app_state.close_project.assert_not_called()
 
 
 def test_does_not_occupy_undo_slot():

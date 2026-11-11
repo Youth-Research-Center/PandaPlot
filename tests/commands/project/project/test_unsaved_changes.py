@@ -49,6 +49,7 @@ def test_confirm_discard_flushes_pending_note_edits_before_checking_is_modified(
     anything to confirm -- otherwise a fast close/exit racing the note's
     2s auto-save timer silently proceeds with no prompt at all."""
     app_context, app_state = _make_app_context(is_modified=False)
+    app_state.project_file_path = "/tmp/p.pplot"
     calls = []
 
     def fake_flush(ctx):
@@ -87,24 +88,11 @@ def test_confirm_discard_still_returns_true_without_asking_when_flush_finds_noth
 
 
 def test_confirm_discard_asks_plain_discard_question_without_offer_save():
-    app_context, _app_state = _make_app_context(is_modified=True)
+    app_context, app_state = _make_app_context(is_modified=True)
+    app_state.project_file_path = "/tmp/p.pplot"
     app_context.get_ui_controller.return_value.show_question.return_value = True
 
     result = confirm_discard_unsaved_changes(app_context)
-
-    assert result is True
-    app_context.get_ui_controller.return_value.show_question.assert_called_once()
-    app_context.get_ui_controller.return_value.show_save_discard_cancel.assert_not_called()
-
-
-def test_confirm_discard_falls_back_to_plain_question_when_offer_save_but_never_saved():
-    """No file path to save to (never-saved project) -- offering "Save and
-    Close" would need a Save As dialog this guard doesn't own, so it falls
-    back to the plain discard/cancel question."""
-    app_context, _app_state = _make_app_context(is_modified=True)
-    app_context.get_ui_controller.return_value.show_question.return_value = True
-
-    result = confirm_discard_unsaved_changes(app_context, offer_save=True)
 
     assert result is True
     app_context.get_ui_controller.return_value.show_question.assert_called_once()
@@ -192,3 +180,61 @@ def test_confirm_discard_cancels_and_reports_an_error_when_flush_fails(monkeypat
     assert result is False
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
     app_context.get_ui_controller.return_value.show_question.assert_not_called()
+
+
+def test_autosave_failure_dialog_passes_the_exception_not_its_text():
+    app_context, app_state = _make_app_context(is_modified=True)
+    app_state.project_file_path = "/tmp/p.pplot"
+    error = OSError("disk full")
+    project_manager = Mock()
+    project_manager.save_project.side_effect = error
+    app_context.get_manager.return_value = project_manager
+
+    assert confirm_discard_unsaved_changes(app_context, will_autosave=True) is False
+
+    _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
+    assert "disk full" not in message
+    assert app_context.get_ui_controller.return_value.show_error_message.call_args.kwargs["error"] is error
+
+
+def test_remember_session_project_records_the_path():
+    from unittest.mock import Mock
+
+    from pandaplot.commands.project.project.unsaved_changes import remember_session_project
+
+    app_context = Mock()
+    remember_session_project(app_context, "/p/a.pplot")
+    app_context.get_manager.return_value.update_project.assert_called_once_with("/p/a.pplot")
+
+
+def test_remember_session_project_logs_a_failure_with_traceback_and_does_not_raise(caplog):
+    from unittest.mock import Mock
+
+    from pandaplot.commands.project.project.unsaved_changes import remember_session_project
+
+    app_context = Mock()
+    app_context.get_manager.return_value.update_project.side_effect = OSError("disk full")
+    remember_session_project(app_context, None)
+
+    record = next(r for r in caplog.records if "last_project_path" in r.getMessage())
+    assert record.exc_info is not None
+
+
+def test_autosaving_exit_never_writes_into_the_examples_dir(tmp_path, monkeypatch):
+    """Regression (#607 review): a project whose path is a bundled example is treated like an untitled
+    one on exit -- the user is offered Save As, and nothing is written over the example."""
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
+    monkeypatch.setattr("pandaplot.utils.examples.get_examples_dir", lambda: examples_dir)
+    monkeypatch.setattr("pandaplot.commands.project.project.unsaved_changes.flush_pending_edits", lambda _ctx: True)
+    app_context, app_state = _make_app_context(is_modified=True)
+    app_state.project_file_path = str(examples_dir / "demo.pplot")
+    project_manager = Mock()
+    app_context.get_manager.return_value = project_manager
+    app_context.get_ui_controller.return_value.show_save_as_discard_cancel.return_value = "discard"
+
+    assert confirm_discard_unsaved_changes(app_context, will_autosave=True, offer_save=True) is True
+
+    project_manager.save_project.assert_not_called()
+    app_context.get_ui_controller.return_value.show_save_as_discard_cancel.assert_called_once()
+    app_context.get_ui_controller.return_value.show_save_discard_cancel.assert_not_called()

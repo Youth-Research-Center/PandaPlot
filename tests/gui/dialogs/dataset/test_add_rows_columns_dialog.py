@@ -84,8 +84,22 @@ class TestAddRowsColumnsDialog:
 
     def test_dataset_combo_drops_its_list_below_the_field(self):
         dialog = AddRowsColumnsDialog(_datasets())
+        dialog.show()
+        combo = dialog.dataset_combo
+        assert isinstance(combo, DropDownComboBox)
+        try:
+            combo.showPopup()
+            QApplication.processEvents()
 
-        assert isinstance(dialog.dataset_combo, DropDownComboBox)
+            popup = combo.view().window()
+            popup_top = popup.mapToGlobal(popup.rect().topLeft())
+            field_bottom = combo.mapToGlobal(combo.rect().bottomLeft())
+
+            assert popup_top.y() >= field_bottom.y() - 2
+            assert popup_top.x() == field_bottom.x()
+        finally:
+            combo.hidePopup()
+            dialog.close()
 
     def test_dataset_combo_is_wide_enough_for_its_names(self):
         """The combo used to clip names to its minimum width ("Firs...")."""

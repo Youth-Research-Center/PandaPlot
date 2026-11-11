@@ -19,6 +19,7 @@ from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
+from pandaplot.gui.resources.item_icons import item_icon
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -125,8 +126,9 @@ class NoteTablePickerDialog(PDialog):
         dataset_form = QFormLayout()
         self.dataset_combo = DropDownComboBox()
         display_names = dict(dataset_display_options(self.project)) if self.project is not None else {}
+        dataset_icon = item_icon(self.app_context, "dataset")
         for ds in self._datasets:
-            self.dataset_combo.addItem(f"📊 {display_names.get(ds.id, ds.name)}", ds.id)
+            self.dataset_combo.addItem(dataset_icon, display_names.get(ds.id, ds.name), ds.id)
         self.dataset_combo.currentIndexChanged.connect(self._update_preview)
         dataset_form.addRow("Select Dataset:", self.dataset_combo)
 

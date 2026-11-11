@@ -135,8 +135,12 @@ class TestAnalysisCommand:
         assert command.execute() is CommandResult.SUCCESS  # dispatched
         assert outcomes == [CommandResult.FAILURE]
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
-        _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
-        assert "boom" in message
+        call = app_context.get_ui_controller.return_value.show_error_message.call_args
+        assert call.args == ("Analysis Error", "Couldn't run the analysis.")
+        assert "boom" not in call.args[1]
+        description = call.kwargs["error"]
+        assert description.reason == "PandaPlot could not process this data with these settings."
+        assert description.details == "ValueError: boom"
 
     def test_on_complete_reports_success_once_applied(self, ctx):
         app_context, _, _, _ = ctx
@@ -323,7 +327,11 @@ def test_cleanup_is_a_documented_noop():
         "analysis_type": "derivative", "x_column": "x", "y_column": "y",
         "new_column_name": "dydx",
     })
-    command.cleanup()  # must not raise
+    state_before = dict(vars(command))
+
+    assert command.cleanup() is None
+
+    assert vars(command) == state_before
 
 
 class TestApplyAnalysisResultCommand:

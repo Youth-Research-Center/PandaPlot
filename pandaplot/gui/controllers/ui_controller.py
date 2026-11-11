@@ -1,9 +1,40 @@
 
-from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox, QWidget
+from typing import Literal
+
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QColorDialog, QFileDialog, QInputDialog, QMessageBox, QWidget
+
+from pandaplot.utils.error_messages import ErrorDescription, describe_error
 
 # TODO(#220): ui controller should be a facade for all UI-related interactions
 # This allows us to keep UI logic separate from business logic in the MVC pattern.
 # It can handle dialogs, notifications, and other user interactions.
+
+
+def build_error_box(parent: QWidget | None, title: str, message: str, description: ErrorDescription) -> QMessageBox:
+    """Build (without showing) an error box with the reason, next step and technical details.
+
+    Args:
+        parent: Parent widget of the box.
+        title: Window title.
+        message: What failed, as a short plain sentence.
+        description: The reason, next step and details to show.
+
+    Returns:
+        The configured message box; the caller runs ``exec()``.
+    """
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Critical)
+    box.setWindowTitle(title)
+    box.setText(message)
+    box.setInformativeText(description.text)
+    if description.details:
+        box.setDetailedText(description.details)
+    box.setStandardButtons(QMessageBox.StandardButton.Ok)
+    # Show Details changes Qt's implicit default choice, so name Ok as default and escape.
+    box.setDefaultButton(QMessageBox.StandardButton.Ok)
+    box.setEscapeButton(QMessageBox.StandardButton.Ok)
+    return box
 
 
 class UIController:
@@ -12,7 +43,7 @@ class UIController:
     This separates UI logic from business logic in the MVC pattern.
     """
     
-    def __init__(self, parent_widget: QWidget | None = None):
+    def __init__(self, parent_widget: QWidget | None = None) -> None:
         self.parent_widget = parent_widget
     
     def show_open_project_dialog(self) -> str | None:
@@ -89,17 +120,33 @@ class UIController:
 
         return file_path if file_path else None
 
-    def show_error_message(self, title: str, message: str):
+    def show_error_message(self, title: str, message: str, *, error: BaseException | ErrorDescription | None = None) -> None:
         """
         Show an error message dialog.
-        
+
+        Caller convention: ``message`` is a short "Couldn't <do X>." with no exception text,
+        the cause is passed as ``error`` (the exception, or an ErrorDescription from a
+        background task), and the handler logs the failure itself (``logger.exception``);
+        this method does not log. Without ``error`` the message is shown as given.
+
         Args:
             title (str): Dialog title
             message (str): Error message
+            error: The cause. The dialog then adds a plain-language reason and next step, and
+                the technical text under Show Details.
         """
-        QMessageBox.critical(self.parent_widget, title, message)
-    
-    def show_warning_message(self, title: str, message: str):
+        if error is None:
+            QMessageBox.critical(self.parent_widget, title, message)
+            return
+        description = error if isinstance(error, ErrorDescription) else describe_error(error)
+        box = build_error_box(self.parent_widget, title, message, description)
+        try:
+            box.exec()
+        finally:
+            # exec() only closes the box; it stays a child of the parent window until deleted.
+            box.deleteLater()
+
+    def show_warning_message(self, title: str, message: str) -> None:
         """
         Show a warning message dialog.
         
@@ -109,7 +156,7 @@ class UIController:
         """
         QMessageBox.warning(self.parent_widget, title, message)
     
-    def show_info_message(self, title: str, message: str):
+    def show_info_message(self, title: str, message: str) -> None:
         """
         Show an information message dialog.
         
@@ -184,7 +231,7 @@ class UIController:
         box.exec()
         return box.clickedButton() is action_button
 
-    def show_save_discard_cancel(self, title: str, message: str) -> str:
+    def show_save_discard_cancel(self, title: str, message: str) -> Literal["save", "discard", "cancel"]:
         """
         Show a three-way dialog offering to save, discard, or cancel.
 
@@ -193,7 +240,7 @@ class UIController:
             message (str): Message explaining what is at stake
 
         Returns:
-            str: "save", "discard", or "cancel" (also returned if the
+            Literal["save", "discard", "cancel"]: The user's choice (also "cancel" if the
                 dialog is dismissed via Esc/titlebar).
         """
         box = QMessageBox(QMessageBox.Icon.Warning, title, message, parent=self.parent_widget)
@@ -206,6 +253,65 @@ class UIController:
         clicked = box.clickedButton()
         if clicked is save_button:
             return "save"
+        if clicked is discard_button:
+            return "discard"
+        return "cancel"
+
+    def show_choice(self, title: str, message: str, accept_label: str, reject_label: str, *, dismiss_label: str = "Not Now") -> bool | None:
+        """
+        Show a question with an accept, a reject and a dismiss button.
+
+        The dismiss button is the escape button, so Esc and the title-bar close count as dismissing.
+        Without it Qt would make the reject button the escape button and a dismissal would reject.
+
+        Args:
+            title (str): Dialog title
+            message (str): Question message
+            accept_label (str): Label of the button that returns True (the default button)
+            reject_label (str): Label of the (destructive) button that returns False
+            dismiss_label (str): Label of the button that returns None
+
+        Returns:
+            bool | None: True if the accept button was clicked, False if the reject button was
+                clicked, None if the dialog was dismissed (the dismiss button, Esc or the
+                title-bar close), so callers can tell a deliberate rejection from a dismissal.
+        """
+        box = QMessageBox(QMessageBox.Icon.Question, title, message, parent=self.parent_widget)
+        accept_button = box.addButton(accept_label, QMessageBox.ButtonRole.AcceptRole)
+        reject_button = box.addButton(reject_label, QMessageBox.ButtonRole.DestructiveRole)
+        dismiss_button = box.addButton(dismiss_label, QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(accept_button)
+        box.setEscapeButton(dismiss_button)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is accept_button:
+            return True
+        if clicked is reject_button:
+            return False
+        return None
+
+    def show_save_as_discard_cancel(self, title: str, message: str) -> Literal["save_as", "discard", "cancel"]:
+        """
+        Show a three-way dialog offering Save As..., Discard, or Cancel.
+
+        Args:
+            title (str): Dialog title
+            message (str): Message explaining what is at stake
+
+        Returns:
+            Literal["save_as", "discard", "cancel"]: The user's choice (also "cancel" if the
+                dialog is dismissed via Esc/titlebar).
+        """
+        box = QMessageBox(QMessageBox.Icon.Warning, title, message, parent=self.parent_widget)
+        save_as_button = box.addButton("Save As...", QMessageBox.ButtonRole.AcceptRole)
+        discard_button = box.addButton("Discard", QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(save_as_button)
+        box.exec()
+
+        clicked = box.clickedButton()
+        if clicked is save_as_button:
+            return "save_as"
         if clicked is discard_button:
             return "discard"
         return "cancel"
@@ -224,7 +330,46 @@ class UIController:
         """
         text, ok = QInputDialog.getText(self.parent_widget, title, message, text=default_text)
         return text if ok else None
+
+    def get_color(self, title: str, initial: str, *, with_alpha: bool = False) -> str | None:
+        """
+        Show a colour picker.
+
+        Args:
+            title (str): Dialog title
+            initial (str): Colour selected when the dialog opens (`#RRGGBB` or `#AARRGGBB`)
+            with_alpha (bool): Also let the user pick the colour's opacity
+
+        Returns:
+            str: The chosen colour as `#RRGGBB`, or `#AARRGGBB` when it is not
+            fully opaque; None if cancelled
+        """
+        options = QColorDialog.ColorDialogOption.ShowAlphaChannel if with_alpha else QColorDialog.ColorDialogOption(0)
+        color = QColorDialog.getColor(QColor(initial), self.parent_widget, title, options)
+        if not color.isValid():
+            return None
+        return color.name(QColor.NameFormat.HexArgb if color.alpha() < 255 else QColor.NameFormat.HexRgb)
     
+
+    def get_save_file_path(self, title: str, default_name: str, name_filter: str, extension: str) -> str | None:
+        """
+        Show a save-file dialog for one file type.
+
+        Args:
+            title (str): Dialog title
+            default_name (str): File name suggested in the dialog
+            name_filter (str): File type filter, e.g. "PNG image (*.png)"
+            extension (str): Extension added when the chosen name lacks it, e.g. ".png"
+
+        Returns:
+            str: The chosen path, ending in `extension`; None if cancelled
+        """
+        file_path, _selected_filter = QFileDialog.getSaveFileName(self.parent_widget, title, default_name, name_filter)
+        if not file_path:
+            return None
+        if not file_path.lower().endswith(extension.lower()):
+            file_path += extension
+        return file_path
 
     def show_export_dataset_dialog(self, dataset_name: str) -> tuple[str, str] | None:
         """
@@ -271,6 +416,6 @@ class UIController:
         
         return None
 
-    def set_parent_widget(self, parent_widget: QWidget):
+    def set_parent_widget(self, parent_widget: QWidget) -> None:
         """Set the parent widget for dialogs."""
         self.parent_widget = parent_widget

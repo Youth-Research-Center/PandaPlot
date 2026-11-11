@@ -1,5 +1,8 @@
 """Tests for the shared transform-expression engine."""
 
+from types import CodeType
+
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -20,7 +23,7 @@ class TestValidateExpression:
     def test_syntax_error_is_invalid(self):
         is_valid, message = expression_engine.validate_expression("x *")
         assert is_valid is False
-        assert "syntax" in message.lower()
+        assert message == "The formula has a typo, for example a missing bracket, quote or operator."
 
     @pytest.mark.parametrize("expression", [
         "__import__('os')",
@@ -89,15 +92,17 @@ class TestPersistedFormulaCannotWriteFiles:
             expression_engine.evaluate_expression(expression.format(path=target.as_posix()), {"x": pd.Series([1, 2])})
         assert not target.exists()
 
-    @pytest.mark.parametrize("expression", [
-        "x.agg(np.mean)",
-        "x.agg(lambda v: v.sum())",
-        "x.apply(lambda v: v * 2)",
-        "x.transform(np.sqrt)",
-        "x.rolling(2).agg(lambda w: w.max())",
+    @pytest.mark.parametrize(("expression", "expected"), [
+        ("x.agg(np.mean)", 14.0 / 3.0),
+        ("x.agg(lambda v: v.sum())", 14.0),
+        ("x.apply(lambda v: v * 2)", [2.0, 8.0, 18.0]),
+        ("x.transform(np.sqrt)", [1.0, 2.0, 3.0]),
+        ("x.rolling(2).agg(lambda w: w.max())", [np.nan, 4.0, 9.0]),
     ])
-    def test_callable_aggregation_still_works(self, expression):
-        expression_engine.evaluate_expression(expression, {"x": pd.Series([1.0, 4.0, 9.0])})
+    def test_callable_aggregation_still_works(self, expression, expected):
+        result = expression_engine.evaluate_expression(expression, {"x": pd.Series([1.0, 4.0, 9.0])})
+
+        np.testing.assert_allclose(np.asarray(result, dtype=float), np.asarray(expected, dtype=float))
 
 
 class TestExpressionAllowlist:
@@ -211,7 +216,10 @@ class TestExpressionAllowlist:
         "not (x > 1).any()",
     ])
     def test_the_supported_dialect_is_accepted(self, expression):
-        expression_engine.compile_expression(expression)
+        code = expression_engine.compile_expression(expression)
+
+        assert isinstance(code, CodeType)
+        assert code.co_filename == "<transform>"
 
     def test_every_shipped_template_is_accepted(self):
         from pandaplot.gui.components.sidebar.transform.transform_examples import QUICK_FUNCTIONS
@@ -220,8 +228,9 @@ class TestExpressionAllowlist:
         codes = [entry["code"] for entries in templates.values() for entry in entries]
         codes += [entry["code"] for entries in QUICK_FUNCTIONS.values() for entry in entries]
         assert codes
-        for code in codes:
-            expression_engine.compile_expression(code)
+        compiled = [expression_engine.compile_expression(code) for code in codes]
+        assert all(isinstance(entry, CodeType) for entry in compiled)
+        assert len(compiled) == len(codes)
 
 
 class TestGetTransformationTemplates:
@@ -230,3 +239,16 @@ class TestGetTransformationTemplates:
         assert "Math Operations" in templates
         entry = templates["Math Operations"][0]
         assert set(entry.keys()) == {"name", "code", "description"}
+
+
+class TestAllowedExpressionNames:
+    def test_contains_core_names(self):
+        names = expression_engine.allowed_expression_names()
+        assert "abs" in names
+        assert "np" in names
+        assert "pd" in names
+
+    def test_is_sorted_and_matches_safe_globals(self):
+        names = expression_engine.allowed_expression_names()
+        assert list(names) == sorted(names)
+        assert set(names) == set(expression_engine.build_safe_globals())

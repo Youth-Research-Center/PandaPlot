@@ -1,10 +1,34 @@
+from unittest.mock import Mock
+
 import pytest
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QColor, QPixmap
+from PySide6.QtGui import QColor, QImage, QPixmap
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.components.tabs.image.image_lightbox_dialog import ImageLightboxDialog
+from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.project.items import Image
+from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.theme.theme_manager import ThemeManager
+from tests.gui.icon_testing import ICON_TOKENS, fresh_icon_tokens
+
+ICON_SIZE = 16
+
+
+def _app_context(tokens: dict[str, str] | None = None) -> Mock:
+    """An AppContext stand-in whose theme manager serves design tokens (the dict is read on every call, so tests can mutate it)."""
+    token_values = fresh_icon_tokens() if tokens is None else tokens
+    theme_manager = Mock()
+    theme_manager.get_design_tokens.side_effect = lambda: dict(token_values)
+    context = Mock(spec=AppContext)
+    context.event_bus = Mock()
+    context.get_manager.side_effect = lambda manager_type, *_args, **_kwargs: theme_manager if manager_type is ThemeManager else Mock()
+    return context
+
+
+def _dialog(*args, **kwargs) -> ImageLightboxDialog:
+    kwargs.setdefault("app_context", _app_context())
+    return ImageLightboxDialog(*args, **kwargs)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -22,27 +46,27 @@ def _colored_pixmap(color: str) -> QPixmap:
 class TestImageLightboxDialogNavigation:
     def test_starts_at_given_index_with_matching_title(self):
         images = [Image(name="First"), Image(name="Second"), Image(name="Third")]
-        dialog = ImageLightboxDialog(images, 1, load_pixmap=lambda img: _colored_pixmap("red"))
+        dialog = _dialog(images, 1, load_pixmap=lambda img: _colored_pixmap("red"))
 
         assert dialog.windowTitle() == "Second"
 
     def test_previous_disabled_at_first_index(self):
         images = [Image(name="First"), Image(name="Second")]
-        dialog = ImageLightboxDialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"))
+        dialog = _dialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"))
 
         assert dialog.previous_button.isEnabled() is False
         assert dialog.next_button.isEnabled() is True
 
     def test_next_disabled_at_last_index(self):
         images = [Image(name="First"), Image(name="Second")]
-        dialog = ImageLightboxDialog(images, 1, load_pixmap=lambda img: _colored_pixmap("red"))
+        dialog = _dialog(images, 1, load_pixmap=lambda img: _colored_pixmap("red"))
 
         assert dialog.previous_button.isEnabled() is True
         assert dialog.next_button.isEnabled() is False
 
     def test_next_advances_index_and_title(self):
         images = [Image(name="First"), Image(name="Second")]
-        dialog = ImageLightboxDialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"))
+        dialog = _dialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"))
 
         dialog._go_next()
 
@@ -51,7 +75,7 @@ class TestImageLightboxDialogNavigation:
 
     def test_previous_after_next_returns_to_start(self):
         images = [Image(name="First"), Image(name="Second"), Image(name="Third")]
-        dialog = ImageLightboxDialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"))
+        dialog = _dialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"))
 
         dialog._go_next()
         dialog._go_previous()
@@ -64,7 +88,7 @@ class TestImageLightboxDialogNavigation:
         def _failing_load(img):
             return None
 
-        dialog = ImageLightboxDialog(images, 0, load_pixmap=_failing_load)
+        dialog = _dialog(images, 0, load_pixmap=_failing_load)
 
         assert dialog.image_label.pixmap() is not None
         assert not dialog.image_label.pixmap().isNull()
@@ -79,7 +103,7 @@ class TestImageLightboxDialogFixedSize:
         images = [Image(name="Small"), Image(name="Big")]
         pixmaps = {images[0].id: small_pixmap, images[1].id: big_pixmap}
 
-        dialog = ImageLightboxDialog(images, 0, load_pixmap=lambda img: pixmaps[img.id])
+        dialog = _dialog(images, 0, load_pixmap=lambda img: pixmaps[img.id])
         size_before = dialog.size()
 
         dialog._go_next()
@@ -101,7 +125,7 @@ class TestImageLightboxDialogFixedSize:
         big_pixmap.fill(QColor("blue"))
         images = [Image(name="Big")]
 
-        dialog = ImageLightboxDialog(images, 0, load_pixmap=lambda img: big_pixmap)
+        dialog = _dialog(images, 0, load_pixmap=lambda img: big_pixmap)
 
         nav_row_height = dialog.previous_button.sizeHint().height()
         expected_area = QSize(1200, 900 - nav_row_height)
@@ -115,7 +139,7 @@ class TestImageLightboxDialogFixedSize:
         big_pixmap = QPixmap(2000, 1500)
         big_pixmap.fill(QColor("red"))
         images = [Image(name="First"), Image(name="Second")]
-        dialog = ImageLightboxDialog(images, 0, load_pixmap=lambda img: big_pixmap)
+        dialog = _dialog(images, 0, load_pixmap=lambda img: big_pixmap)
         dialog.show()
         qapp.processEvents()
 
@@ -126,13 +150,16 @@ class TestImageLightboxDialogFixedSize:
         assert dialog.size().height() <= 650
 
     def test_long_title_is_elided(self):
-        long_name = "vacation_photo_from_the_summer_trip_final_edited_version_2026_extra_long_suffix"
+        # The title is elided to a fixed pixel width, so the name must be wider than that in
+        # *any* font: a ~80-character name fits in some environments' narrower default fonts.
+        long_name = "vacation_photo_from_the_summer_trip_final_edited_version_2026_extra_long_suffix_" * 4
         images = [Image(name=long_name)]
 
-        dialog = ImageLightboxDialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"))
+        dialog = _dialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"))
 
         assert dialog.windowTitle() != long_name
         assert len(dialog.windowTitle()) < len(long_name)
+        assert dialog.windowTitle().endswith("…")
 
 
 class TestImageLightboxDialogEdit:
@@ -143,7 +170,7 @@ class TestImageLightboxDialogEdit:
         # show()+processEvents() pass -- matching
         # test_dialog_can_be_shrunk_by_user_after_showing's convention above.
         images = [Image(name="First")]
-        dialog = ImageLightboxDialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"))
+        dialog = _dialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"))
         dialog.show()
         qapp.processEvents()
 
@@ -151,7 +178,7 @@ class TestImageLightboxDialogEdit:
 
     def test_edit_button_present_with_on_edit_callback(self, qapp):
         images = [Image(name="First")]
-        dialog = ImageLightboxDialog(
+        dialog = _dialog(
             images, 0, load_pixmap=lambda img: _colored_pixmap("red"), on_edit=lambda img: None
         )
         dialog.show()
@@ -171,7 +198,7 @@ class TestImageLightboxDialogEdit:
             load_calls.append(img)
             return _colored_pixmap("red")
 
-        dialog = ImageLightboxDialog(images, 1, load_pixmap=_load, on_edit=_on_edit)
+        dialog = _dialog(images, 1, load_pixmap=_load, on_edit=_on_edit)
 
         # The constructor's own initial render already calls load_pixmap
         # once -- reset the spy so the count below reflects only the
@@ -202,7 +229,7 @@ class TestImageLightboxDialogSignatureOrder:
         images = [Image(name="First")]
         host = QWidget()
         try:
-            dialog = ImageLightboxDialog(images, 0, lambda img: _colored_pixmap("red"), host)
+            dialog = _dialog(images, 0, lambda img: _colored_pixmap("red"), host)
             assert dialog.parent() is host
             assert dialog._on_edit is None
         finally:
@@ -211,4 +238,50 @@ class TestImageLightboxDialogSignatureOrder:
     def test_on_edit_is_keyword_only(self, qapp):
         images = [Image(name="First")]
         with pytest.raises(TypeError):
-            ImageLightboxDialog(images, 0, lambda img: _colored_pixmap("red"), None, lambda img: None)
+            _dialog(images, 0, lambda img: _colored_pixmap("red"), None, lambda img: None)
+
+
+def _icon_image(button) -> QImage:
+    return button.icon().pixmap(ICON_SIZE, ICON_SIZE).toImage()
+
+
+def _expected_icon_image(name: str, tokens: dict[str, str]) -> QImage:
+    icon = build_icon(name, tokens["text_primary"], size=ICON_SIZE, disabled_color=tokens["text_disabled"])
+    return icon.pixmap(ICON_SIZE, ICON_SIZE).toImage()
+
+
+class TestImageLightboxDialogIcons:
+    def test_navigation_and_edit_buttons_show_icons_and_keep_their_text(self):
+        images = [Image(name="First"), Image(name="Second")]
+        dialog = _dialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"), on_edit=lambda img: None)
+
+        expected = {
+            "previous_button": ("Previous", "caret-left"),
+            "next_button": ("Next", "caret-right"),
+            "edit_button": ("Edit Image...", "pencil-simple"),
+        }
+        for attribute, (text, icon_name) in expected.items():
+            button = getattr(dialog, attribute)
+            assert button.text() == text, attribute
+            assert _icon_image(button) == _expected_icon_image(icon_name, ICON_TOKENS), attribute
+
+    def test_icons_retint_when_the_theme_changes(self):
+        tokens = fresh_icon_tokens()
+        images = [Image(name="First"), Image(name="Second")]
+        dialog = _dialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"), on_edit=lambda img: None, app_context=_app_context(tokens))
+        before = _icon_image(dialog.previous_button)
+        tokens.update(text_primary="#E2E2E2", text_disabled="#5B6270")
+
+        dialog._apply_theme()
+
+        assert _icon_image(dialog.previous_button) != before
+        assert _icon_image(dialog.previous_button) == _expected_icon_image("caret-left", tokens)
+        assert _icon_image(dialog.next_button) == _expected_icon_image("caret-right", tokens)
+        assert _icon_image(dialog.edit_button) == _expected_icon_image("pencil-simple", tokens)
+
+    def test_app_context_is_a_required_keyword_only_argument(self):
+        images = [Image(name="First")]
+        with pytest.raises(TypeError):
+            ImageLightboxDialog(images, 0, lambda img: _colored_pixmap("red"))
+        with pytest.raises(TypeError):
+            ImageLightboxDialog(images, 0, lambda img: _colored_pixmap("red"), None, None, _app_context())

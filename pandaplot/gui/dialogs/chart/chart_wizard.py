@@ -1,20 +1,23 @@
-"""Top-level chart creation wizard: Type step, then Data step."""
+"""Top-level chart creation wizard: Type step, then Data step, then Labels
+step (with a no-dataset page offering an import when there is no data)."""
 from collections.abc import Callable
 from typing import override
 
 from PySide6.QtCore import QTimer
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import QDialog, QWizard
 
+from pandaplot.commands.project.chart.series_from_config import dataset_columns
 from pandaplot.gui.core.widget_extension import PWizard
 from pandaplot.gui.dialogs.chart.chart_data_page import ChartDataPage
 from pandaplot.gui.dialogs.chart.chart_labels_page import ChartLabelsPage
 from pandaplot.gui.dialogs.chart.chart_no_dataset_page import ChartNoDatasetPage
 from pandaplot.gui.dialogs.chart.chart_type_page import ChartTypePage
-from pandaplot.models.events.event_types import DatasetEvents
-from pandaplot.models.project.items import Dataset
+from pandaplot.gui.dialogs.chart.series_form_style import series_form_stylesheet
+from pandaplot.models.events.event_types import DatasetEvents, UIEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.item_display_options import dataset_display_options
 
 
 class ChartWizard(PWizard):
@@ -76,6 +79,9 @@ class ChartWizard(PWizard):
         self.no_dataset_page.emptyRequested.connect(self._finish_empty)
         self._no_dataset_page_id = self.addPage(self.no_dataset_page)
 
+        self.help_shortcut = QShortcut(QKeySequence(QKeySequence.StandardKey.HelpContents), self)
+        self.help_shortcut.activated.connect(self._on_help_shortcut)
+
         self.currentIdChanged.connect(self._on_page_changed)
         # QWizard only assigns a currentId (and instantiates page state) once it
         # is shown or restarted; since this wizard is driven headlessly in
@@ -87,83 +93,39 @@ class ChartWizard(PWizard):
         for page in (self.type_page, self.data_page, self.labels_page, self.no_dataset_page):
             page.step_rail.stepClicked.connect(self._jump_to_step)
 
+    def _on_help_shortcut(self) -> None:
+        """F1: open the Help window on the current page's topic."""
+        topic_id = getattr(self.currentPage(), "help_topic", None)
+        if topic_id is not None:
+            self.publish_event(UIEvents.HELP_REQUESTED, {"topic_id": topic_id})
+
     def _jump_to_step(self, step_index: int) -> None:
         page_id = {0: self._type_page_id, 1: self._data_page_id, 2: self._labels_page_id}[step_index]
         self.setCurrentId(page_id)
 
     def _apply_theme(self):
         # Qt stylesheets cascade to descendants by default, so setting this on
-        # the wizard itself themes both pages (ChartTypePage's type list,
+        # the wizard itself themes every page (ChartTypePage's type list,
         # ChartDataPage's SeriesConfigCard combos/buttons/checkboxes) without
-        # needing per-page stylesheets.
+        # needing per-page stylesheets. Widget rules are scoped to `QWizardPage`
+        # descendants so they do not leak into other top-level windows parented
+        # to the wizard (such as the Help window).
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
 
         card_bg = palette.get("card_bg", "#f8f9fa")
-        card_border = palette.get("card_border", "#dee2e6")
         base_fg = palette.get("base_fg", "#000000")
-        secondary_fg = palette.get("secondary_fg", "#555555")
-        accent = palette.get("accent", "#4A90E2")
-        # Inputs sit one shade off the surface so fields read as distinct wells.
-        input_bg = palette.get("card_hover", "#e9ecef")
 
-        self.setStyleSheet(f"""
-            QWizard, QDialog {{
+        background_rules = f"""
+            QWizard {{
                 background-color: {card_bg};
                 color: {base_fg};
             }}
             QWizardPage {{
                 background-color: {card_bg};
                 color: {base_fg};
-            }}
-            QLabel, QCheckBox {{
-                color: {base_fg};
-            }}
-            QCheckBox::indicator {{
-                width: 14px;
-                height: 14px;
-                border: 1px solid {card_border};
-                border-radius: 3px;
-                background-color: {input_bg};
-            }}
-            QCheckBox::indicator:checked {{
-                background-color: {accent};
-                border-color: {accent};
-            }}
-            QLineEdit {{
-                background-color: {input_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-                padding: 4px 8px;
-                min-height: 22px;
-                color: {base_fg};
-            }}
-            QLineEdit:focus {{
-                border-color: {accent};
-            }}
-            QLineEdit:hover {{
-                border-color: {accent};
-            }}
-            QLineEdit:disabled {{
-                color: {secondary_fg};
-                background-color: {card_bg};
-                border-color: {card_border};
-            }}
-            QListWidget {{
-                background-color: {input_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-                color: {base_fg};
-                outline: none;
-            }}
-            QListWidget::item {{
-                padding: 4px 6px;
-            }}
-            QListWidget::item:selected {{
-                background-color: {accent};
-                color: white;
-            }}
-        """)
+            }}"""
+        self.setStyleSheet(background_rules + series_form_stylesheet(palette, scope="QWizardPage"))
 
     def _on_page_changed(self, page_id: int) -> None:
         if page_id not in (
@@ -295,16 +257,15 @@ class ChartWizard(PWizard):
     def _current_dataset_options(self) -> list[tuple[str, str]]:
         if self._project is None:
             return []
-        return [(item.id, item.name) for item in self._project.get_all_items() if isinstance(item, Dataset)]
+        return dataset_display_options(self._project)
 
     def _current_columns_provider(self) -> Callable[[str], list[tuple[str, str]]]:
+        project = self._project
+
         def provider(dataset_id: str) -> list[tuple[str, str]]:
-            if self._project is None:
+            if project is None:
                 return []
-            dataset = self._project.find_item(dataset_id)
-            if not isinstance(dataset, Dataset) or dataset.data is None:
-                return []
-            return [(dataset.column_id(name) or "", name) for name in dataset.data.columns]
+            return dataset_columns(project, dataset_id)
         return provider
 
     def _finish_empty(self) -> None:

@@ -15,7 +15,7 @@ import uuid
 import pytest
 
 from pandaplot.models.project import Project
-from pandaplot.models.project.items import Item, ItemCollection
+from pandaplot.models.project.items import Folder, Item, ItemCollection
 
 
 # Fixtures
@@ -162,9 +162,14 @@ class TestItemManagement:
     
     def test_remove_nonexistent_item_by_id(self, sample_project):
         """Test removing a non-existent item by ID doesn't raise error."""
-        fake_id = str(uuid.uuid4())
-        # Should not raise an exception
-        sample_project.remove_item_by_id(fake_id)
+        kept = Item(name="Kept")
+        sample_project.add_item(kept)
+        index_before = dict(sample_project.items_index)
+
+        sample_project.remove_item_by_id(str(uuid.uuid4()))
+
+        assert sample_project.items_index == index_before
+        assert sample_project.root.get_items() == [kept]
     
     def test_find_item(self, populated_project):
         """Test finding items by ID."""
@@ -686,6 +691,17 @@ class TestProjectSchemaVersion:
         project = Project.from_dict({"name": "P", "description": "", "schema_version": 3})
 
         assert project.schema_version == 3
+
+
+def test_remove_item_by_id_removes_an_empty_folder():
+    """An empty folder has len() == 0, so a truthiness check skipped it."""
+    project = Project(name="P")
+    folder = Folder(name="Empty")
+    project.add_item(folder)
+
+    project.remove_item_by_id(folder.id)
+
+    assert project.find_item(folder.id) is None
 
 
 if __name__ == "__main__":

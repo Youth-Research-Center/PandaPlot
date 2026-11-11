@@ -24,6 +24,7 @@ from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state import AppContext, AppState
+from pandaplot.utils.error_messages import ErrorDescription
 from tests.commands.project.conftest import SyncTaskScheduler
 
 
@@ -162,6 +163,19 @@ class TestChartSignalAnalysisCommandCommitPath:
         assert command.execute() is CommandResult.FAILURE
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
+    def test_failed_computation_shows_a_plain_dialog_with_the_error_description(self, ctx):
+        app_context, _ = ctx
+        command = _cmd(ctx, sampling_rate=0)
+
+        assert command.execute() is CommandResult.SUCCESS  # dispatched; the failure arrives in the callback
+
+        call = app_context.get_ui_controller.return_value.show_error_message.call_args
+        assert call.args[1] == "Couldn't run the signal analysis."
+        description = call.kwargs["error"]
+        assert isinstance(description, ErrorDescription)
+        assert description.reason
+        assert "ValueError" not in description.reason
+
     def test_execute_surfaces_no_project_loaded_to_the_user(self):
         app_context = Mock(spec=AppContext)
         app_state = Mock(spec=AppState)
@@ -262,6 +276,22 @@ class TestChartSignalAnalysisCommandPreviewPath:
 
         assert results == [None]
         assert errors[0] is not None
+
+    def test_run_analysis_async_reports_a_failed_computation_in_plain_language(self, ctx, monkeypatch):
+        def _boom(*_args, **_kwargs):
+            raise np.linalg.LinAlgError("Singular matrix")
+
+        monkeypatch.setattr("pandaplot.commands.project.chart.chart_signal_analysis_command.SignalEngine.run_analysis", _boom)
+        command = _cmd(ctx)
+
+        results = []
+        errors = []
+        command.run_analysis_async(lambda result, error: (results.append(result), errors.append(error)))
+
+        assert results == [None]
+        assert errors[0].startswith("The calculation cannot be solved for this data")
+        assert "Singular" not in errors[0]
+        assert "LinAlgError" not in errors[0]
 
     def test_run_analysis_async_does_not_touch_the_project(self, ctx):
         _, project = ctx

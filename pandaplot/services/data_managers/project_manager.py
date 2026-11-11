@@ -4,6 +4,7 @@ from pathlib import Path
 
 from pandaplot.models.project import Project
 from pandaplot.storage.project_data_manager import ProjectDataManager
+from pandaplot.utils.errors import UserFacingError
 
 
 class ProjectManager:
@@ -58,9 +59,9 @@ class ProjectManager:
 
         path = Path(file_path)
         if path.suffix not in self.supported_extensions:
-            error_msg = f"Unsupported file format: {path.suffix}. Supported: {self.supported_extensions}"
+            error_msg = f"Unsupported project file type '{path.suffix}'. Supported types: {', '.join(sorted(self.supported_extensions))}."
             self.logger.error(error_msg)
-            raise ValueError(error_msg)
+            raise UserFacingError(error_msg)
 
         project = self._project_data_manager.load(file_path)
 
@@ -88,9 +89,9 @@ class ProjectManager:
 
         path = Path(file_path)
         if path.suffix not in self.supported_extensions:
-            error_msg = f"Unsupported file format: {path.suffix}. Supported: {self.supported_extensions}"
+            error_msg = f"Unsupported project file type '{path.suffix}'. Supported types: {', '.join(sorted(self.supported_extensions))}."
             self.logger.error(error_msg)
-            raise ValueError(error_msg)
+            raise UserFacingError(error_msg)
 
         path.parent.mkdir(parents=True, exist_ok=True)
         self._project_data_manager.save(project, file_path)

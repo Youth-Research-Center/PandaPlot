@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication, QTabWidget
 from pandaplot.gui.components.tabs.tab_container import TabContainer
 from pandaplot.gui.components.tabs.tab_container_command_manager import TabContainerCommandManager
 from pandaplot.gui.components.tabs.welcome_tab import WelcomeTab
+from tests.gui.icon_testing import fresh_icon_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -23,6 +24,8 @@ def qapp():
 def _make_container():
     container = TabContainer.__new__(TabContainer)
     container.app_context = Mock()
+    # The Welcome tab's house icon is tinted from the design tokens.
+    container.app_context.get_manager.return_value.get_design_tokens.return_value = fresh_icon_tokens()
     container.command_manager = Mock(spec=TabContainerCommandManager)
     container._active_pane = QTabWidget()
     container.panes = [container._active_pane]

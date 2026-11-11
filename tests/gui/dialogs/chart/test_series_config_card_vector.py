@@ -2,9 +2,10 @@
 import sys
 
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QComboBox, QLabel
 
 from pandaplot.gui.dialogs.chart.series_config_card import SeriesConfigCard
+from pandaplot.models.chart.chart_role_labels import ROLE_LABELS
 from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
 
 
@@ -13,11 +14,17 @@ def qapp():
     yield QApplication.instance() or QApplication(sys.argv)
 
 
-def test_vector_card_exposes_u_v_magnitude_combos():
+def test_vector_card_exposes_labelled_u_v_magnitude_combos_filled_from_the_dataset_columns():
     card = SeriesConfigCard(role_spec=get_chart_type_spec("vector"))
-    assert hasattr(card, "u_column_combo")
-    assert hasattr(card, "v_column_combo")
-    assert hasattr(card, "magnitude_column_combo")
+    card.set_datasets([("ds-1", "Dataset 1")])
+    card.set_dataset_columns("ds-1", [("col-u", "U"), ("col-v", "V")])
+
+    labels = card.findChildren(QLabel)
+    for role, combo in (("u", card.u_column_combo), ("v", card.v_column_combo), ("magnitude", card.magnitude_column_combo)):
+        assert isinstance(combo, QComboBox)
+        assert [combo.itemData(index) for index in range(combo.count())] == ["", "col-u", "col-v"]
+        assert any(label.buddy() is combo and label.text() == f"{ROLE_LABELS[role]}:" for label in labels)
+    assert not hasattr(card, "z_column_combo")  # a 2-D vector field has no Z role
 
 
 def test_vector_card_series_config_has_u_v_magnitude_keys():

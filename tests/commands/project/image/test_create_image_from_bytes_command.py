@@ -137,3 +137,21 @@ def test_execute_leaves_render_dpi_unset_by_default(app_context_with_project):
     command.execute()
 
     assert project.find_item(command.created_image_id).render_dpi is None
+
+
+def test_a_failed_insert_shows_a_plain_message_with_the_cause(app_context_with_project):
+    project = app_context_with_project.get_app_state().current_project
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    failure = RuntimeError("subscriber failed")
+    app_context_with_project.get_app_state().event_bus.emit.side_effect = failure
+
+    command = CreateImageFromBytesCommand(
+        app_context_with_project, gallery_id=gallery.id, name="My Chart",
+        png_bytes=b"fake-png-bytes", width=100, height=80,
+    )
+
+    assert command.execute() is CommandResult.FAILURE
+    app_context_with_project.get_ui_controller().show_error_message.assert_called_once_with(
+        "Insert Chart Error", "Couldn't create image.", error=failure
+    )

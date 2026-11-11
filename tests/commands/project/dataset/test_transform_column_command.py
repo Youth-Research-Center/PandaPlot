@@ -118,6 +118,32 @@ class TestTransformColumnCommand:
         assert command.execute() is CommandResult.FAILURE
         assert "division" in command.error_message.lower() or "zero" in command.error_message.lower()
 
+    def test_expression_error_sets_a_plain_error_description(self, ctx):
+        app_context, _, _ = ctx
+        command = TransformColumnCommand(app_context, "ds-1", _config("bad", expression="1 / 0"))
+        assert command.execute() is CommandResult.FAILURE
+        description = command.error_description
+        assert description is not None
+        assert description.reason == "The calculation produced a value that is too large or undefined for this data."
+        assert "zero" in description.details.lower()
+        assert "ZeroDivisionError" not in description.reason
+
+    def test_fixed_message_failures_have_no_error_description(self, ctx):
+        app_context, _, _ = ctx
+        command = TransformColumnCommand(app_context, "ds-1", _config("a", replace=False))
+        assert command.execute() is CommandResult.FAILURE
+        assert command.error_description is None
+
+    def test_error_description_is_cleared_by_a_later_successful_run(self, ctx):
+        app_context, _, _ = ctx
+        command = TransformColumnCommand(app_context, "ds-1", _config("bad", expression="1 / 0"))
+        assert command.execute() is CommandResult.FAILURE
+        assert command.error_description is not None
+
+        command.expression = "value * 2"
+        assert command.execute() is CommandResult.SUCCESS
+        assert command.error_description is None
+
     def test_undo_restores_replaced_column(self, ctx):
         app_context, dataset, _ = ctx
         original = list(dataset.data["a"])

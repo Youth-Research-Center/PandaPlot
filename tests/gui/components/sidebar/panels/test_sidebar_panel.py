@@ -47,4 +47,7 @@ def test_apply_title_theme_is_a_noop_when_title_label_is_none():
     order) -- must not raise AttributeError."""
     panel = _FakePanel(title_label=None)
 
-    SidebarPanel._apply_title_theme(panel, "#333333", "#dee2e6")  # must not raise
+    result = SidebarPanel._apply_title_theme(panel, "#333333", "#dee2e6")
+
+    assert result is None
+    assert vars(panel) == {"title_label": None}

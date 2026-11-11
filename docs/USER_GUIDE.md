@@ -57,7 +57,7 @@ PandaPlot features a modern, intuitive PySide6 desktop interface divided into th
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│ Main Menu Bar (File, Edit, View, Tools, Help)                         │
+│ Main Menu Bar (File, Edit, Data, Chart, Settings, Help)               │
 ├──────────────┬─────────────────────────────────────────────────────────┤
 │ Collapsible  │ Tabbed Workspace Area                                   │
 │ Sidebar      │                                                         │
@@ -72,11 +72,12 @@ PandaPlot features a modern, intuitive PySide6 desktop interface divided into th
 ```
 
 ### Main Menu Bar
-- **File**: Create, open, save, import/export data, and exit.
-- **Edit**: Undo (`Ctrl+Z`), Redo (`Ctrl+Y`), and project editing operations.
-- **View**: Toggle sidebar visibility, switch theme (Light/Dark), zoom, and layout options.
-- **Tools**: Access mathematical analysis, curve fitting, signal analysis, and formula transformation tools.
-- **Help**: Open the Welcome tab, examples, and About information.
+- **File**: Create, open, close and save projects (New, Open, Recent, Close, Save, Save As...), and exit.
+- **Edit**: Undo (`Ctrl+Z`) and Redo (`Ctrl+Y`).
+- **Data**: Import data and images, add a dataset, add rows or columns, and create new notes and sketches.
+- **Chart**: **Create New** opens the Chart Creation Wizard.
+- **Settings**: **Preferences...** opens the settings dialog, including the theme.
+- **Help**: Open Help Topics (`F1`), the Welcome tab, the examples browser, and About information. In the examples browser (**Open Example Project**), examples appear as cards grouped in sections; search or pick topic and technique tags to narrow the list, **See details** shows the full description and live previews of the example's charts, and **Open example** opens it.
 
 ### Collapsible Sidebar
 Located on the left, the sidebar uses icon tabs to switch contextual control panels:
@@ -91,7 +92,7 @@ Located on the left, the sidebar uses icon tabs to switch contextual control pan
 ### Tabbed Workspace
 The primary workspace displays open documents as tabs:
 - **Dataset Tab**: Spreadsheet editor for viewing and editing tabular numeric and string data.
-- **Chart Tab**: Matplotlib-powered interactive graphics with real-time preview and export options.
+- **Chart Tab**: Matplotlib-powered interactive graphics with real-time preview and a toolbar for zooming, panning and saving the chart as an image.
 - **Note Tab**: Markdown notebook editor with LaTeX formula rendering support.
 - **Welcome Tab**: Quick-start dashboard for recent projects and actions.
 
@@ -115,8 +116,19 @@ A `.pplot` file is a ZIP archive containing a project index and files for its it
 - **Renaming Items**: Select an item in the Project View and press `F2`, or right-click and select **Rename**.
 - **Deleting Items**: Right-click an item and select **Delete**. All item deletions are fully undoable (`Ctrl+Z`).
 
+### Project Details
+Choose **File → Project Details...** (or right-click the project at the top of the Project View) to edit:
+- **Name**: the project name. It cannot be empty.
+- **About this project**: your notes about the project, such as background and findings, written in Markdown. **Preview** shows how they will look.
+- **Cover image**: **Choose image...** picks a picture (under 25 MB) that is shrunk to at most 800 pixels and stored in the project; **Remove** clears it.
+- **Use this project as an example**: tick it to set the example's short description, section, level, tags, up to three featured charts, a "start here" note and a data source or credit. Unticking hides these settings but keeps them. Charts and notes that were deleted are dropped when you press **OK**.
+
+All changes are applied together and can be undone with `Ctrl+Z`.
+
 ### Auto-Save & Session Recovery
 PandaPlot supports optional auto-saving and automatic session state preservation across restarts. If enabled in Settings, project changes are automatically flushed to disk upon major operations.
+
+A project that was never saved, such as a new project or an opened example (examples always open as untitled copies), has no file to auto-save to. Closing or exiting PandaPlot, or opening another project, while it has unsaved changes asks whether to **Save As...**, **Discard** or **Cancel**; cancelling the Save As dialog keeps the project open. While **Auto-Save** is enabled (Settings), PandaPlot also keeps a recovery copy of the untitled project in its app data folder (`~/.pandaplot/recovery`), updated on the auto-save interval; with Auto-Save turned off no recovery copy is written. Each open PandaPlot window keeps its own copy, so two running instances never overwrite or delete each other's. If PandaPlot closes without saving the untitled project (for example after a crash), the next launch asks whether to **Restore** it, **Discard** it, or decide **Not Now**. Restore opens it as an unsaved untitled project so you can save it. Discard deletes the copy. Not Now, Esc or closing the question keeps the copy, so it is offered again on the next launch. The copy is deleted once you save the project, discard it, or close it.
 
 ---
 
@@ -138,6 +150,7 @@ PandaPlot supports multiple data formats:
 ### Tabular Spreadsheet Editor
 Double-clicking a Dataset opens the spreadsheet view powered by `QTableView`:
 - **Cell Editing**: Double-click any cell or press `Enter` to modify values.
+- **Empty Datasets**: A dataset with no rows or no columns shows a hint above the table with an **Add Rows / Columns...** button.
 - **Adding / Deleting Rows**: Use toolbar buttons to append rows or delete selected rows.
 - **Adding / Deleting Columns**: Append new columns with custom names and types, or remove selected columns.
 - **Data Types (dtypes)**: Convert columns between integer, floating-point, text, and datetime types via right-click column header context menus.
@@ -152,23 +165,26 @@ To export a dataset, open it in the Dataset tab and click **Export Data**.
 ### Chart Creation Wizard
 To create a plot from any dataset:
 1. Select a dataset in the Project View or active Dataset tab.
-2. Click **New Chart** or select **Tools > Create Plot...**.
-3. The **Chart Creation Wizard** guides you through:
+2. Open the wizard with **Chart > Create New**, the **Create Chart** button on a dataset tab (columns selected in the table are filled in for you), or right-click a dataset in the Project View and choose **Create Chart**. The Welcome tab's **4. Create Visualizations** button also leads to **Create Chart**.
+3. The **Chart Creation Wizard** guides you through three steps (**Type**, **Data**, **Labels**):
    - Choosing the chart type: pick a category (Line & Scatter, Bar & Pie, Distribution, Fields & Grids or 3-D) from the dropdown, then a type from that category's list. The chart's **Category** and **Type** selectors in the properties panel work the same way.
-   - Mapping X and Y axes columns from available datasets.
-   - Setting initial plot title and axis labels.
+   - Choosing the dataset and columns for each series (use **+ Add series** for more than one).
+   - Setting the title, subtitle and axis labels, and turning the legend and grid lines on or off.
+4. Click **Create Chart**. The chart opens in its own tab.
+
+Each wizard step has a **?** button at the bottom left, and `F1` does the same: both open the Help window on that step. The Help window stays usable while the wizard is open.
 
 ### Supported Series Types
 Charts can contain these series types, depending on the chart and selected data:
 - **Line**: Connects values in order.
 - **Scatter**: Shows individual data points.
-- **Bar**: Compares values with bars.
+- **Bar**: Compares values with bars. Bar series that share X values are drawn on top of each other; use Stacked Bar to compare groups.
 - **Stacked Bar**: Stacks bar values at each X position.
 - **Histogram**: Shows the frequency distribution of one values column.
 - **Density**: Shows a kernel density estimate for one values column.
 - **Box**: Summarizes a distribution with quartiles, median, and outliers.
 - **Pie**: Shows values as wedges, with optional category labels.
-- **Vector**: Shows two-dimensional vector fields.
+- **Vector**: Shows two-dimensional vector fields. Arrows are coloured by the Color-by column only when you choose a colormap under **Color by magnitude:** on the Style tab.
 - **Color Map**: Colors points by a third data column.
 - **Heatmap**: Displays values on a two-dimensional grid.
 - **3D Scatter**: Plots data points in three dimensions.
@@ -177,14 +193,20 @@ Charts can contain these series types, depending on the chart and selected data:
 - **3D Wireframe**: Shows a wireframe in three dimensions.
 - **3D Bar**: Shows values as three-dimensional bars.
 - **3D Triangulated Surface**: Shows a triangulated surface in three dimensions.
-- **3D Vector**: Shows a three-dimensional vector field.
+- **3D Vector**: Shows a three-dimensional vector field. Colouring by the Color-by column also needs a colormap under **Color by magnitude:** on the Style tab.
 
 ### Plot Customization & Styling
-Open the **Chart Properties** sidebar panel while viewing a plot tab to adjust:
-- **Series Style**: Custom colors, line thickness (1-5px), line styles (solid, dashed, dotted), and markers (circle, square, triangle, none).
-- **Axes & Labels**: Edit plot title, X-axis label, Y-axis label, and font parameters.
-- **Grid & Legend**: Toggle major/minor grid lines and position legends (top-right, top-left, bottom, hidden).
-- **Exporting Charts**: Right-click the chart canvas or click **Export Chart** to save publication-quality images in PNG, SVG, or PDF formats.
+Click the line-chart icon in the sidebar (tooltip "Chart Properties panel") while viewing a chart tab. Its tabs are:
+- **Chart**: Title, subtitle, category, chart type and, for histograms, the number of bins.
+- **Data**: The chart's series. Add, remove, reorder and configure them, including their dataset and columns.
+- **Style**: Fonts, colors, backgrounds, and the look of the chart and its series. Choose **Chart** in the drop-down at the top for the chart's **Size** and **DPI**.
+- **Axes**: Each axis's label, range, scale, ticks and grid.
+- **Legend**: Show or hide the legend and set its position, font and background.
+
+Edits on the Chart, Style, Axes and Legend tabs appear on the chart immediately. The footer at the bottom of the panel shows **Modified** once you have edited something: click **Apply** to keep the changes as one undo step (**Edit > Undo**), or **Revert** to go back to how the chart was when you opened it or last applied. Edits to a series' dataset, columns, label or Y axis on the Data tab only mark the panel **Modified** and show on the chart when you click **Apply**. Apply or Revert before switching to any other tab (a dataset or note tab as well); otherwise the changes can no longer be reverted and have no undo step. Adding, removing and reordering series on the Data tab take effect at once, and each is its own undo step. On a chart with no series, the chart area shows "This chart has no data yet" with **Add Series** and **Import Data** buttons; **Add Series** and **+ Add series** open a dialog where you choose a dataset and the columns the chart type needs, and **Add** puts the series on the chart. On a chart that already has series, **+ Add series** adds a copy of the selected series with the same dataset and columns, so change them afterwards. Each add is its own undo step.
+
+### Saving a Chart as an Image
+Click the **Save** button (floppy-disk icon, tooltip "Save the figure") in the toolbar above the chart and choose a file name and format such as PNG, PDF or SVG. To set the picture size and sharpness first, use the **Size** and **DPI** cards on the Style tab (with **Chart** selected in the drop-down).
 
 ---
 
@@ -270,7 +292,7 @@ Formulas refer to their source columns by the names they had when the formula wa
 
 ## Customization & Settings
 
-Access global preferences from **View > Theme** or **Tools > Settings**:
+Access global preferences from **Settings > Preferences...** (the theme is under **Theme and Colors**):
 
 ### Theme Manager
 - **Light Theme**: High-contrast, clean aesthetic suitable for daytime work and publication exports.
@@ -315,10 +337,12 @@ User preferences are stored in `~/.pandaplot/config.json`:
    - *Solution*: Open Chart Properties and verify that the active series maps to valid dataset columns.
 
 ### Getting Help
-1. **Built-in Help**: Access keyboard shortcut guides from the shortcuts listed in this guide.
-2. **Tooltips**: Hover over control panel inputs and toolbar buttons for brief usage context.
-3. **Documentation**: Refer to `docs/ARCHITECTURE.md` and `docs/USER_GUIDE.md` in the source repository.
-4. **Examples**: Explore sample files provided in the `examples/` directory.
+1. **Help Topics**: Choose **Help → Help Topics...** (`F1`; `Cmd+?` on macOS) to open the Help window. Type in the search field to filter topics, pick one from the list on the left, and follow the **Related topics** links at the bottom of each page. Topics cover every statistical test, descriptive statistics, preprocessing, the analysis operations (derivatives, integrals, smoothing, interpolation), signal analysis, every curve-fitting model, transforms and formulas, the Analyze Measurements wizard, and charts (how-to topics such as creating a chart, series, styling, axes, legend, error bars and saving an image, plus a topic for every chart type, grouped by the chart wizard's categories, in the **Charts** category). The window stays open while you work, and you can still use it while a dialog such as the chart wizard is open.
+2. **Panel help buttons**: The analysis panels in the sidebar (Transform, Preprocessing, Analysis, Descriptive Statistics, Statistical Tests, Signal Analysis, Curve Fitting, Chart Analysis, Chart Signal Analysis, Chart Transform and Chart Properties) have a **?** button next to their title that opens the Help window on step-by-step instructions for that panel.
+3. **Chart wizard help**: Every step of the Chart Creation Wizard has a **?** button at the bottom left, and `F1` opens help for the current step.
+4. **Tooltips**: Hover over control panel inputs and toolbar buttons for brief usage context.
+5. **Documentation**: Refer to `docs/ARCHITECTURE.md` and `docs/USER_GUIDE.md` in the source repository.
+6. **Examples**: Explore sample files provided in the `examples/` directory.
 
 ### Reporting Issues
 When reporting problems, include:

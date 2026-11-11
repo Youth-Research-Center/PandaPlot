@@ -21,9 +21,12 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
     ApplySignalAnalysisResultCommand,
 )
+from pandaplot.gui.components.common.icon_label import IconLabel
+from pandaplot.gui.components.common.status_message import StatusKind
 from pandaplot.gui.components.sidebar.signal.signal_panel import SignalPanel
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -36,7 +39,7 @@ def qapp():
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
     return ctx
 
 
@@ -117,7 +120,27 @@ class TestRunAnalysisAsyncDispatch:
         assert panel.run_btn.isEnabled() is True
         assert panel.add_btn.isEnabled() is False
         assert panel.last_result is None
-        assert "Analysis failed" in panel.results_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        message = panel.status_message.message()
+        assert message.startswith("Analysis failed: ")
+        assert "PandaPlot could not process this data with these settings." in message
+        assert "TypeError" not in message
+        assert "has no len()" not in message
+        assert "Analysis failed" not in panel.results_text.toPlainText()
+
+    def test_dispatch_failure_shows_plain_language_reason(self, app_context):
+        panel = _build_panel_with_column(app_context)
+
+        fake_command = Mock()
+        fake_command.run_analysis_async = Mock(side_effect=OSError(13, "Permission denied"))
+        panel._build_command = lambda: fake_command
+
+        panel.run_analysis()
+
+        message = panel.status_message.message()
+        assert "PandaPlot is not allowed to open or change this file." in message
+        assert "Errno" not in message
+        assert panel.busy_spinner.is_running is False
 
     def test_discards_stale_result_after_dataset_switch(self, app_context):
         """Regression test (PR review): tab/dataset navigation stays enabled
@@ -164,7 +187,9 @@ class TestRunAnalysisAsyncDispatch:
         assert panel.run_btn.isEnabled() is True
         assert panel.add_btn.isEnabled() is False
         assert panel.last_result is None
-        assert "Analysis blew up" in panel.results_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Analysis failed: Analysis blew up"
+        assert panel.results_text.toPlainText() == ""
 
     def test_sync_dispatch_failure_stops_spinner_without_leftover_busy_state(self, app_context):
         """run_analysis_async() can call on_complete synchronously (e.g. the
@@ -185,7 +210,8 @@ class TestRunAnalysisAsyncDispatch:
         assert panel.run_btn.isEnabled() is True
         assert panel.add_btn.isEnabled() is False
         assert panel.last_result is None
-        assert "Column not found: signal" in panel.results_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Analysis failed: Column not found: signal"
 
 
 class TestAddResultsToProjectAsyncDispatch:
@@ -234,7 +260,9 @@ class TestAddResultsToProjectAsyncDispatch:
         # Should execute ApplySignalAnalysisResultCommand directly instead of re-building SignalAnalysisCommand
         assert isinstance(executed["command"], ApplySignalAnalysisResultCommand)
         assert executed["command"].result is result
-        assert "added to project" in panel.results_text.toPlainText().lower()
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.status_message.message() == "Results added to project"
+        assert "FFT" in panel.results_text.toPlainText()
         assert panel.add_btn.isEnabled() is False
 
     def test_invalidates_cached_result_on_dataset_data_changed(self, app_context):
@@ -348,7 +376,8 @@ class TestAddResultsToProjectAsyncDispatch:
 
         assert panel.busy_spinner.is_running is False
         assert panel.last_result is fake_command.result
-        assert "added to project" in panel.results_text.toPlainText().lower()
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.status_message.message() == "Results added to project"
         # Not re-enabled on success -- matches add_results_to_project()'s
         # real behavior of only re-enabling the button to let the user retry
         # after a failure.
@@ -368,7 +397,7 @@ class TestAddResultsToProjectAsyncDispatch:
         fake_command.on_complete(CommandResult.SUCCESS)
 
         assert panel.last_result is None
-        assert "added to project" not in panel.results_text.toPlainText().lower()
+        assert panel.status_message.message() == ""
         assert panel.busy_spinner.is_running is False
         assert panel.run_btn.isEnabled() is True
 
@@ -461,3 +490,320 @@ class TestRunAndAddMutualExclusion:
         add_command.on_complete(CommandResult.SUCCESS)
 
         assert panel.run_btn.isEnabled() is True
+
+
+class TestMethodChangeWhileRunning:
+    def _start_run(self, app_context):
+        panel = _build_panel_with_column(app_context)
+        assert panel.analysis_combo.count() > 1
+        captured = {}
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: captured.update(on_complete=on_complete)
+        panel._build_command = lambda: fake_command
+        panel.run_analysis()
+        return panel, captured
+
+    def test_discards_stale_result_after_analysis_method_change(self, app_context):
+        panel, captured = self._start_run(app_context)
+        panel.analysis_combo.setCurrentIndex((panel.analysis_combo.currentIndex() + 1) % panel.analysis_combo.count())
+
+        captured["on_complete"](_fake_result(), None)
+
+        assert panel.last_result is None
+        assert panel.add_btn.isEnabled() is False
+        assert "FFT" not in panel.results_text.toPlainText()
+        assert panel.busy_spinner.is_running is False
+
+    def test_clear_keeps_spinner_running_while_command_pending(self, app_context):
+        panel, captured = self._start_run(app_context)
+
+        panel.clear()
+        assert panel.busy_spinner.is_running is True
+
+        captured["on_complete"](_fake_result(), None)
+        assert panel.busy_spinner.is_running is False
+
+
+def _build_panel_with_columns(app_context, columns=("a", "b", "c", "d")) -> tuple[SignalPanel, Dataset]:
+    """A SignalPanel on a dataset with several numeric columns."""
+    df = pd.DataFrame({name: np.sin(np.linspace(0.0, 10.0 + i, 50)) for i, name in enumerate(columns)})
+    dataset = Dataset(id="ds-1", name="dataset", data=df)
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+    panel = SignalPanel(app_context)
+    panel.app_context.get_app_state.return_value.current_project = project
+    panel.on_tab_changed({"tab_type": "dataset", "tab_id": dataset.id})
+    return panel, dataset
+
+
+def _run_and_complete(panel):
+    fake_command = Mock()
+    fake_command.run_analysis_async = lambda on_complete: on_complete(_fake_result(), None)
+    panel._build_command = lambda: fake_command
+    panel.run_analysis()
+    assert panel.add_btn.isEnabled() is True
+
+
+class TestColumnEventsKeepSelection:
+    """Column add/remove/rename rebuild the column picker. The user's column
+    must stay selected (following a rename), or the shown result must be
+    invalidated, so "Add to Project" never commits a different column than the
+    one the preview describes."""
+
+    def test_renaming_another_column_keeps_selection_and_result(self, app_context):
+        panel, dataset = _build_panel_with_columns(app_context)
+        panel.column_combo.setCurrentText("c")
+        _run_and_complete(panel)
+
+        dataset.data.rename(columns={"a": "alpha"}, inplace=True)
+        panel.on_columns_changed({"dataset_id": "ds-1", "old_name": "a", "new_name": "alpha"})
+
+        assert panel.column_combo.currentText() == "c"
+        assert panel.last_result is not None
+        assert panel.add_btn.isEnabled() is True
+
+    def test_renaming_the_selected_column_follows_it(self, app_context):
+        panel, dataset = _build_panel_with_columns(app_context)
+        panel.column_combo.setCurrentText("c")
+
+        dataset.data.rename(columns={"c": "gamma"}, inplace=True)
+        panel.on_columns_changed({"dataset_id": "ds-1", "old_name": "c", "new_name": "gamma"})
+
+        assert panel.column_combo.currentText() == "gamma"
+
+    def test_removing_the_selected_column_invalidates_the_result(self, app_context):
+        panel, dataset = _build_panel_with_columns(app_context)
+        panel.column_combo.setCurrentText("c")
+        _run_and_complete(panel)
+
+        dataset.data.drop(columns=["c"], inplace=True)
+        panel.on_columns_changed({"dataset_id": "ds-1"})
+
+        assert panel.column_combo.currentText() != "c"
+        assert panel.last_result is None
+        assert panel.add_btn.isEnabled() is False
+        assert panel.results_text.toPlainText() == ""
+
+
+class TestRunButtonFollowsPendingState:
+    def test_column_event_does_not_re_enable_run_while_pending(self, app_context):
+        panel, _dataset = _build_panel_with_columns(app_context)
+        captured = {}
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: captured.update(on_complete=on_complete)
+        panel._build_command = lambda: fake_command
+        panel.run_analysis()
+
+        panel.on_columns_changed({"dataset_id": "ds-1"})
+        assert panel.run_btn.isEnabled() is False
+
+        captured["on_complete"](_fake_result(), None)
+        assert panel.run_btn.isEnabled() is True
+
+    def test_completion_after_leaving_dataset_keeps_run_disabled(self, app_context):
+        panel, _dataset = _build_panel_with_columns(app_context)
+        captured = {}
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: captured.update(on_complete=on_complete)
+        panel._build_command = lambda: fake_command
+        panel.run_analysis()
+
+        panel.on_tab_changed({"tab_type": "chart", "tab_id": "chart-1"})
+        captured["on_complete"](_fake_result(), None)
+
+        assert panel.column_combo.count() == 0
+        assert panel.run_btn.isEnabled() is False
+
+
+class TestRunDispatchRaises:
+    def test_dispatch_exception_releases_busy_state(self, app_context):
+        panel, _dataset = _build_panel_with_columns(app_context)
+        fake_command = Mock()
+        fake_command.run_analysis_async = Mock(side_effect=RuntimeError("thread pool shut down"))
+        panel._build_command = lambda: fake_command
+
+        panel.run_analysis()
+
+        assert panel._pending_command is None
+        assert panel.busy_spinner.is_running is False
+        assert panel.run_btn.isEnabled() is True
+        assert panel.add_btn.isEnabled() is False
+        assert panel.status_message.kind() is StatusKind.ERROR
+        message = panel.status_message.message()
+        assert message.startswith("Analysis failed: Something went wrong that PandaPlot did not expect.")
+        assert "thread pool shut down" not in message
+
+
+class TestStaleRunIsReported:
+    def test_parameter_change_mid_run_replaces_previous_result_with_notice(self, app_context):
+        panel, _dataset = _build_panel_with_columns(app_context)
+        _run_and_complete(panel)
+        assert "FFT" in panel.results_text.toPlainText()
+
+        captured = {}
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: captured.update(on_complete=on_complete)
+        panel._build_command = lambda: fake_command
+        panel.run_analysis()
+        assert panel.sampling_rate is not None
+        panel.sampling_rate.setValue(panel.sampling_rate.value() + 1)
+
+        captured["on_complete"](_fake_result(), None)
+
+        assert panel.last_result is None
+        assert panel.add_btn.isEnabled() is False
+        assert "FFT" not in panel.results_text.toPlainText()
+        assert "changed while the analysis was running" in panel.results_text.toPlainText()
+
+
+class TestCachedResultAndColumnEvents:
+    """Add reuses last_result when the dispatch parameters match. Those
+    parameters (and the result's name, e.g. "FFT [a]") identify the column by
+    name, so a rename or removal of that column must make Add recompute;
+    otherwise a column that later takes the old name would get the cached
+    result."""
+
+    @staticmethod
+    def _run_on_a(app_context):
+        panel, dataset = _build_panel_with_columns(app_context, columns=("a", "b", "c"))
+        panel.column_combo.setCurrentText("a")
+        result = _fake_result()
+        run_command = Mock()
+        run_command.run_analysis_async = lambda on_complete: on_complete(result, None)
+        panel._build_command = lambda: run_command
+        panel.run_analysis()
+        executed = []
+        panel.app_context.get_command_executor.return_value.execute_command = lambda command: executed.append(command) or True
+        add_command = Mock()
+        panel._build_command = lambda: add_command
+        return panel, dataset, result, executed, add_command
+
+    @staticmethod
+    def _rename(panel, dataset, old, new):
+        dataset.data.rename(columns={old: new}, inplace=True)
+        panel.on_columns_changed({"dataset_id": "ds-1", "column_index": 0, "old_name": old, "new_name": new})
+
+    def test_renaming_another_column_keeps_the_cached_result(self, app_context):
+        panel, dataset, result, executed, _add_command = self._run_on_a(app_context)
+        self._rename(panel, dataset, "b", "beta")
+
+        panel.add_results_to_project()
+
+        assert len(executed) == 1
+        assert isinstance(executed[0], ApplySignalAnalysisResultCommand)
+        assert executed[0].result is result
+
+    def test_renaming_the_run_column_recomputes_under_the_new_name(self, app_context):
+        panel, dataset, _result, executed, add_command = self._run_on_a(app_context)
+        self._rename(panel, dataset, "a", "x")
+
+        panel.add_results_to_project()
+
+        assert executed == [add_command]
+
+    def test_removed_and_re_added_column_does_not_get_the_cached_result(self, app_context):
+        panel, dataset, _result, executed, add_command = self._run_on_a(app_context)
+        panel.column_combo.setCurrentText("c")
+        removed = dataset.data.pop("a")
+        panel.on_columns_changed({"dataset_id": "ds-1"})
+        dataset.data["a"] = removed * 3
+        panel.on_columns_changed({"dataset_id": "ds-1"})
+        panel.column_combo.setCurrentText("a")
+
+        panel.add_results_to_project()
+
+        assert executed == [add_command]
+
+    def test_column_taking_the_old_name_does_not_get_the_cached_result(self, app_context):
+        panel, dataset, _result, executed, add_command = self._run_on_a(app_context)
+        self._rename(panel, dataset, "a", "x")
+        self._rename(panel, dataset, "b", "a")
+        panel.column_combo.setCurrentText("a")
+
+        panel.add_results_to_project()
+
+        assert executed == [add_command]  # recomputed for the new 'a', not the cached result
+
+
+class TestIntColumnLabels:
+    """Excel imports keep numeric headers as int labels; the picker shows str(label)."""
+
+    def test_rename_and_undo_of_an_int_labelled_column_are_followed(self, app_context):
+        panel, dataset = _build_panel_with_columns(app_context, columns=("a", 2020))
+        panel.column_combo.setCurrentText("2020")
+        assert panel.column_combo.currentText() == "2020"
+
+        dataset.data.rename(columns={2020: "y2020"}, inplace=True)
+        panel.on_columns_changed({"dataset_id": "ds-1", "old_name": 2020, "new_name": "y2020"})
+        assert panel.column_combo.currentText() == "y2020"
+
+        dataset.data.rename(columns={"y2020": 2020}, inplace=True)  # undo
+        panel.on_columns_changed({"dataset_id": "ds-1", "old_name": "y2020", "new_name": 2020})
+        assert panel.column_combo.currentText() == "2020"
+        assert panel.run_btn.isEnabled() is True
+
+
+def test_completion_after_leaving_the_dataset_does_not_prompt_for_run(app_context):
+    panel, _dataset = _build_panel_with_columns(app_context)
+    captured = {}
+    fake_command = Mock()
+    fake_command.run_analysis_async = lambda on_complete: captured.update(on_complete=on_complete)
+    panel._build_command = lambda: fake_command
+    panel.run_analysis()
+
+    panel.on_tab_changed({"tab_type": "chart", "tab_id": "chart-1"})
+    captured["on_complete"](_fake_result(), None)
+
+    assert panel.run_btn.isEnabled() is False
+    assert panel.results_text.toPlainText() == ""
+
+
+class TestSignalPanelStatusMessage:
+    def test_status_message_sits_directly_above_the_results_text(self, app_context):
+        panel = _build_panel_with_column(app_context)
+        layout = panel.results_text.parentWidget().layout()
+
+        assert layout.indexOf(panel.status_message) == layout.indexOf(panel.results_text) - 1
+        assert panel.status_message.isHidden()
+
+    def test_an_error_replaces_the_previous_report(self, app_context):
+        panel = _build_panel_with_column(app_context)
+        panel.results_text.setPlainText("old report")
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: on_complete(None, "<b>bad</b>")
+        panel._build_command = lambda: fake_command
+
+        panel.run_analysis()
+
+        assert panel.status_message.message() == "Analysis failed: <b>bad</b>"
+        assert panel.results_text.toPlainText() == ""
+
+    def test_a_new_result_clears_the_earlier_success_status(self, app_context):
+        panel = _build_panel_with_column(app_context)
+        panel.status_message.set_message(StatusKind.SUCCESS, "Results added to project")
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: on_complete(_fake_result(), None)
+        panel._build_command = lambda: fake_command
+
+        panel.run_analysis()
+
+        assert panel.status_message.message() == ""
+        assert "FFT" in panel.results_text.toPlainText()
+
+    def test_clear_clears_the_status_message(self, app_context):
+        panel = _build_panel_with_column(app_context)
+        panel.status_message.set_message(StatusKind.ERROR, "boom")
+
+        panel.clear()
+
+        assert panel.status_message.message() == ""
+        assert panel.status_message.kind() is None
+
+    def test_theme_change_retints_the_status_icon(self, app_context):
+        panel = _build_panel_with_column(app_context)
+        panel.status_message.set_message(StatusKind.ERROR, "boom")
+        app_context.get_manager.return_value.get_design_tokens.return_value["status_danger"] = "#00AA00"
+
+        panel._apply_theme()
+
+        assert_tinted(strongest_pixel(panel.status_message.findChild(IconLabel).pixmap()), "#00AA00")

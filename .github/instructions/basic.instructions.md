@@ -3,7 +3,7 @@ applyTo: '**'
 ---
 
 ## Source of truth
-Read `AGENTS.md` at the repository root first: it holds the conventions, commands, and the "Recurring Review Pitfalls" checklist. When reviewing a PR, check the change against that checklist (command results and redo semantics, async/stale callbacks, event payloads and refresh coverage, serialization round-trips, accessibility, test fidelity, PR description accuracy). The summary below may lag behind it.
+Read `AGENTS.md` at the repository root first: it holds the conventions, commands, and the "Recurring Review Pitfalls" checklist. When reviewing a PR, check the change against that checklist (command results, `ABORTED` vs `FAILURE` and redo semantics, async/stale callbacks, event payloads and refresh coverage including undo/redo replay, serialization round-trips through the real storage path and schema bumps, keyword-only new dataclass fields, renderer and axis-range parity, `eval` of stored expressions, accessibility, test fidelity, CHANGELOG and PR description accuracy). The summary below may lag behind it.
 
 ## Context
 Project Type: GUI application for scientific data visualization and analysis inspired by SigmaPlot, OriginPro, and LabPlot.
@@ -15,7 +15,7 @@ Architecture: MVC, Clean Architecture, Event-Driven, Command pattern
 - Use Pythonic patterns (PEP 8, PEP 257) with Python >= 3.12 features.
 - Prefer named functions and class-based structures over inline lambdas.
 - Use type hints on all function parameters and return types.
-- Follow `ruff` for linting, code formatting, and import sorting (max line length = 150).
+- Follow `ruff` for linting and import sorting (max line length = 150).
 - Keyword-only booleans: Make boolean parameters keyword-only (`def f(*, flag: bool)`) to adhere to `FBT` rules unless overriding a Qt method.
 - Prefer keyword arguments at call sites when passing multiple arguments of similar type.
 - Emphasize simplicity, readability, and DRY principles.

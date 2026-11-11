@@ -2,16 +2,23 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from PySide6.QtCore import QBuffer, QIODevice, QMimeData
-from PySide6.QtGui import QColor, QPixmap
-from PySide6.QtWidgets import QApplication, QLabel, QMessageBox
+import shiboken6
+from PySide6.QtCore import QBuffer, QCoreApplication, QEvent, QIODevice, QMimeData, Qt
+from PySide6.QtGui import QAction, QColor, QImage, QPixmap
+from PySide6.QtWidgets import QApplication, QDialog, QLabel, QMenu, QMessageBox
 
 from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.tabs.image.image_gallery_tab import ImageGalleryTab
+from pandaplot.gui.components.tabs.image.image_lightbox_dialog import ImageLightboxDialog
+from pandaplot.gui.resources.icon_library import build_icon
+from pandaplot.gui.resources.themed_icons import IconRole
+from pandaplot.models.events.event_bus import EventBus
+from pandaplot.models.events.event_types import ThemeEvents
 from pandaplot.models.project.items import Image, ImageGallery
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
+from tests.gui.icon_testing import fresh_icon_tokens
 
 
 def _project_stub(*items):
@@ -63,11 +70,9 @@ def _bordered_png_bytes(size: int = 120, border: int = 20) -> bytes:
     return bytes(buffer.data())
 
 
-_FAKE_TOKENS = {
-    "text_muted": "#6B7280",
+_EXTRA_TOKENS = {
     "border_subtle": "#ECEEF2",
     "surface_white": "#FFFFFF",
-    "accent": "#4A56C6",
     "accent_selected_bg": "#EEF0FB",
 }
 
@@ -78,8 +83,9 @@ def app_context():
     ctx.event_bus = Mock()
     ctx.get_app_state.return_value = Mock()
 
+    ctx.theme_tokens = {**fresh_icon_tokens(), **_EXTRA_TOKENS}
     theme_manager = Mock()
-    theme_manager.get_design_tokens.return_value = dict(_FAKE_TOKENS)
+    theme_manager.get_design_tokens.side_effect = lambda: dict(ctx.theme_tokens)
 
     def _get_manager(manager_type, *args, **kwargs):
         if manager_type is ThemeManager:
@@ -416,6 +422,55 @@ class TestImageGalleryTabContextMenu:
         args = app_context.get_app_state.return_value.event_bus.emit.call_args.args
         assert args[1]["item_id"] == album.id
 
+    def test_grid_context_menu_is_deleted_after_closing(self, app_context):
+        gallery = ImageGallery(name="Trip")
+        gallery.add_item(Image(name="Beach"))
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        position = tab.grid.visualItemRect(tab.grid.item(0)).center()
+
+        opened: list[QMenu] = []
+        original_build = tab._build_context_menu
+
+        def _build_with_nonblocking_exec(item) -> QMenu:
+            menu = original_build(item)
+            opened.append(menu)
+            menu.exec = lambda *_args: None
+            return menu
+
+        with patch.object(tab, "_build_context_menu", _build_with_nonblocking_exec):
+            tab._on_grid_context_menu(position)
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+        assert len(opened) == 1
+        assert not shiboken6.isValid(opened[0])
+        assert tab.findChildren(QMenu) == []
+        assert tab.findChildren(QAction) == []
+
+    def test_list_context_menu_is_deleted_after_closing(self, app_context):
+        gallery = ImageGallery(name="Trip")
+        gallery.add_item(Image(name="Beach"))
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab._on_view_mode_changed("list")
+        position = tab.list_view.visualItemRect(tab.list_view.topLevelItem(0)).center()
+
+        opened: list[QMenu] = []
+        original_build = tab._build_context_menu
+
+        def _build_with_nonblocking_exec(item) -> QMenu:
+            menu = original_build(item)
+            opened.append(menu)
+            menu.exec = lambda *_args: None
+            return menu
+
+        with patch.object(tab, "_build_context_menu", _build_with_nonblocking_exec):
+            tab._on_list_context_menu(position)
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+        assert len(opened) == 1
+        assert not shiboken6.isValid(opened[0])
+        assert tab.findChildren(QMenu) == []
+        assert tab.findChildren(QAction) == []
+
 
 class TestImageGalleryTabViewToggle:
     def test_defaults_to_grid_view_visible(self, app_context):
@@ -639,6 +694,11 @@ class TestImageGalleryTabListViewIconScaling:
             "list-view row icon is a single uniform color -- looks like a "
             "center-crop of the thumbnail rather than a genuine downscale"
         )
+        # The whole bordered image is visible: a red frame around a green interior.
+        last = icon_image.width() - 1
+        red, green = (255, 0, 0, 255), (0, 128, 0, 255)
+        assert [icon_image.pixelColor(x, y).getRgb() for x, y in ((0, 0), (last, 0), (0, last), (last, last))] == [red] * 4
+        assert icon_image.pixelColor(last // 2, last // 2).getRgb() == green
 
 
 class TestImageGalleryTabMoveCopy:
@@ -1428,11 +1488,46 @@ class TestImageGalleryTabEditImage:
         with patch.object(QMessageBox, "warning") as mock_warning:
             tab._on_edit_image_clicked()
 
-        mock_warning.assert_called_once()
-        assert "Beach" in mock_warning.call_args.args[2]
+        mock_warning.assert_not_called()
+        show_error = tab.app_context.get_ui_controller.return_value.show_error_message
+        show_error.assert_called_once()
+        title, message = show_error.call_args.args
+        assert title == "Edit Image Error"
+        assert message == "Couldn't load the image data for 'Beach'."
+        assert isinstance(show_error.call_args.kwargs["error"], ConnectionError)
 
         executor = tab.app_context.get_command_executor.return_value
         assert executor.execute_command.call_count == 0
+
+    def test_edit_image_reports_a_failed_save_of_the_edited_image(self, app_context, monkeypatch):
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        image.set_bytes(b"placeholder image bytes")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        failure = OSError("disk full")
+
+        class _Dialog:
+            def __init__(self, *_a, **_kw):
+                pass
+
+            def exec(self):
+                return QDialog.DialogCode.Accepted
+
+            def has_edits(self):
+                return True
+
+            def get_result_bytes(self):
+                raise failure
+
+        monkeypatch.setattr("pandaplot.gui.components.tabs.image.image_gallery_tab.ImageEditorDialog", _Dialog)
+        monkeypatch.setattr("pandaplot.gui.components.tabs.image.image_gallery_tab.QImage", lambda: Mock(loadFromData=lambda _d: True))
+
+        tab._edit_image(image)
+
+        show_error = tab.app_context.get_ui_controller.return_value.show_error_message
+        show_error.assert_called_once_with("Edit Image Error", "Couldn't save the edited image for 'Beach'.", error=failure)
+        assert tab.app_context.get_command_executor.return_value.execute_command.call_count == 0
 
     def test_edit_image_warns_instead_of_opening_dialog_on_undecodable_data(
         self, app_context, monkeypatch
@@ -1493,6 +1588,8 @@ class TestImageGalleryTabLightboxLoadResilience:
                 captured["load_pixmap"] = load_pixmap
             def exec(self):
                 return None
+            def deleteLater(self):
+                pass
 
         monkeypatch.setattr(
             "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageLightboxDialog",
@@ -1502,3 +1599,175 @@ class TestImageGalleryTabLightboxLoadResilience:
         tab._open_lightbox_for(image)
 
         assert captured["load_pixmap"](image) is None
+
+
+class TestImageGalleryTabLightboxLifetime:
+    def test_closed_lightbox_is_deleted_and_stops_listening_to_theme_changes(self, app_context):
+        bus = EventBus()
+        app_context.event_bus = bus
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+
+        opened: list[ImageLightboxDialog] = []
+        theme_applications: list[ImageLightboxDialog] = []
+        original_apply_theme = ImageLightboxDialog._apply_theme
+
+        def _exec_returns_immediately(dialog: ImageLightboxDialog) -> int:
+            opened.append(dialog)
+            return 0
+
+        def _counting_apply_theme(dialog: ImageLightboxDialog) -> None:
+            theme_applications.append(dialog)
+            original_apply_theme(dialog)
+
+        with (
+            patch.object(ImageLightboxDialog, "exec", _exec_returns_immediately),
+            patch.object(ImageLightboxDialog, "_apply_theme", _counting_apply_theme),
+        ):
+            tab._open_lightbox_for(image)
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+            theme_applications.clear()
+
+            bus.emit(ThemeEvents.THEME_CHANGED, {})
+
+        assert len(opened) == 1
+        assert not shiboken6.isValid(opened[0])
+        assert theme_applications == []
+
+
+_ICON_SIZE = 16
+
+_LABELLED_BUTTON_ICONS = {
+    "import_button": ("Import Images...", "image", IconRole.TEXT),
+    "edit_image_button": ("Edit Image...", "pencil-simple", IconRole.TEXT),
+    "rename_button": ("Rename", "textbox", IconRole.TEXT),
+    "delete_button": ("Delete", "trash", IconRole.ERROR),
+    "group_into_album_button": ("Group into Album", "stack", IconRole.TEXT),
+    "move_button": ("Move...", "folder-simple", IconRole.TEXT),
+    "copy_button": ("Copy to...", "copy", IconRole.TEXT),
+}
+
+_ICON_ONLY_BUTTONS = {
+    "back_button": ("caret-left", "Back", "Go back to the previous gallery"),
+    "forward_button": ("caret-right", "Forward", "Go forward to the next gallery"),
+}
+
+def _icon_image(icon) -> QImage:
+    return icon.pixmap(_ICON_SIZE, _ICON_SIZE).toImage()
+
+
+def _expected_icon_image(name: str, tokens: dict[str, str], role: IconRole = IconRole.TEXT) -> QImage:
+    icon = build_icon(name, tokens[role.value], size=_ICON_SIZE, disabled_color=tokens["text_disabled"])
+    return _icon_image(icon)
+
+
+class TestImageGalleryTabIcons:
+    def test_labelled_buttons_show_their_icon_and_keep_their_text(self, app_context):
+        tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
+
+        for attribute, (text, icon_name, role) in _LABELLED_BUTTON_ICONS.items():
+            button = getattr(tab, attribute)
+            assert button.text() == text, attribute
+            assert _icon_image(button.icon()) == _expected_icon_image(icon_name, app_context.theme_tokens, role), attribute
+
+    def test_delete_button_icon_is_red_and_turns_white_on_hover(self, app_context):
+        tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
+        tab.delete_button.setEnabled(True)
+        tokens = app_context.theme_tokens
+
+        assert _icon_image(tab.delete_button.icon()) == _expected_icon_image("trash", tokens, IconRole.ERROR)
+
+        QApplication.sendEvent(tab.delete_button, QEvent(QEvent.Type.Enter))
+        assert _icon_image(tab.delete_button.icon()) == _expected_icon_image("trash", tokens, IconRole.ON_DANGER)
+
+        QApplication.sendEvent(tab.delete_button, QEvent(QEvent.Type.Leave))
+        assert _icon_image(tab.delete_button.icon()) == _expected_icon_image("trash", tokens, IconRole.ERROR)
+
+    def test_delete_button_hover_icon_retints_when_the_theme_changes(self, app_context):
+        tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
+        tab.delete_button.setEnabled(True)
+        app_context.theme_tokens.update(status_danger="#C24141", text_on_danger="#F0F0F0")
+
+        tab._apply_theme()
+
+        tokens = app_context.theme_tokens
+        assert _icon_image(tab.delete_button.icon()) == _expected_icon_image("trash", tokens, IconRole.ERROR)
+        QApplication.sendEvent(tab.delete_button, QEvent(QEvent.Type.Enter))
+        assert _icon_image(tab.delete_button.icon()) == _expected_icon_image("trash", tokens, IconRole.ON_DANGER)
+
+    def test_icon_only_navigation_buttons_have_icon_name_tooltip_and_focus(self, app_context):
+        tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
+
+        for attribute, (icon_name, accessible_name, tooltip) in _ICON_ONLY_BUTTONS.items():
+            button = getattr(tab, attribute)
+            assert button.text() == "", attribute
+            assert _icon_image(button.icon()) == _expected_icon_image(icon_name, app_context.theme_tokens), attribute
+            assert button.accessibleName() == accessible_name, attribute
+            assert button.toolTip() == tooltip, attribute
+            assert button.focusPolicy() & Qt.FocusPolicy.TabFocus, attribute
+
+    def test_sort_direction_button_icon_follows_direction_and_is_accessible(self, app_context):
+        tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
+        button = tab.sort_direction_button
+
+        assert button.text() == ""
+        assert button.accessibleName() == "Sort direction"
+        assert button.focusPolicy() & Qt.FocusPolicy.TabFocus
+        assert _icon_image(button.icon()) == _expected_icon_image("caret-up", app_context.theme_tokens)
+        ascending_tooltip = button.toolTip()
+        assert "ascending" in ascending_tooltip.lower()
+
+        button.click()
+
+        assert tab._sort_ascending is False
+        assert _icon_image(button.icon()) == _expected_icon_image("caret-down", app_context.theme_tokens)
+        assert button.toolTip() != ascending_tooltip
+        assert "descending" in button.toolTip().lower()
+
+    def test_sort_direction_icon_follows_list_header_sort_order(self, app_context):
+        tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
+
+        tab._on_list_header_sort_changed(0, Qt.SortOrder.DescendingOrder)
+
+        assert _icon_image(tab.sort_direction_button.icon()) == _expected_icon_image("caret-down", app_context.theme_tokens)
+
+    def test_context_menu_actions_are_plain_text_without_icons(self, app_context):
+        gallery = ImageGallery(name="Trip")
+        gallery.add_item(Image(name="Beach"))
+        gallery.add_item(ImageGallery(name="Day 1"))
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        album_row = next(row for row in range(tab.grid.count()) if tab.grid.item(row).text() == "Day 1")
+        tab.grid.item(album_row).setSelected(True)
+
+        menu = tab._build_context_menu(tab.grid.item(album_row))
+
+        actions = [action for action in menu.actions() if not action.isSeparator()]
+        assert {action.text() for action in actions} == {"Edit Image...", "Rename", "Delete", "Move...", "Copy to...", "Open in New Tab"}
+        for action in actions:
+            assert action.icon().isNull(), action.text()
+
+    def test_icons_retint_when_the_theme_changes(self, app_context):
+        tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
+        before = _icon_image(tab.import_button.icon())
+        app_context.theme_tokens.update(text_primary="#E2E2E2", text_disabled="#5B6270")
+
+        tab._apply_theme()
+
+        assert _icon_image(tab.import_button.icon()) != before
+        for attribute, (_text, icon_name, role) in _LABELLED_BUTTON_ICONS.items():
+            assert _icon_image(getattr(tab, attribute).icon()) == _expected_icon_image(icon_name, app_context.theme_tokens, role), attribute
+        for attribute, (icon_name, _name, _tooltip) in _ICON_ONLY_BUTTONS.items():
+            assert _icon_image(getattr(tab, attribute).icon()) == _expected_icon_image(icon_name, app_context.theme_tokens), attribute
+        assert _icon_image(tab.sort_direction_button.icon()) == _expected_icon_image("caret-up", app_context.theme_tokens)
+
+    def test_sort_direction_icon_retints_in_the_descending_state(self, app_context):
+        tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
+        tab.sort_direction_button.click()
+        assert tab._sort_ascending is False
+        app_context.theme_tokens.update(text_primary="#E2E2E2", text_disabled="#5B6270")
+
+        tab._apply_theme()
+
+        assert _icon_image(tab.sort_direction_button.icon()) == _expected_icon_image("caret-down", app_context.theme_tokens)

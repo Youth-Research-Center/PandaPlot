@@ -3,6 +3,7 @@ import pytest
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QApplication
 
+from pandaplot.gui.dialogs.chart import wizard_step_rail
 from pandaplot.gui.dialogs.chart.wizard_step_rail import WizardStepRail
 
 
@@ -128,3 +129,29 @@ def test_set_tokens_regenerates_the_circle_icons():
 
     after = rail._step_widgets[1].icon().pixmap(17, 17).toImage()
     assert before != after
+
+
+def test_completed_circle_draws_the_bundled_check_icon_in_the_completed_colour(monkeypatch):
+    """The completed step's check is the bundled `check` icon (not a font glyph), tinted with the completed colour and drawn inside the circle."""
+    requested = []
+    real_build_icon = wizard_step_rail.build_icon
+
+    def spy(name, color, **kwargs):
+        requested.append((name, color))
+        return real_build_icon(name, color, **kwargs)
+
+    monkeypatch.setattr(wizard_step_rail, "build_icon", spy)
+    rail = WizardStepRail(["Type", "Data", "Labels"])
+    rail.set_tokens({"accent_selected_bg": "#FFFFFF", "accent_active_text": "#FF0000"})
+    rail.set_state(current_index=1, summaries={0: "Type · Line"})
+
+    assert ("check", "#FF0000") in requested
+    image = rail._step_widgets[0].icon().pixmap(17, 17, QIcon.Mode.Normal).toImage()
+    check_pixels = [
+        (x, y)
+        for x in range(image.width())
+        for y in range(image.height())
+        if image.pixelColor(x, y).red() - image.pixelColor(x, y).green() > 150 and image.pixelColor(x, y).green() == image.pixelColor(x, y).blue()
+    ]
+    assert check_pixels, "no pixel of the completed colour where the check is drawn"
+    assert all(3 <= x <= 13 and 3 <= y <= 13 for x, y in check_pixels)

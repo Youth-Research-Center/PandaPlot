@@ -1,4 +1,5 @@
 """Tests for the Sketch item model, its layers and element primitives."""
+import dataclasses
 import json
 from typing import Any
 
@@ -17,6 +18,7 @@ from pandaplot.models.project.items.sketch import (
     TextAlignment,
     TextElement,
 )
+from pandaplot.models.project.items.sketch.sketch_element import STYLE_VALUE_CHECKS, is_hex_color
 
 
 def _all_element_types() -> list[SketchElement]:
@@ -268,3 +270,40 @@ class TestSketch:
         sketch.add_element(sketch.active_layer_id, LineElement())
 
         assert sketch.modified_at != "2000-01-01T00:00:00"
+
+
+class TestStyleFields:
+    def test_each_type_lists_the_style_fields_it_draws_with(self):
+        shape_fields = {"stroke_color", "stroke_width", "stroke_style", "fill_color"}
+        assert FreehandElement.STYLE_FIELDS == shape_fields
+        assert RectangleElement.STYLE_FIELDS == shape_fields
+        assert EllipseElement.STYLE_FIELDS == shape_fields
+        assert LineElement.STYLE_FIELDS == {"stroke_color", "stroke_width", "stroke_style"}
+        assert TextElement.STYLE_FIELDS == {"stroke_color", "font_family", "font_size", "is_bold", "is_italic", "alignment"}
+
+    def test_every_style_field_has_a_value_check_and_is_a_real_field(self):
+        for element_class in ELEMENT_TYPES.values():
+            field_names = {f.name for f in dataclasses.fields(element_class)}
+            assert element_class.STYLE_FIELDS <= set(STYLE_VALUE_CHECKS)
+            assert element_class.STYLE_FIELDS <= field_names
+
+    @pytest.mark.parametrize(("value", "expected"), [
+        ("#FFF", True), ("#00ff00", True), ("#8000FF00", True),
+        ("red", False), ("#12345", False), ("00FF00", False), (None, False), (0xFF0000, False),
+    ])
+    def test_is_hex_color(self, value, expected):
+        assert is_hex_color(value) is expected
+
+    @pytest.mark.parametrize(("name", "valid", "invalid"), [
+        ("stroke_width", [0, 0.5, 50], [-1, float("nan"), float("inf"), True, "2"]),
+        ("stroke_style", [StrokeStyle.DASHED], ["dashed", None]),
+        ("fill_color", [None, "#123456"], ["blue", ""]),
+        ("font_family", ["Arial"], ["", "  ", None]),
+        ("font_size", [1, 72], [0, -3, 12.5, True]),
+        ("is_bold", [True, False], [1, None]),
+        ("alignment", [TextAlignment.CENTER], ["center"]),
+    ])
+    def test_style_value_checks(self, name, valid, invalid):
+        check = STYLE_VALUE_CHECKS[name]
+        assert all(check(value) for value in valid)
+        assert not any(check(value) for value in invalid)

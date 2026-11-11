@@ -107,6 +107,10 @@ def test_execute_returns_failure_on_unexpected_exception():
 
     assert command.was_executed is False
     assert result is CommandResult.FAILURE
+    error = app_context.ui_controller.show_open_project_dialog.side_effect
+    app_context.ui_controller.show_error_message.assert_called_once_with(
+        "Open Project Error", "Couldn't open the project.", error=error
+    )
 
 
 def test_undo_returns_noop_when_nothing_was_executed():

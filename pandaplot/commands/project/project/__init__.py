@@ -4,6 +4,7 @@ from pandaplot.commands.project.project.new_project_command import NewProjectCom
 from pandaplot.commands.project.project.open_project_command import OpenProjectCommand
 from pandaplot.commands.project.project.rename_project_command import RenameProjectCommand
 from pandaplot.commands.project.project.save_project_command import SaveProjectAsCommand, SaveProjectCommand
+from pandaplot.commands.project.project.update_project_details_command import UpdateProjectDetailsCommand
 
 __all__ = [
     "CloseProjectCommand",
@@ -12,5 +13,6 @@ __all__ = [
     "OpenProjectCommand",
     "RenameProjectCommand",
     "SaveProjectAsCommand",
-    "SaveProjectCommand"
+    "SaveProjectCommand",
+    "UpdateProjectDetailsCommand",
 ]

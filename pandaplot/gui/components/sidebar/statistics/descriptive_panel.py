@@ -22,15 +22,20 @@ from pandaplot.analysis import DescriptiveStatsResult
 from pandaplot.commands.project.dataset.descriptive_stats_command import DescriptiveStatsCommand
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
-from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
+from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.help.help_types import PANEL_TOPIC_DESCRIPTIVE
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.error_messages import describe_error
 
 
 class DescriptiveStatsPanel(SidebarPanel):
     """Side panel for computing descriptive statistics on dataset columns."""
+
+    ICON_NAME = "table"
 
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
@@ -48,7 +53,7 @@ class DescriptiveStatsPanel(SidebarPanel):
     def _init_ui(self):
         self._init_panel_layout()
 
-        self._set_title("📋 Descriptive Statistics")
+        self._set_title("Descriptive Statistics", help_topic=PANEL_TOPIC_DESCRIPTIVE)
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
@@ -116,6 +121,8 @@ class DescriptiveStatsPanel(SidebarPanel):
         self.results_text.setReadOnly(True)
         self.results_text.setMinimumHeight(180)
         self.results_text.setPlaceholderText("Compute statistics to see a preview here...")
+        self.status_message = StatusMessage(self.app_context)
+        group_layout.addWidget(self.status_message)
         group_layout.addWidget(self.results_text)
 
         group.setLayout(group_layout)
@@ -143,12 +150,12 @@ class DescriptiveStatsPanel(SidebarPanel):
 
     def _build_command(self) -> DescriptiveStatsCommand | None:
         if not self.current_dataset_id:
-            self.results_text.setText("❌ No dataset selected.")
+            self._show_status(StatusKind.ERROR, "No dataset selected.")
             return None
 
         columns = self._selected_columns()
         if not columns:
-            self.results_text.setText("❌ Please select at least one column.")
+            self._show_status(StatusKind.ERROR, "Please select at least one column.")
             return None
 
         return DescriptiveStatsCommand(
@@ -159,6 +166,11 @@ class DescriptiveStatsPanel(SidebarPanel):
             include_report=self.report_check.isChecked(),
         )
 
+    @override
+    def _status_output(self) -> QTextEdit:
+        """The text area a status message replaces."""
+        return self.results_text
+
     def compute(self):
         """Compute statistics and preview them (without adding to the project)."""
         command = self._build_command()
@@ -166,14 +178,16 @@ class DescriptiveStatsPanel(SidebarPanel):
             return
         try:
             result = command.compute()
-        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+        except Exception as e:
+            self.logger.exception("Descriptive statistics failed")
             self.last_result = None
             self.add_btn.setEnabled(False)
-            self.results_text.setText(f"❌ Computation failed: {e}")
+            self._show_status(StatusKind.ERROR, f"Computation failed: {describe_error(e).inline_text}")
             return
 
         self.last_result = result
         self.add_btn.setEnabled(True)
+        self.status_message.clear()
         self.results_text.setPlainText(result.report())
 
     def add_results_to_project(self):
@@ -184,20 +198,16 @@ class DescriptiveStatsPanel(SidebarPanel):
         executed = self.app_context.get_command_executor().execute_command(command)
         if executed and command.result_dataset_id:
             self.last_result = command.result
-            self.publish_event(DatasetEvents.DATASET_CREATED, {
-                "dataset_id": command.result_dataset_id,
-                "source": "descriptive_stats_panel",
-            })
             name = command.result.result_name() if command.result else "results"
             report = command.result.report() if command.result else ""
-            self.results_text.setPlainText(
-                f"✅ Results added to project as dataset:\n'{name}'\n\n{report}"
-            )
+            self.results_text.setPlainText(report)
+            self.status_message.set_message(StatusKind.SUCCESS, f"Results added to project as dataset: '{name}'")
         else:
-            self.results_text.setText("❌ Failed to add results. Please check your selection.")
+            self._show_status(StatusKind.ERROR, "Failed to add results. Please check your selection.")
 
     def clear(self):
         self.results_text.clear()
+        self.status_message.clear()
         self.last_result = None
         self.add_btn.setEnabled(False)
 
@@ -213,9 +223,13 @@ class DescriptiveStatsPanel(SidebarPanel):
         df = self.current_dataset.data
         return [str(c) for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
 
-    def _refresh_inputs(self):
-        """Rebuild the column list against the current dataset's columns."""
-        selected = set(self._selected_columns())
+    def _refresh_inputs(self, *, keep: list[str] | None = None) -> None:
+        """Rebuild the column list against the current dataset's columns.
+
+        Args:
+            keep: Columns to reselect; defaults to the current selection. All columns are selected when none are kept.
+        """
+        selected = set(self._selected_columns() if keep is None else keep)
         self.column_list.clear()
         columns = self._numeric_columns()
         self.column_list.addItems(columns)
@@ -246,6 +260,7 @@ class DescriptiveStatsPanel(SidebarPanel):
             (UIEvents.TAB_CHANGED, self.on_tab_changed),
             (DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_columns_changed),
             (DatasetOperationEvents.DATASET_COLUMN_REMOVED, self.on_columns_changed),
+            (DatasetOperationEvents.DATASET_COLUMN_RENAMED, self.on_columns_changed),
         ])
 
     def on_tab_changed(self, event_data):
@@ -265,9 +280,16 @@ class DescriptiveStatsPanel(SidebarPanel):
             self.current_dataset_id = None
             self._refresh_inputs()
 
-    def on_columns_changed(self, event_data):
-        if event_data.get("dataset_id") == self.current_dataset_id:
-            self._refresh_inputs()
+    def on_columns_changed(self, event_data: dict) -> None:
+        """Rebuild the column list after a column is added, removed or renamed, keeping the user's columns."""
+        if event_data.get("dataset_id") != self.current_dataset_id:
+            return
+        kept = self._follow_column_rename(self._selected_columns(), event_data)
+        self._refresh_inputs(keep=kept)
+        if self._column_selection_changed(kept, self._selected_columns()):
+            # A computed column is gone (or an empty selection became select-all),
+            # so the shown result no longer matches the selection.
+            self.clear()
 
     # ------------------------------------------------------------------
     # Helpers / theming
@@ -313,3 +335,4 @@ class DescriptiveStatsPanel(SidebarPanel):
         """)
 
         self._apply_title_theme(base_fg, card_border)
+        self.status_message.retint()

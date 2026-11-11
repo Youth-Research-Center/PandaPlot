@@ -75,14 +75,14 @@ def test_close_event_accepts_when_no_unsaved_changes():
     assert event.accepted is True
 
 
-def test_close_event_asks_and_accepts_when_confirmed():
+def test_close_event_offers_save_as_and_accepts_when_discarded():
     window = _make_window(has_project=True, is_modified=True, project_file_path=None)
-    window.app_context.get_ui_controller.return_value.show_question.return_value = True
+    window.app_context.get_ui_controller.return_value.show_save_as_discard_cancel.return_value = "discard"
     event = _FakeCloseEvent()
 
     PandaMainWindow.closeEvent(window, event)
 
-    window.app_context.get_ui_controller.return_value.show_question.assert_called_once()
+    window.app_context.get_ui_controller.return_value.show_save_as_discard_cancel.assert_called_once()
     assert event.accepted is True
 
 
@@ -91,7 +91,7 @@ def test_close_event_ignores_the_close_when_declined():
     override at all, so Qt's default always accepted -- the OS window-close
     button/Cmd+Q could silently discard unsaved changes."""
     window = _make_window(has_project=True, is_modified=True, project_file_path=None)
-    window.app_context.get_ui_controller.return_value.show_question.return_value = False
+    window.app_context.get_ui_controller.return_value.show_save_as_discard_cancel.return_value = "cancel"
     event = _FakeCloseEvent()
 
     PandaMainWindow.closeEvent(window, event)
@@ -99,17 +99,20 @@ def test_close_event_ignores_the_close_when_declined():
     assert event.accepted is False
 
 
-def test_close_event_prompt_says_discard_for_a_never_saved_project():
+def test_close_event_prompt_offers_save_as_for_a_never_saved_project():
     """A project with no file path yet has nothing for
-    _flush_save_on_quit to write to, so closing really does discard it."""
+    _flush_save_on_quit to write to, so closing offers Save As... and never
+    claims it will be autosaved."""
     window = _make_window(has_project=True, is_modified=True, project_file_path=None)
-    window.app_context.get_ui_controller.return_value.show_question.return_value = True
+    ui_controller = window.app_context.get_ui_controller.return_value
+    ui_controller.show_save_as_discard_cancel.return_value = "discard"
     event = _FakeCloseEvent()
 
     PandaMainWindow.closeEvent(window, event)
 
-    _, message = window.app_context.get_ui_controller.return_value.show_question.call_args[0]
-    assert "discard" in message
+    _, message = ui_controller.show_save_as_discard_cancel.call_args[0]
+    assert "Save As" in message
+    assert "autosave" not in message.lower()
 
 
 def test_close_event_saves_and_accepts_without_asking_for_an_already_saved_project():

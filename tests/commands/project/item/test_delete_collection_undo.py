@@ -299,46 +299,34 @@ def test_deleting_collection_emits_removed_event_for_every_descendant():
     assert _removed_ids(state)[-1] == "folder"
 
 
-def _delete_context(project):
-    ctx = Mock(spec=AppContext)
-    state = Mock(spec=AppState)
-    ctx.get_app_state.return_value = state
-    ctx.get_ui_controller.return_value = Mock(spec=UIController)
-    ctx.event_bus = Mock()
-    state.event_bus = Mock()
-    state.has_project = True
-    state.current_project = project
-    return ctx
-
-
-def test_deleting_a_standalone_image_restores_its_bytes_on_undo_and_redo_undo():
-    project = Project("Test")
-    gallery = ImageGallery(id="gallery")
-    project.add_item(gallery)
-    image = Image(id="snap", name="Snapshot", storage_mode="copied", image_ext="png", width=2, height=2, size_bytes=13)
-    image.set_bytes(b"image payload")
-    project.add_item(image, gallery.id)
-    command = DeleteItemCommand(_delete_context(project), image.id, confirm=False)
-
-    assert command.execute() is CommandResult.SUCCESS
-    assert project.find_item("snap") is None
-
-    assert command.undo() is CommandResult.SUCCESS
-    assert project.find_item("snap").get_bytes() == b"image payload"
-
-    assert command.redo() is CommandResult.SUCCESS
-    assert project.find_item("snap") is None
-    assert command.undo() is CommandResult.SUCCESS
-    assert project.find_item("snap").get_bytes() == b"image payload"
-
-
-def test_deleting_a_standalone_dataset_restores_its_data_on_undo():
-    project = Project("Test")
-    dataset = Dataset(id="data", data=pd.DataFrame({"x": [1, 2]}))
+def test_standalone_dataset_undo_restores_data_across_redo():
+    ctx, _, project = _make_delete_setup()
+    original = pd.DataFrame({"x": [1.0, 2.0, 3.0], "y": [4.0, 5.0, 6.0]})
+    dataset = Dataset(id="data", name="Data", data=original.copy())
     project.add_item(dataset)
-    command = DeleteItemCommand(_delete_context(project), dataset.id, confirm=False)
-
+    column_ids = dict(dataset.column_ids)
+    command = DeleteItemCommand(ctx, dataset.id, confirm=False)
     assert command.execute() is CommandResult.SUCCESS
-    assert command.undo() is CommandResult.SUCCESS
+    for _ in range(2):
+        assert command.undo() is CommandResult.SUCCESS
+        restored = project.find_item("data")
+        assert isinstance(restored, Dataset)
+        assert restored.data is not None
+        pd.testing.assert_frame_equal(restored.data, original)
+        assert dict(restored.column_ids) == column_ids
+        assert command.redo() is CommandResult.SUCCESS
+        assert project.find_item("data") is None
 
-    pd.testing.assert_frame_equal(project.find_item("data").data, dataset.data)
+
+def test_standalone_image_undo_restores_bytes():
+    ctx, _, project = _make_delete_setup()
+    image = Image(id="image")
+    image.set_bytes(b"image payload")
+    project.add_item(image)
+    command = DeleteItemCommand(ctx, image.id, confirm=False)
+    assert command.execute() is CommandResult.SUCCESS
+    for _ in range(2):
+        assert command.undo() is CommandResult.SUCCESS
+        assert project.find_item("image").get_bytes() == b"image payload"
+        assert command.redo() is CommandResult.SUCCESS
+        assert project.find_item("image") is None

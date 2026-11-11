@@ -6,6 +6,8 @@ Core analysis engine providing mathematical analysis operations.
 import numpy as np
 import pandas as pd
 
+from pandaplot.utils.errors import UserFacingError
+
 from .analysis_types import AnalysisParameters, AnalysisResult, AnalysisType, DerivativeMethod, InterpolationMethod, SmoothingMethod
 
 
@@ -48,7 +50,7 @@ class AnalysisEngine:
         # it below (derivative[-1]/derivative[0]) raises an opaque IndexError
         # instead of a message that explains what's actually wrong.
         if len(x_slice) < 2:
-            raise ValueError(
+            raise UserFacingError(
                 f"Derivative calculation requires at least 2 data points, got {len(x_slice)}."
             )
 
@@ -115,14 +117,8 @@ class AnalysisEngine:
 
         # Calculate cumulative integral
         from scipy.integrate import cumulative_trapezoid, trapezoid
-        try:
-            integral_values = cumulative_trapezoid(y_slice, x_slice, initial=0)
-            total_integral = trapezoid(y_slice, x_slice)
-        except ImportError:
-            # Fallback to numpy functions
-            integral_values = np.cumsum((y_slice[:-1] + y_slice[1:]) / 2 * np.diff(x_slice))
-            integral_values = np.insert(integral_values, 0, 0)
-            total_integral = np.trapz(y_slice, x_slice)
+        integral_values = cumulative_trapezoid(y_slice, x_slice, initial=0)
+        total_integral = trapezoid(y_slice, x_slice)
         
         statistics = {
             "total_integral": float(total_integral),
@@ -235,7 +231,7 @@ class AnalysisEngine:
         # Apply smoothing based on method
         from scipy.signal import savgol_filter
         if method == SmoothingMethod.SAVGOL.value:
-            window_length = kwargs.get("window_length", min(11, len(y_slice) // 2 * 2 + 1))
+            window_length = kwargs.get("window_length", min(11, (len(y_slice) - 1) // 2 * 2 + 1))
             poly_order = kwargs.get("polynomial_order", min(3, window_length - 1))
             # Ensure window_length is odd and >= poly_order + 1
             if window_length % 2 == 0:

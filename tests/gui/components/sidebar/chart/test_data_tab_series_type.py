@@ -238,8 +238,7 @@ def test_add_series_works_on_a_vector_chart_when_a_line_series_is_selected():
     before creating a new (Vector-typed, chart-default) series, so the
     click silently did nothing. It must create the series anyway, even
     with empty U/V -- the resulting series can be completed afterward by
-    selecting it and filling in its own now-visible U/V combos, exactly
-    like apply_to's already-established empty-chart bootstrap path."""
+    selecting it and filling in its own now-visible U/V combos."""
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="Vector Chart", chart_type="vector")
     chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
@@ -799,13 +798,10 @@ def test_confidence_column_combos_disabled_while_editing_a_fit():
 
 
 def test_apply_to_does_not_recreate_a_series_after_converting_the_only_series_to_fit():
-    """Regression test (PR #309 review): apply_to()'s "no data_series yet
-    -> bootstrap a default series from the form" fallback used to fire
-    whenever data_series was empty, even when the chart already has a
-    fit (e.g. its only series was just converted). Since the form's
-    combos, at that point, show the SELECTED FIT's own source columns
-    (not blank defaults), Apply would silently recreate a duplicate
-    series alongside the fit."""
+    """Regression test (PR #309 review): after the only series is converted
+    to a fit, the form's combos show the fit's own source columns. Apply
+    must not create a series from them alongside the fit (apply_to never
+    creates series; they are added through + Add series only)."""
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="Line Chart", chart_type="line")
     chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"))
@@ -1124,7 +1120,8 @@ def test_fit_rows_show_a_y_axis_badge():
 
     from PySide6.QtWidgets import QLabel
     labels = [w.text() for w in tab.findChildren(QLabel)]
-    assert "\U0001f527 A Fit" in labels
+    assert "A Fit" in labels
+    assert not any("\U0001f527" in label for label in labels)
     assert "Y₂" in labels
 
 

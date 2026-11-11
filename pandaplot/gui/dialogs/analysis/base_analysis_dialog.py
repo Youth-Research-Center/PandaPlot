@@ -2,6 +2,7 @@
 Base dialog for analysis operations.
 """
 
+import logging
 from typing import Any
 
 from PySide6.QtWidgets import (
@@ -30,6 +31,7 @@ class BaseAnalysisDialog(QDialog):
     
     def __init__(self, parent, dataset: Dataset, default_y_column: str | None = None):
         super().__init__(parent)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.dataset = dataset
         self.default_y_column = default_y_column
         

@@ -7,6 +7,7 @@ with Excel-like keyboard navigation, editing behavior, and user interactions.
 
 import logging
 
+import shiboken6
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication, QHeaderView, QTableView
@@ -132,14 +133,24 @@ class DatasetTableView(QTableView):
             return
         start_row = selection[0].row()
         start_col = selection[0].column()
-        rows = clipboard.split("\n")
-
+        # Split on "\n" only (cells may contain other line-break characters)
+        # and drop the "\r" of CRLF clipboards (Excel, Windows). Blank lines
+        # inside the block are kept as empty rows so later rows stay in
+        # place; only trailing empty lines are dropped.
+        rows = [row.removesuffix("\r") for row in clipboard.split("\n")]
+        while rows and rows[-1] == "":
+            rows.pop()
+        if not rows:
+            return
+        width = max(len(row.split("\t")) for row in rows)
 
         new_data = []
         for i, row in enumerate(rows):
-            if not row.strip():
-                continue
-            cols = row.split("\t")
+            # A blank (or whitespace-only) line is an empty row spanning the
+            # block, and a short row is padded to the block width: either would
+            # otherwise be ragged, which EditBatchCommand rejects.
+            cols = row.split("\t") if row.strip() else []
+            cols += [""] * (width - len(cols))
             new_row = []
             for j, value in enumerate(cols):
                 idx = self._model.index(start_row + i, start_col + j)
@@ -159,8 +170,12 @@ class DatasetTableView(QTableView):
         indexes = self.selectionModel().selectedIndexes()
         if not indexes:
             return
-        self.menu = CellContextMenu(self.app_context, self, self._model._dataset.id, indexes)
-        self.menu.exec(self.viewport().mapToGlobal(position))
+        menu = CellContextMenu(self.app_context, self, self._model._dataset.id, indexes)
+        try:
+            menu.exec(self.viewport().mapToGlobal(position))
+        finally:
+            if shiboken6.isValid(menu):
+                menu.deleteLater()
     
     def _on_column_header_context_menu(self, position):
         """Handle right-click context menu on column headers."""
@@ -190,7 +205,11 @@ class DatasetTableView(QTableView):
             selected_columns
         )
         global_position = self.horizontalHeader().mapToGlobal(position)
-        menu.exec(global_position)
+        try:
+            menu.exec(global_position)
+        finally:
+            if shiboken6.isValid(menu):
+                menu.deleteLater()
     
     def _on_row_header_context_menu(self, position):
         """Handle right-click context menu on row headers."""
@@ -220,4 +239,8 @@ class DatasetTableView(QTableView):
             selected_rows
         )
         global_position = self.verticalHeader().mapToGlobal(position)
-        menu.exec(global_position)
+        try:
+            menu.exec(global_position)
+        finally:
+            if shiboken6.isValid(menu):
+                menu.deleteLater()
