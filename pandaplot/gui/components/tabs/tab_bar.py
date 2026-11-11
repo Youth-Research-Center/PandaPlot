@@ -1,3 +1,4 @@
+import shiboken6
 from PySide6.QtCore import QMimeData, QPoint, Qt, Signal, SignalInstance
 from PySide6.QtGui import QAction, QDrag
 from PySide6.QtWidgets import QApplication, QMenu, QTabBar, QTabWidget, QWidget
@@ -121,7 +122,11 @@ class CustomTabBar(QTabBar):
                 can_split=self.can_split,
                 can_merge=self.can_merge,
             )
-            menu.exec(self.mapToGlobal(position))
+            try:
+                menu.exec(self.mapToGlobal(position))
+            finally:
+                if shiboken6.isValid(menu):
+                    menu.deleteLater()
 
     # ----- drag start (escalates to a real QDrag once the cursor leaves the bar) -----
     def mousePressEvent(self, event):
