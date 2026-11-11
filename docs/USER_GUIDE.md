@@ -120,7 +120,7 @@ A `.pplot` file is a ZIP archive containing a project index and files for its it
 Choose **File → Project Details...** (or right-click the project at the top of the Project View) to edit:
 - **Name**: the project name. It cannot be empty.
 - **About this project**: your notes about the project, such as background and findings, written in Markdown. **Preview** shows how they will look.
-- **Cover image**: **Choose image...** picks a picture that is shrunk to at most 800 pixels and stored in the project; **Remove** clears it.
+- **Cover image**: **Choose image...** picks a picture (under 25 MB) that is shrunk to at most 800 pixels and stored in the project; **Remove** clears it.
 - **Use this project as an example**: tick it to set the example's short description, section, level, tags, up to three featured charts, a "start here" note and a data source or credit. Unticking hides these settings but keeps them. Charts and notes that were deleted are dropped when you press **OK**.
 
 All changes are applied together and can be undone with `Ctrl+Z`.

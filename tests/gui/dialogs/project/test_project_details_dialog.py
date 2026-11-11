@@ -208,14 +208,25 @@ def test_stale_ids_are_not_shown_and_are_dropped_once_the_user_edits(qtbot, ctx,
     assert info.start_note_id is None
 
 
+def _execute_details_command(ctx, project, result):
+    from pandaplot.commands.project.project import UpdateProjectDetailsCommand
+
+    app_state = Mock()
+    app_state.has_project = True
+    app_state.current_project = project
+    ctx.get_app_state.return_value = app_state
+    command = UpdateProjectDetailsCommand(
+        ctx, name=result.name, description=result.description, cover_image=result.cover_image, example_info=result.example_info)
+    return command.execute()
+
+
 def test_untouched_dialog_returns_the_project_values_verbatim_and_the_command_is_a_noop(qtbot, ctx, project):
     from pandaplot.commands.base_command import CommandResult
-    from pandaplot.commands.project.project import UpdateProjectDetailsCommand
 
     project.description = "line one\r\nline two\u00a0end  \r\n"
     project.example_info = ExampleInfo(
         is_example=True, summary="  padded summary  ", tag_ids=("smoothing", "physics"),
-        featured_chart_ids=("deleted-chart", project.chart_a.id), start_note_id="deleted-note", data_credit=" credit ")
+        featured_chart_ids=(project.chart_b.id, project.chart_a.id), start_note_id=project.note.id, data_credit=" credit ")
     dialog = _dialog(qtbot, ctx, project)
 
     result = dialog.get_result()
@@ -224,13 +235,25 @@ def test_untouched_dialog_returns_the_project_values_verbatim_and_the_command_is
     assert result.description == project.description
     assert result.cover_image == project.cover_image
     assert result.example_info == project.example_info
-    app_state = Mock()
-    app_state.has_project = True
-    app_state.current_project = project
-    ctx.get_app_state.return_value = app_state
-    command = UpdateProjectDetailsCommand(
-        ctx, name=result.name, description=result.description, cover_image=result.cover_image, example_info=result.example_info)
-    assert command.execute() is CommandResult.NOOP
+    assert _execute_details_command(ctx, project, result) is CommandResult.NOOP
+
+
+def test_untouched_dialog_drops_stale_ids_and_keeps_everything_else_verbatim(qtbot, ctx, project):
+    from pandaplot.commands.base_command import CommandResult
+
+    project.example_info = ExampleInfo(
+        is_example=True, summary="  padded summary  ", tag_ids=("smoothing", "physics"),
+        featured_chart_ids=("deleted-chart", project.chart_a.id), start_note_id="deleted-note", data_credit=" credit ")
+    original = project.example_info
+    dialog = _dialog(qtbot, ctx, project)
+
+    info = dialog.get_result().example_info
+
+    assert info.featured_chart_ids == (project.chart_a.id,)
+    assert info.start_note_id is None
+    assert (info.summary, info.tag_ids, info.data_credit) == (original.summary, original.tag_ids, original.data_credit)
+    assert _execute_details_command(ctx, project, dialog.get_result()) is CommandResult.SUCCESS
+    assert project.example_info.featured_chart_ids == (project.chart_a.id,)
 
 
 def test_untouched_fields_keep_their_stored_form_when_another_field_is_edited(qtbot, ctx, project):
@@ -264,6 +287,21 @@ def test_choose_image_downscales_the_picked_file(qtbot, ctx, project, tmp_path):
     assert max(image.width(), image.height()) == 800
     assert dialog.cover_label.pixmap().width() == COVER_THUMBNAIL_WIDTH
     assert dialog.remove_cover_button.isEnabled()
+
+
+def test_a_tall_cover_thumbnail_fits_a_bounded_box(qtbot, ctx, project):
+    project.cover_image = _png(10, 800)
+    dialog = _dialog(qtbot, ctx, project)
+    pixmap = dialog.cover_label.pixmap()
+    assert pixmap.height() == COVER_THUMBNAIL_WIDTH
+    assert pixmap.width() <= COVER_THUMBNAIL_WIDTH
+
+
+def test_a_small_cover_thumbnail_is_not_upscaled(qtbot, ctx, project):
+    project.cover_image = _png(40, 20)
+    dialog = _dialog(qtbot, ctx, project)
+    pixmap = dialog.cover_label.pixmap()
+    assert (pixmap.width(), pixmap.height()) == (40, 20)
 
 
 def test_cancelling_the_picker_keeps_the_cover(qtbot, ctx, project):
@@ -406,6 +444,21 @@ class TestEditProjectDetails:
         assert command.__class__.__name__ == "UpdateProjectDetailsCommand"
         assert command._new.name == "Pendulum"
         assert command._new.description == project.description
+
+    def test_a_project_switch_while_the_dialog_is_open_applies_nothing(self, qapp, wired, project):
+        ctx, executor = wired
+        other = Project("Other")
+
+        def switch_project(*_args):
+            ctx.get_app_state.return_value.current_project = other
+            return QDialog.DialogCode.Accepted
+
+        with patch.object(ProjectDetailsDialog, "exec", side_effect=switch_project):
+            assert edit_project_details(ctx) is False
+
+        executor.execute_command.assert_not_called()
+        assert other.name == "Other"
+        ctx.get_ui_controller.return_value.show_warning_message.assert_called_once()
 
     def test_rejected_dialog_executes_nothing(self, qapp, wired):
         ctx, executor = wired

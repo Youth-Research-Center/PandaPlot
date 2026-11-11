@@ -448,8 +448,6 @@ class MainMenu(PMenuBar):
         from pandaplot.models.events.event_types import AppEvents, ConfigEvents
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_ADDED, lambda _data: self._update_dataset_dependent_actions())
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_REMOVED, lambda _data: self._update_dataset_dependent_actions())
-        # One handler per event: a widget keeps a single subscription per event, so a second
-        # subscribe_to_event for the same event would replace the first.
         for project_event in (ProjectEvents.PROJECT_LOADED, ProjectEvents.PROJECT_CLOSED):
             self.subscribe_to_event(project_event, lambda _data: self._on_project_opened_or_closed())
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)

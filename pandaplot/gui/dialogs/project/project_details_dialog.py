@@ -1,5 +1,6 @@
 """Dialog for editing a project's name, notes, cover image and example settings (#597, #598, #613)."""
 
+import logging
 from dataclasses import dataclass
 from typing import NamedTuple, override
 
@@ -44,6 +45,8 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 from pandaplot.utils.errors import UserFacingError
 from pandaplot.utils.file_filters import IMAGE_FILE_FILTER
 from pandaplot.utils.item_display_options import chart_display_options, disambiguated_display_options
+
+_logger = logging.getLogger(__name__)
 
 COVER_THUMBNAIL_WIDTH = 160
 _PREVIEW_FONT_SIZE = 11.0
@@ -365,7 +368,7 @@ class ProjectDetailsDialog(PDialog):
         for tag_id, checkbox in self.tag_checkboxes.items():
             checkbox.setChecked(tag_id in info.tag_ids)
 
-        # Ids of deleted charts and notes are skipped here, so accepting the dialog saves them away.
+        # Ids of deleted charts and notes are skipped here, so accepting the dialog drops them from the project.
         known_charts = {chart_id for chart_id, _name in self._chart_options}
         present = [chart_id for chart_id in info.featured_chart_ids if chart_id in known_charts]
         self._updating_featured = True
@@ -421,7 +424,15 @@ class ProjectDetailsDialog(PDialog):
     def _refresh_cover(self) -> None:
         pixmap = QPixmap()
         if self._cover_image is not None and pixmap.loadFromData(self._cover_image):
-            self.cover_label.setPixmap(pixmap.scaledToWidth(COVER_THUMBNAIL_WIDTH, Qt.TransformationMode.SmoothTransformation))
+            if max(pixmap.width(), pixmap.height()) > COVER_THUMBNAIL_WIDTH:
+                # Bound both sides, so a tall cover cannot stretch the dialog; smaller covers keep their size.
+                pixmap = pixmap.scaled(
+                    COVER_THUMBNAIL_WIDTH,
+                    COVER_THUMBNAIL_WIDTH,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            self.cover_label.setPixmap(pixmap)
             self.cover_label.setAccessibleDescription("The current cover image")
         else:
             self.cover_label.clear()
@@ -480,14 +491,14 @@ class ProjectDetailsDialog(PDialog):
     def get_result(self) -> ProjectDetailsResult:
         """Return the values currently chosen in the dialog.
 
-        If the user changed nothing, the project's current values come back exactly as they are, so applying the
-        result is a no-op. Otherwise duplicate featured charts are dropped (keeping the first, in combo order), ids
-        of deleted charts and notes are dropped, and text fields and tags the user did not touch keep their stored
-        form (whitespace, line endings, tag order).
+        If the user changed nothing and every stored chart and note reference is still valid, the project's current
+        values come back exactly as they are, so applying the result is a no-op. Otherwise duplicate featured charts
+        are dropped (keeping the first, in combo order), ids of deleted charts and notes are dropped, and text fields
+        and tags the user did not touch keep their stored form (whitespace, line endings, tag order).
         """
         project = self._project
         original = project.example_info
-        if self._widget_state() == self._loaded_state:
+        if self._widget_state() == self._loaded_state and self._stored_references_are_valid():
             return ProjectDetailsResult(
                 name=project.name, description=project.description, cover_image=self._cover_image, example_info=original)
 
@@ -522,6 +533,12 @@ class ProjectDetailsDialog(PDialog):
             example_info=info,
         )
 
+    def _stored_references_are_valid(self) -> bool:
+        """Whether the pickers show exactly the stored featured charts and start note (none deleted or repeated)."""
+        info = self._project.example_info
+        shown_featured = tuple(chart_id for chart_id in self._loaded_state.featured if chart_id is not None)
+        return shown_featured == info.featured_chart_ids and self._loaded_state.start_note == info.start_note_id
+
     @override
     def accept(self) -> None:
         if not self.name_edit.text().strip():
@@ -553,6 +570,13 @@ def edit_project_details(app_context: AppContext, parent: QWidget | None = None)
         chosen = dialog.get_result()
     finally:
         dialog.deleteLater()
+    # A background load can finish while the dialog is open; the command edits the open project, so applying
+    # these values then would give one project's details to another.
+    if get_current_project(app_context) is not project:
+        _logger.warning("The open project changed while Project Details was open; nothing was applied")
+        app_context.get_ui_controller().show_warning_message(
+            "Project Details", "Another project was opened while the dialog was open, so the changes were not applied.")
+        return False
     command = UpdateProjectDetailsCommand(
         app_context,
         name=chosen.name,

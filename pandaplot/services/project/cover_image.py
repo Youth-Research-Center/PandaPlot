@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import QBuffer, QIODevice, Qt
+from PySide6.QtCore import QBuffer, QIODevice, QSize, Qt
 from PySide6.QtGui import QImage, QImageReader
 
 from pandaplot.utils.errors import UserFacingError
@@ -40,7 +40,8 @@ def prepare_cover_image_from_file(path: str | Path, *, max_side: int = DEFAULT_C
     """Read an image file, downscale it while decoding so its longest side is at most ``max_side``, and encode it as PNG.
 
     Files larger than ``MAX_COVER_FILE_BYTES`` are rejected before they are read, and the decoder scales
-    large images down as it reads them, so a huge image never has to fit in memory at full size.
+    large images down as it reads them, so a huge image never has to fit in memory at full size. If the
+    decoder cannot report the size up front, the decoded image is scaled down afterwards instead.
 
     Args:
         path: Path of the image file.
@@ -60,11 +61,22 @@ def prepare_cover_image_from_file(path: str | Path, *, max_side: int = DEFAULT_C
     reader.setAutoTransform(True)
     size = reader.size()
     if size.isValid() and max(size.width(), size.height()) > max_side:
-        reader.setScaledSize(size.scaled(max_side, max_side, Qt.AspectRatioMode.KeepAspectRatio))
+        reader.setScaledSize(_bounded_size(size, max_side))
     image = reader.read()
     if image.isNull():
         raise UserFacingError("This file is not an image PandaPlot can read.")
+    if max(image.width(), image.height()) > max_side:
+        image = image.scaled(_bounded_size(image.size(), max_side), mode=Qt.TransformationMode.SmoothTransformation)
     return _encode_png(image)
+
+
+def _bounded_size(size: QSize, max_side: int) -> QSize:
+    """Return ``size`` scaled to fit in a ``max_side`` square, keeping each side at least 1 pixel.
+
+    ``QSize.scaled`` rounds the short side of a very thin image down to 0, which Qt cannot decode or scale into.
+    """
+    scaled = size.scaled(max_side, max_side, Qt.AspectRatioMode.KeepAspectRatio)
+    return QSize(max(1, scaled.width()), max(1, scaled.height()))
 
 
 def _encode_png(image: QImage) -> bytes:

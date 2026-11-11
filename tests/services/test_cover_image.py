@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 import pytest
-from PySide6.QtCore import QBuffer, QIODevice
+from PySide6.QtCore import QBuffer, QIODevice, QSize
 from PySide6.QtGui import QColor, QImage
 
 from pandaplot.services.project import cover_image
@@ -74,3 +74,20 @@ def test_from_file_non_image_raises_user_facing_error(tmp_path):
     path.write_text("not an image")
     with pytest.raises(UserFacingError, match="not an image"):
         prepare_cover_image_from_file(path)
+
+
+@pytest.mark.parametrize(("size", "expected"), [((4000, 1), (800, 1)), ((9000, 4), (800, 1)), ((2, 5000), (1, 800))])
+def test_from_file_keeps_a_very_thin_image(tmp_path, size, expected):
+    # Scaling these into 800x800 rounds the short side down to 0, which Qt cannot decode into.
+    path = tmp_path / "strip.png"
+    path.write_bytes(_encode(*size))
+    out = QImage.fromData(prepare_cover_image_from_file(path))
+    assert (out.width(), out.height()) == expected
+
+
+def test_from_file_caps_the_size_when_the_reader_cannot_report_it(tmp_path):
+    path = tmp_path / "big.png"
+    path.write_bytes(_encode(2000, 1000))
+    with patch.object(cover_image.QImageReader, "size", return_value=QSize()):
+        out = QImage.fromData(prepare_cover_image_from_file(path))
+    assert (out.width(), out.height()) == (800, 400)
