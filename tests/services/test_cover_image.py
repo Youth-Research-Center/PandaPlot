@@ -37,3 +37,29 @@ def test_output_is_png_even_from_other_formats():
 def test_non_image_bytes_raise_user_facing_error():
     with pytest.raises(UserFacingError, match="not an image"):
         prepare_cover_image(b"definitely not an image")
+
+
+def _exif_jpeg(width: int, height: int, orientation: int) -> bytes:
+    import io
+
+    from PIL import Image
+
+    image = Image.new("RGB", (width, height), "red")
+    exif = Image.Exif()
+    exif[0x0112] = orientation
+    out = io.BytesIO()
+    image.save(out, "JPEG", exif=exif)
+    return out.getvalue()
+
+
+def test_exif_orientation_is_applied():
+    pytest.importorskip("PIL")
+    # Stored 100x50 with orientation 6 (rotate 90 degrees) displays as 50x100.
+    out = QImage.fromData(prepare_cover_image(_exif_jpeg(100, 50, 6)))
+    assert (out.width(), out.height()) == (50, 100)
+
+
+def test_extreme_aspect_ratio_keeps_at_least_one_pixel():
+    out = QImage.fromData(prepare_cover_image(_encode(4000, 3)))
+    assert not out.isNull()
+    assert (out.width(), out.height()) == (800, 1)

@@ -17,6 +17,18 @@ from pandaplot.storage.project_data_manager import ProjectDataManager
 from pandaplot.utils.examples import ExampleProject, discover_example_projects, get_examples_dir
 
 
+def _png_bytes() -> bytes:
+    from PySide6.QtCore import QBuffer, QIODevice
+    from PySide6.QtGui import QColor, QImage
+
+    image = QImage(8, 4, QImage.Format.Format_RGB32)
+    image.fill(QColor("blue"))
+    buffer = QBuffer()
+    buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+    image.save(buffer, "PNG")
+    return bytes(buffer.data())
+
+
 def _write_pplot(path: Path, name: str, description: str):
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("project.json", json.dumps({"name": name, "description": description}))
@@ -165,6 +177,24 @@ class TestDiscoverExampleProjects:
 
         assert example.summary == "Old text."
         assert example.section is ExampleSection.GETTING_STARTED
+
+    @pytest.mark.parametrize("cover", [b"\x89PNG\r\n", b"not an image at all", "truncated"])
+    def test_invalid_cover_is_none(self, tmp_path, cover):
+        project = _project("Bad cover")
+        # "truncated" keeps the PNG signature and IHDR chunk but drops the pixel data.
+        project.cover_image = _png_bytes()[:40] if cover == "truncated" else cover
+        _save(tmp_path / "bad.pplot", project)
+
+        (example,) = discover_example_projects(tmp_path)
+
+        assert example.cover_image is None
+
+    def test_whitespace_summary_falls_back_to_description(self, tmp_path):
+        _save(tmp_path / "w.pplot", _project("W", "From description. More.", info=ExampleInfo(summary="  \n ")))
+
+        (example,) = discover_example_projects(tmp_path)
+
+        assert example.summary == "From description."
 
     def test_unknown_featured_and_start_note_ids_are_filtered(self, tmp_path):
         info = ExampleInfo(featured_chart_ids=("c0", "gone", "n0"), start_note_id="c0")

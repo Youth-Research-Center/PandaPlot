@@ -3,6 +3,9 @@ from pathlib import Path
 
 import pytest
 
+# Registers the crash-safe xdist scheduler on the controller (`pytest_plugins` is not allowed here).
+from tests.xdist_crash_safe import pytest_xdist_make_scheduler  # noqa: F401
+
 # Must run before any PySide6/QApplication import so Qt never opens a real window.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
