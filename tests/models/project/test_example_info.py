@@ -9,6 +9,7 @@ from pandaplot.models.project.example_info import (
     ExampleSection,
     TagGroup,
     example_tag,
+    markdown_to_plain_text,
     summary_from_description,
 )
 from pandaplot.models.project.project import Project
@@ -214,3 +215,17 @@ class TestDuplicateIds:
     def test_dirty_dict_round_trips_exactly(self):
         info = ExampleInfo.from_dict({"tags": ["physics", "physics"], "featured_chart_ids": ["a", "a", "b"]})
         assert ExampleInfo.from_dict(info.to_dict()) == info
+
+
+@pytest.mark.parametrize(
+    ("markdown", "expected"),
+    [
+        ("See [the archive][src].\n\n[src]: https://noaa.example/data.csv", "See the archive."),
+        ('The [manual][] here.\n[manual]: <https://manual.example> "Manual"', "The manual here."),
+        ("![a photo][pic] below\n\n   [pic]: cover.png 'Cover'", "a photo below"),
+        ("Inline `[a]: b` and `[x][y]` stay literal.", "Inline [a]: b and [x][y] stay literal."),
+        ("```\n[a]: kept in code\n```", "[a]: kept in code"),
+    ],
+)
+def test_markdown_to_plain_text_drops_reference_targets_but_keeps_labels_and_code(markdown, expected):
+    assert markdown_to_plain_text(markdown) == expected

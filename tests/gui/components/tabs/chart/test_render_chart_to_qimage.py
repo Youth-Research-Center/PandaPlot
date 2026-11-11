@@ -166,3 +166,23 @@ def test_failed_rerender_leaves_no_stale_colorbar_reference(qapp, monkeypatch):
     widget.update_chart()
 
     assert widget._colorbar is None
+
+
+def test_max_size_px_lowers_the_render_dpi_to_fit_the_box(qapp):
+    project = Project(name="Test Project")
+    dataset = Dataset(name="ds", data=pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6]}))
+    project.add_item(dataset)
+    chart = Chart(name="Chart", chart_type="line")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"))
+    project.add_item(chart)
+    resolved_series_data = resolve_chart_series_data(project, chart)
+    size_defaults = ChartSizeDefaults(default_width_cm=20.0, default_height_cm=15.0, dpi=200)
+
+    full = render_chart_to_qimage(chart, resolved_series_data, size_defaults)
+    small = render_chart_to_qimage(chart, resolved_series_data, size_defaults, max_size_px=(260, 170))
+    not_raised = render_chart_to_qimage(chart, resolved_series_data, size_defaults, max_size_px=(100000, 100000))
+
+    assert small.width() < full.width() / 2
+    assert small.width() <= 260 + 20  # bbox_inches="tight" may grow the box a little
+    assert small.height() <= 170 + 20
+    assert not_raised.width() == full.width()

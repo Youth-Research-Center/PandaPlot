@@ -296,14 +296,21 @@ class WelcomeTab(PWidget):
     def show_examples_dialog(self):
         """Open the examples dialog and emit the chosen project's path, if any."""
         dialog = ExamplesDialog(self.app_context, self)
-        if not dialog.exec() or not dialog.selected_path:
+        try:
+            accepted = bool(dialog.exec())
+            selected_path = dialog.selected_path
+        finally:
+            # The dialog has a parent, so without this every opening would stay alive (with its loaded projects and
+            # pictures) until the parent is destroyed.
+            dialog.deleteLater()
+        if not accepted or not selected_path:
             return
         if not self._confirm_replace_current_project(
             "Open Example Project",
             "Opening the example project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
         ):
             return
-        self.example_project_selected.emit(dialog.selected_path)
+        self.example_project_selected.emit(selected_path)
 
     def _confirm_replace_current_project(self, title: str, message: str) -> bool:
         """Ask before an action would close the currently open project.

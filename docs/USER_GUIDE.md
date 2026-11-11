@@ -77,7 +77,7 @@ PandaPlot features a modern, intuitive PySide6 desktop interface divided into th
 - **Data**: Import data and images, add a dataset, add rows or columns, and create new notes and sketches.
 - **Chart**: **Create New** opens the Chart Creation Wizard.
 - **Settings**: **Preferences...** opens the settings dialog, including the theme.
-- **Help**: Open Help Topics (`F1`), the Welcome tab, the example project, and About information.
+- **Help**: Open Help Topics (`F1`), the Welcome tab, the examples browser, and About information. In the examples browser (**Open Example Project**), examples appear as cards grouped in sections; search or pick topic and technique tags to narrow the list, **See details** shows the full description and live previews of the example's charts, and **Open example** opens it.
 
 ### Collapsible Sidebar
 Located on the left, the sidebar uses icon tabs to switch contextual control panels:

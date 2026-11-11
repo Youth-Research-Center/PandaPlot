@@ -1428,9 +1428,14 @@ def render_chart(
     return ChartRenderResult(series_errors=series_errors, colorbar=colorbar)
 
 
-def render_chart_to_png(chart, resolved_series_data, size_defaults) -> bytes | None:
+def render_chart_to_png(chart, resolved_series_data, size_defaults, *, max_size_px: tuple[int, int] | None = None) -> bytes | None:
     """Render `chart` to PNG bytes using a headless canvas -- no Qt widget
     involved, safe to call from any thread (see HeadlessChartCanvas).
+
+    `max_size_px` (width, height), when given, lowers the saved image's DPI so
+    the picture fits that box (never raises it above the chart's own DPI): a
+    small thumbnail does not need the full-size render. The figure's size in
+    inches is unchanged, so the layout is the same as at full resolution.
 
     Returns None on any render failure (logged at debug level) rather than
     raising, so a background-task caller can treat it the same as today's
@@ -1452,16 +1457,22 @@ def render_chart_to_png(chart, resolved_series_data, size_defaults) -> bytes | N
         # A snapshot is a static image: without an explicit figure background it
         # would stay transparent and dark text would vanish on a dark preview.
         facecolor = chart.style.figure_background_color or "white"
-        canvas.fig.savefig(buf, format="png", dpi=canvas.fig.dpi, bbox_inches="tight", facecolor=facecolor)
+        save_dpi = canvas.fig.dpi
+        if max_size_px is not None:
+            width_in, height_in = canvas.fig.get_size_inches()
+            save_dpi = min(save_dpi, max_size_px[0] / width_in, max_size_px[1] / height_in)
+        canvas.fig.savefig(buf, format="png", dpi=save_dpi, bbox_inches="tight", facecolor=facecolor)
         return buf.getvalue()
     except Exception as e:  # noqa: BLE001 -- background-render boundary -- any failure must become a cache miss, not crash the task
         logger.debug("Failed to render chart %s headlessly: %s", chart.id, e)
     return None
 
 
-def render_chart_to_qimage(chart, resolved_series_data, size_defaults) -> QImage | None:
+def render_chart_to_qimage(
+    chart, resolved_series_data, size_defaults, *, max_size_px: tuple[int, int] | None = None,
+) -> QImage | None:
     """render_chart_to_png(), decoded into a QImage; None on any render failure."""
-    png_bytes = render_chart_to_png(chart, resolved_series_data, size_defaults)
+    png_bytes = render_chart_to_png(chart, resolved_series_data, size_defaults, max_size_px=max_size_px)
     if png_bytes is None:
         return None
     qimg = QImage()
