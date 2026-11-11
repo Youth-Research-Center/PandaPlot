@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,6 +46,25 @@ class ExampleProject:
 def get_examples_dir() -> Path:
     """Return the repo-root examples/ directory (sibling of the pandaplot package)."""
     return Path(__file__).resolve().parent.parent.parent / "examples"
+
+
+def is_in_examples_dir(path: str | os.PathLike[str] | None) -> bool:
+    """Return whether ``path`` lies inside the bundled examples directory.
+
+    Args:
+        path: A file path, possibly relative or containing symlinks.
+
+    Returns:
+        True when the resolved path is within ``get_examples_dir()``; False for an
+        empty or unresolvable path.
+    """
+    if not path:
+        return False
+    try:
+        return Path(path).resolve().is_relative_to(get_examples_dir().resolve())
+    except (OSError, ValueError, RuntimeError):
+        logger.debug("Could not resolve %r to test it against the examples directory", path, exc_info=True)
+        return False
 
 
 def _item_ids_by_type(project_meta: dict[str, Any]) -> dict[str, set[str]]:

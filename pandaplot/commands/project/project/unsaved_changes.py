@@ -12,6 +12,8 @@ import logging
 from pandaplot.models.state import AppState, UnsavedChangesRegistry
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.data_managers.project_manager import ProjectManager
+from pandaplot.services.session import SessionPersistenceManager
+from pandaplot.utils.examples import is_in_examples_dir
 
 
 def flush_pending_edits(app_context: AppContext) -> bool:
@@ -21,6 +23,22 @@ def flush_pending_edits(app_context: AppContext) -> bool:
     UnsavedChangesRegistry.flush_all for the aggregate success/failure
     contract this delegates to)."""
     return app_context.get_manager(UnsavedChangesRegistry).flush_all()
+
+
+def remember_session_project(app_context: AppContext, project_path: str | None) -> None:
+    """Record ``project_path`` as the project to restore on the next launch.
+
+    A failure to persist is logged as a warning and never raised, since the
+    project change itself has already succeeded.
+
+    Args:
+        app_context: Application context providing the SessionPersistenceManager.
+        project_path: Path of the project now open, or None when it has no file.
+    """
+    try:
+        app_context.get_manager(SessionPersistenceManager).update_project(project_path)
+    except Exception:
+        logging.getLogger(__name__).warning("Failed to persist last_project_path", exc_info=True)
 
 
 def _save_now(app_context: AppContext, app_state: AppState, project_name: str) -> bool:
@@ -109,6 +127,9 @@ def confirm_discard_unsaved_changes(app_context: AppContext, *, will_autosave: b
     project_name = app_state.current_project.name if app_state.current_project else "Unknown"
     ui_controller = app_context.get_ui_controller()
     file_path = app_state.project_file_path
+    if is_in_examples_dir(file_path):
+        # A bundled example is never written back to (#607), so it has no file to save to here.
+        file_path = None
     autosaving = will_autosave and bool(file_path)
 
     if autosaving:

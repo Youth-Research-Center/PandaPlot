@@ -5,8 +5,9 @@ survives a crash or an accidental quit. Driven by ``ApplicationConfig.auto_save`
 (``enabled`` + ``interval_seconds``, already exposed in Settings) and reacts
 live if those settings change.
 
-Only projects that already have a file path are auto-saved - a brand new,
-never-saved project has nowhere to write to, and prompting a blocking
+Only projects that already have a file path outside the bundled examples
+folder are auto-saved - a brand new, never-saved project has nowhere to write
+to, a bundled example is never written back to, and prompting a blocking
 "Save As" dialog from a background timer would be jarring.
 """
 from __future__ import annotations
@@ -20,6 +21,7 @@ from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.app_state import AppState
 from pandaplot.models.state.config import AutoSaveConfig
 from pandaplot.services.config.config_manager import ConfigManager
+from pandaplot.utils.examples import is_in_examples_dir
 
 
 class AutoSaveManager:
@@ -83,6 +85,10 @@ class AutoSaveManager:
 
         # Never-saved project: skip rather than trigger a blocking Save As dialog.
         if not self._app_state.project_file_path:
+            return
+        # A bundled example is never written back to (#607); SaveProjectCommand would
+        # instead open a Save dialog, which a timer must not do.
+        if is_in_examples_dir(self._app_state.project_file_path):
             return
 
         # Avoid overlapping saves: SaveProjectCommand.is_saving is only cleared

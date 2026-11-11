@@ -20,7 +20,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 - The (x, y) mouse readout on the chart toolbar reserves a fixed amount of space, so moving the cursor over the chart or leaving it no longer resizes the toolbar and makes the chart area flicker; readouts too long for the space, such as two Y values, are shortened with an ellipsis (#511).
 - Adding an item beneath a non-folder project item keeps it in the nearest ancestor folder instead of relocating it to the root.
 - A chart with no series (made with "Create empty plot instead" or "Create Empty Chart") can now get data: **+ Add series** on the Data tab, or **Add Series** on the empty chart, opens a dialog to choose a dataset and the columns the chart type needs (#589). **Apply** on a chart with no series no longer silently adds a series from hidden settings.
-- Opening an example opens an untitled copy, so Save asks where to save it and the bundled example is never overwritten (#607).
+- Example projects always open as an untitled copy, also from Recent Projects, File → Open and session restore, and PandaPlot refuses to save, auto-save or flush a project into the examples folder, so the bundled examples are never overwritten; undoing an open restores the project remembered for the next launch (#607).
 - Example projects (#608, #598): the Examples dialog shows each example's one-sentence summary instead of its full notes, and the summary taken from the notes no longer stops at "e.g." or a period inside code or bold text. A project cover taken from a phone photo follows the photo's orientation instead of being stored sideways, a very thin image can be used as a cover, and a damaged cover image is ignored instead of being kept and saved again.
 
 ### Added
