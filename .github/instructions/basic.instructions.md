@@ -15,7 +15,7 @@ Architecture: MVC, Clean Architecture, Event-Driven, Command pattern
 - Use Pythonic patterns (PEP 8, PEP 257) with Python >= 3.12 features.
 - Prefer named functions and class-based structures over inline lambdas.
 - Use type hints on all function parameters and return types.
-- Follow `ruff` for linting and import sorting (max line length = 150). There is no `ruff format` step.
+- Follow `ruff` for linting and import sorting (max line length = 150).
 - Keyword-only booleans: Make boolean parameters keyword-only (`def f(*, flag: bool)`) to adhere to `FBT` rules unless overriding a Qt method.
 - Prefer keyword arguments at call sites when passing multiple arguments of similar type.
 - Emphasize simplicity, readability, and DRY principles.

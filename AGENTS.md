@@ -38,9 +38,10 @@ files run in different processes and in no fixed order. Pass `-n 0` to run seria
 (required for `--pdb` and IDE debuggers). `pytest-timeout` aborts any single test
 (setup, call and teardown) that runs longer than 120s, so a hung Qt test cannot
 consume the whole job: it dumps all stacks and kills the worker, which xdist
-reports as `worker crashed while running <test>`. `--max-worker-restart=1` is one
-replacement for the whole session, not per test: a second crash anywhere shuts down
-the remaining workers and can leave tests unexecuted. Keep legitimate tests well under that limit. `--cov` works with xdist.
+reports as `worker crashed while running <test>`. Keep legitimate tests well under
+that 120s limit. `--max-worker-restart=1` is one replacement for the whole session,
+not per test: a second crash anywhere shuts down the remaining workers and can leave
+tests unexecuted. `--cov` works with xdist.
 
 Every test runs with `HOME`/`USERPROFILE` redirected to its own empty directory
 (the autouse `isolated_home` fixture in `tests/conftest.py`), so `build_app_context()`
@@ -139,7 +140,7 @@ These come from review comments (mostly Copilot's) on previous merged PRs. Each 
 - New `ApplicationConfig` fields must be handled in `reset_defaults()`, `validate()` and `update_from_mapping()`, with a reset test (`max_undo_levels` was missing from `reset_defaults()`).
 - Deserialization is resilient: unknown or invalid enum values, missing keys, and legacy keys fall back to defaults or are migrated (e.g. `show_grid` to `show_grid_x`/`show_grid_y`) instead of raising. Reject, rather than silently open, project files whose `schema_version` is newer than `CURRENT_SCHEMA_VERSION`. Persisted-format changes need a migration under `pandaplot/models/migrations/` plus a test; do not weaken migration assertions to subset checks. Bump `CURRENT_SCHEMA_VERSION` whenever an older build would silently drop or misread the new data (formula registry, live locks), so its forward-version check rejects the file.
 - Check JSON types before dict lookups (`"type": []` as a discriminator raised `TypeError` and dropped a whole sketch), and treat optional data (cover images, thumbnails) as optional: a damaged ZIP entry is logged and skipped, never fatal for opening the project or listing the example.
-- `Project.add_item()` does not enforce the parent's `accepts_item()` (`ImageGallery` accepts only images and albums): check it before attaching or moving, and make a move atomic so a failed validation leaves the item in its old collection.
+- `Project.add_item()` already rejects an item the parent's `accepts_item()` refuses (`ImageGallery` accepts only images and albums) with `UserFacingError`, before detaching it from its old parent; handle that error rather than re-checking. Paths that detach the item first (`Project.detach_item()` in `MoveItemCommand`) or call `ItemCollection.add_item()` directly bypass that guard: validate before detaching, and roll back so a failed move leaves the item in its old collection at its old index.
 - When replacing a render-time rule with stored state, port the old rule exactly in the migration, the new API's default and every caller (the old fit rule was "secondary if any matching series is on Y2", not "the first match"). When removing or replacing a public model or API, grep `examples/`, `docs/`, in-app help and tests for remaining uses.
 - New column references must be handled by `DeleteColumnsCommand`, `RenameColumnCommand`, `Chart.retype_series()`, `snapshot_chart_state()`/`restore_chart_state()`, and copy/transform commands (carry over `y_axis`, style, and error/confidence columns consistently, or clear them deliberately).
 - No mutable containers in frozen dataclasses (use `frozenset`/tuples). Validate invariants (e.g. style class vs `series_type`) in `__post_init__`. Prefer typed dataclasses and enums over string-keyed dicts and magic strings, and pass required values via the constructor instead of mutating afterwards.
@@ -169,7 +170,7 @@ These come from review comments (mostly Copilot's) on previous merged PRs. Each 
 - Units and wording must be consistent (do not mix cm and inches), and a setting shown in a dialog must actually be persisted and applied.
 
 ### Chart rendering (`gui/components/tabs/chart/`)
-- Series renderers draw on the series' own target axes (primary or secondary), and honor `alpha`, visibility, series order (`zorder`), and the series or marker color. Value labels, error bars, histograms, and fits follow the same rules as the main artist. Apply `alpha` to every artist a renderer creates (fit bands, whiskers, caps, fliers, fills). A hidden series is drawn faded (effective alpha 0.3), not skipped.
+- Series renderers draw on the series' own target axes (primary or secondary), and honor `alpha`, visibility, series order (`zorder`), and the series or marker color. Value labels, error bars, histograms, and fits follow the same rules as the main artist. Apply `alpha` to every artist a renderer creates (fit bands, whiskers, caps, fliers, fills). A hidden series is drawn faded (effective alpha 0.3), not skipped, except for the types in `SERIES_RENDERERS_OMITTING_HIDDEN` (currently histograms, #459), whose renderer draws nothing and returns `None` while hidden.
 - Anything a renderer plots differently from the raw columns (KDE curve, histogram bin edges, box positions, categorical text X, numeric strings in heatmaps, a fill baseline at 0) must be mirrored in `compute_axis_data_range()`, or switching an axis to Manual clips the data. Share one numeric-normalization helper between the renderer and the range code so a stray text cell cannot fail one and not the other.
 - A capability flag on `ChartTypeSpec`/`SeriesTypeSpec` (`allows_fit`, `is_3d`, primary-axis-only) needs a runtime consumer at every entry point: the Fit panel source combo, data-tab actions such as Convert to Fit, the type picker, `Chart.set_chart_type()`/`retype_series()` (normalize `y_axis`, reject or convert fits), and wizard previews, which must use the same palette and styles as the chart they create.
 - Reset Matplotlib state you changed (locators, formatters, GridSpec, secondary axes, mathtext parsing) when a setting returns to auto/default, because `update_chart()` reuses axes.
