@@ -14,6 +14,8 @@ def _make_app_context(*, has_project=False, is_modified=False):
     app_context = Mock()
     app_context.get_app_state.return_value.has_project = has_project
     app_context.get_app_state.return_value.is_modified = is_modified
+    # A titled project (a real path, so the bundled-examples check in the unsaved-changes guard can resolve it).
+    app_context.get_app_state.return_value.project_file_path = "/projects/p.pplot"
     return app_context
 
 
@@ -101,6 +103,7 @@ def test_undo_restores_the_previous_projects_dirty_state():
     app_state = AppState(EventBus())
     previous_project = Mock()
     previous_project.name = "Previous"
+    previous_project.project_file_path = "/projects/previous.pplot"
     app_state.load_project(previous_project)
     app_state.mark_modified()
 

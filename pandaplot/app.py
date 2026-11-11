@@ -33,6 +33,7 @@ from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 from pandaplot.storage.note_data_manager import NoteDataManager
 from pandaplot.storage.project_data_manager import ProjectDataManager
 from pandaplot.storage.sketch_data_manager import SketchDataManager
+from pandaplot.utils.examples import is_in_examples_dir
 from pandaplot.utils.log import setup_logging
 
 
@@ -231,6 +232,9 @@ def _flush_save_on_quit(app_context: AppContext) -> None:
         # bypassed, e.g. by an OS session end) the copy is all that is left, so keep it.
         if not app_state.is_modified:
             delete_recovery_copy()
+        return
+    if is_in_examples_dir(file_path):
+        # A bundled example is never written back to (#607).
         return
     try:
         project_manager = app_context.get_manager(ProjectManager)

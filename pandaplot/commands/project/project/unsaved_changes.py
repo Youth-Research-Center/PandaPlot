@@ -17,6 +17,7 @@ from pandaplot.services.autosave.recovery import delete_recovery_copy
 from pandaplot.services.config.config_manager import ConfigManager
 from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.session import SessionPersistenceManager
+from pandaplot.utils.examples import is_in_examples_dir
 
 PROJECT_FILE_SUFFIX = ".pplot"
 MAX_RECENT_PROJECTS = 50
@@ -193,6 +194,9 @@ def confirm_discard_unsaved_changes(
     project_name = app_state.current_project.name if app_state.current_project else "Unknown"
     ui_controller = app_context.get_ui_controller()
     file_path = app_state.project_file_path
+    if is_in_examples_dir(file_path):
+        # A bundled example is never written back to (#607), so it is treated like an untitled project.
+        file_path = None
 
     if not file_path:
         # Never saved: there is no file for _flush_save_on_quit or Save and

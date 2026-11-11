@@ -13,7 +13,8 @@ a recovery copy is written to the app data folder instead (see
 and modified; the copy is offered for restore on the next launch. The copy is
 deleted once there is nothing left to recover: when the project is saved to a
 file, closed (which only happens after the unsaved-changes guard), or replaced
-by another project.
+by another project. A project whose path is inside the bundled
+examples folder is never written back to (#607).
 """
 from __future__ import annotations
 
@@ -28,6 +29,7 @@ from pandaplot.models.state.app_state import AppState
 from pandaplot.models.state.config import AutoSaveConfig
 from pandaplot.services.autosave.recovery import delete_recovery_copy, recovery_file_path, recovery_temp_path
 from pandaplot.services.config.config_manager import ConfigManager
+from pandaplot.utils.examples import is_in_examples_dir
 
 
 class AutoSaveManager:
@@ -121,6 +123,10 @@ class AutoSaveManager:
         # Never-saved project: keep a recovery copy instead of prompting for a path.
         if not self._app_state.project_file_path:
             self._write_recovery_copy(project)
+            return
+        # A bundled example is never written back to (#607); SaveProjectCommand would
+        # instead open a Save dialog, which a timer must not do.
+        if is_in_examples_dir(self._app_state.project_file_path):
             return
 
         # Avoid overlapping saves: SaveProjectCommand.is_saving is only cleared
