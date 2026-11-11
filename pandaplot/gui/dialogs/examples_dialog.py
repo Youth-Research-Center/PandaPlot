@@ -387,7 +387,7 @@ class ExamplesDialog(PDialog):
         self._schedule_visible_covers()
 
     def _sync_filters_button(self) -> None:
-        """Update the Filters button's caret, label, accessible description and fixed width from the toggle and the selected tags."""
+        """Update the Filters button's caret, label, accessible description and minimum width from the toggle and the selected tags."""
         count = len(self._selected_tag_ids)
         button = self.filters_button
         button.setText(f"Filters ({count})" if count else "Filters")

@@ -319,17 +319,57 @@ def test_clear_filters_resets_the_count_without_changing_the_toggle(make_dialog)
     assert dialog.chips_widget.isVisible()
 
 
-def test_filters_button_width_does_not_change_with_the_count(make_dialog):
+def test_filters_button_width_does_not_change_with_the_count(make_dialog, qtbot):
     dialog = make_dialog(_tagged_examples())
-    width = dialog.filters_button.width()
+    qtbot.wait(0)
+    button = dialog.filters_button
+    width = button.width()
     search_width = dialog.search_edit.width()
 
-    dialog.filters_button.click()
-    dialog.tag_chips["physics"].click()
-    dialog.tag_chips["curve_fitting"].click()
+    button.setText("Filters (99)")
+    assert button.sizeHint().width() <= button.minimumWidth()
+    button.setText("Filters")
 
-    assert dialog.filters_button.width() == width
+    button.click()
+    dialog.tag_chips["physics"].click()
+    qtbot.wait(0)
+    assert button.text() == "Filters (1)"
+    assert button.width() == width
     assert dialog.search_edit.width() == search_width
+
+    dialog.tag_chips["curve_fitting"].click()
+    qtbot.wait(0)
+    assert button.width() == width
+    assert dialog.search_edit.width() == search_width
+
+
+def test_enter_in_the_search_box_does_not_toggle_the_filters_or_open_an_example(make_dialog, qtbot):
+    dialog = make_dialog(_tagged_examples())
+    dialog.search_edit.setFocus()
+
+    qtbot.keyClick(dialog.search_edit, Qt.Key.Key_Return)
+
+    assert not dialog.filters_button.isChecked()
+    assert dialog.chips_widget.isHidden()
+    assert dialog.selected_path is None
+    assert dialog.result() != QDialog.DialogCode.Accepted
+
+
+def test_theme_change_retints_the_filters_caret(make_dialog, monkeypatch):
+    from pandaplot.models.events.event_types import ThemeEvents
+    from pandaplot.services.theme.theme_manager import ThemeManager
+    from tests.gui.icon_testing import assert_tinted, strongest_pixel
+
+    dialog = make_dialog(_tagged_examples())
+    manager = dialog.app_context.get_manager(ThemeManager)
+    tokens = manager.get_design_tokens()
+    before = strongest_pixel(dialog.filters_button.icon()).name()
+
+    new_color = "#ff0000" if before.lower() != "#ff0000" else "#00ff00"
+    monkeypatch.setattr(manager, "get_design_tokens", lambda: {**tokens, "text_primary": new_color})
+    dialog.app_context.event_bus.emit(ThemeEvents.THEME_CHANGED, {})
+
+    assert_tinted(strongest_pixel(dialog.filters_button.icon()), new_color)
 
 
 def test_toggling_the_filters_schedules_cover_requests(make_dialog, monkeypatch):
