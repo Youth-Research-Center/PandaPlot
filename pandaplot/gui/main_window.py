@@ -175,7 +175,8 @@ class PandaMainWindow(PMainWindow):
         will_autosave=True for the same reason as ExitCommand: this path
         also ends in app.launch()'s aboutToQuit -> _flush_save_on_quit,
         which unconditionally saves an existing saved project rather than
-        discarding it.
+        discarding it. An untitled project instead gets the guard's
+        Save As... / Discard / Cancel prompt.
         """
         if self._is_closing:
             # Already mid-close via ExitCommand -> APP_CLOSING ->

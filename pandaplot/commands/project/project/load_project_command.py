@@ -3,7 +3,11 @@ from collections.abc import Callable
 from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
-from pandaplot.commands.project.project.unsaved_changes import flush_pending_edits, remember_session_project
+from pandaplot.commands.project.project.unsaved_changes import (
+    confirm_discard_unsaved_changes,
+    flush_pending_edits,
+    remember_session_project,
+)
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project import Project
 from pandaplot.models.state.app_context import AppContext
@@ -36,7 +40,7 @@ class LoadProjectCommand(Command):
 
     def __init__(self, app_context: AppContext, file_path: str,
                  on_loaded: Callable[[Project], None] | None = None,
-                 *, as_untitled_copy: bool = False):
+                 *, as_untitled_copy: bool = False, on_finished: Callable[[], None] | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -47,6 +51,9 @@ class LoadProjectCommand(Command):
         # Called after the project has been loaded into app state (e.g. so the
         # caller can restore session tabs once the project is actually ready).
         self.on_loaded = on_loaded
+        # Called once the background load has ended, whether it succeeded, failed or was
+        # discarded (after on_loaded on success), e.g. so startup can continue either way.
+        self.on_finished = on_finished
         # Open the file's contents as an unsaved, untitled project: no file
         # path (so Save asks where to save), no "already open" shortcut, and
         # not remembered as the session's last project. Files inside the
@@ -113,9 +120,10 @@ class LoadProjectCommand(Command):
                 return CommandResult.FAILURE
 
             if self.app_state.has_project and self.app_state.is_modified:
-                should_continue = self.ui_controller.show_question(
-                    "Open Project",
-                    "Opening a new project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
+                should_continue = confirm_discard_unsaved_changes(
+                    self.app_context,
+                    title="Open Project",
+                    discard_message="Opening a new project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
                 )
                 if not should_continue:
                     self.logger.info("Load project cancelled by user (unsaved changes)")
@@ -261,12 +269,15 @@ class LoadProjectCommand(Command):
                     # the loaded project now would silently discard it, so
                     # re-confirm before doing that instead of assuming the
                     # original answer still applies.
+                    # Goes through the shared guard, so an untitled project edited meanwhile
+                    # is offered Save As like any other replacement of it.
                     if (
                         self.app_state.has_project
                         and self.app_state.modification_revision != self._dispatch_revision
-                        and not self.ui_controller.show_question(
-                            "Open Project",
-                            "The current project changed while the new one was loading.\n"
+                        and not confirm_discard_unsaved_changes(
+                            self.app_context,
+                            title="Open Project",
+                            discard_message="The current project changed while the new one was loading.\n"
                             "Loading it now will discard those additional changes.\n\n"
                             "Do you want to continue?",
                         )
@@ -366,6 +377,11 @@ class LoadProjectCommand(Command):
 
         except Exception:
             self.logger.exception("Error in load finished handler")
+        if self.on_finished is not None:
+            try:
+                self.on_finished()
+            except Exception:
+                self.logger.exception("on_finished callback failed")
 
     def _on_load_progress(self, progress: float):
         """Handle progress updates from load task."""

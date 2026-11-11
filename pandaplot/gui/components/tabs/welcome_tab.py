@@ -294,7 +294,10 @@ class WelcomeTab(PWidget):
         layout.addLayout(actions_layout)
 
     def show_examples_dialog(self):
-        """Open the examples dialog and emit the chosen project's path, if any."""
+        """Open the examples dialog and emit the chosen project's path, if any.
+
+        LoadProjectCommand asks before replacing a modified project, so nothing is asked here.
+        """
         dialog = ExamplesDialog(self.app_context, self)
         try:
             accepted = bool(dialog.exec())
@@ -305,32 +308,11 @@ class WelcomeTab(PWidget):
             dialog.deleteLater()
         if not accepted or not selected_path:
             return
-        if not self._confirm_replace_current_project(
-            "Open Example Project",
-            "Opening the example project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
-        ):
-            return
         self.example_project_selected.emit(selected_path)
 
-    def _confirm_replace_current_project(self, title: str, message: str) -> bool:
-        """Ask before an action would close the currently open project.
-
-        Mirrors MainMenu's show_examples_dialog/_load_recent_project: only
-        ask when there's a currently open project to lose, since with none
-        open there's nothing to override.
-        """
-        if not self.app_context.get_app_state().has_project:
-            return True
-        return self.app_context.get_ui_controller().show_question(title, message)
-
     def _on_recent_project_clicked(self, project_path: str):
-        """Handle a click on a recent-project item, confirming first if it
-        would close a currently open project."""
-        if not self._confirm_replace_current_project(
-            "Open Recent Project",
-            "Opening this recent project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
-        ):
-            return
+        """Handle a click on a recent-project item (LoadProjectCommand asks
+        before replacing a modified project)."""
         self.recent_project_selected.emit(project_path)
 
     def create_recent_projects_section(self, layout):

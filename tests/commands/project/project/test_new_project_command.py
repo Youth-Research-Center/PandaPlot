@@ -14,6 +14,8 @@ def _make_app_context(*, has_project=False, is_modified=False):
     app_context = Mock()
     app_context.get_app_state.return_value.has_project = has_project
     app_context.get_app_state.return_value.is_modified = is_modified
+    # A titled project (a real path, so the bundled-examples check in the unsaved-changes guard can resolve it).
+    app_context.get_app_state.return_value.project_file_path = "/projects/p.pplot"
     return app_context
 
 
@@ -101,6 +103,7 @@ def test_undo_restores_the_previous_projects_dirty_state():
     app_state = AppState(EventBus())
     previous_project = Mock()
     previous_project.name = "Previous"
+    previous_project.project_file_path = "/projects/previous.pplot"
     app_state.load_project(previous_project)
     app_state.mark_modified()
 
@@ -363,3 +366,28 @@ def test_execute_failure_passes_the_exception_to_the_dialog():
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once_with(
         "New Project Error", "Couldn't create the project.", error=error
     )
+
+
+def test_modified_untitled_project_offers_save_as_before_being_replaced():
+    app_context = _make_app_context(has_project=True, is_modified=True)
+    app_state = app_context.get_app_state.return_value
+    app_state.project_file_path = None
+    ui_controller = app_context.get_ui_controller.return_value
+    ui_controller.show_save_as_discard_cancel.return_value = "discard"
+    ui_controller.show_new_project_dialog.return_value = "My Project"
+
+    assert NewProjectCommand(app_context).execute() is CommandResult.SUCCESS
+
+    ui_controller.show_save_as_discard_cancel.assert_called_once()
+    ui_controller.show_question.assert_not_called()
+
+
+def test_cancelling_the_save_as_prompt_keeps_the_untitled_project():
+    app_context = _make_app_context(has_project=True, is_modified=True)
+    app_context.get_app_state.return_value.project_file_path = None
+    ui_controller = app_context.get_ui_controller.return_value
+    ui_controller.show_save_as_discard_cancel.return_value = "cancel"
+
+    assert NewProjectCommand(app_context).execute() is CommandResult.FAILURE
+
+    app_context.get_app_state.return_value.load_project.assert_not_called()

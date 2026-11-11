@@ -1,7 +1,11 @@
 from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
-from pandaplot.commands.project.project.unsaved_changes import flush_pending_edits, remember_session_project
+from pandaplot.commands.project.project.unsaved_changes import (
+    confirm_discard_unsaved_changes,
+    flush_pending_edits,
+    remember_session_project,
+)
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project import Project
 from pandaplot.models.state import AppContext, AppState
@@ -56,10 +60,11 @@ class NewProjectCommand(Command):
             # Only prompt if closing the current project would actually
             # discard something -- an unmodified project has nothing to lose.
             if self.app_state.has_project and self.app_state.is_modified:
-                response = self.ui_controller.show_question(
-                    "Create New Project",
-                    "The current project has unsaved changes.\n"
-                    "Creating a new project will discard them.\n\nDo you want to continue?"
+                response = confirm_discard_unsaved_changes(
+                    self.app_context,
+                    title="Create New Project",
+                    discard_message="The current project has unsaved changes.\n"
+                    "Creating a new project will discard them.\n\nDo you want to continue?",
                 )
                 if not response:
                     return CommandResult.FAILURE  # User cancelled

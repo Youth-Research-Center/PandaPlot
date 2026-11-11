@@ -170,29 +170,6 @@ def test_show_create_visualization_dialog_builds_and_shows_dialog_with_callback(
     dialog.exec.assert_called_once()
 
 
-def test_confirm_replace_current_project_skips_prompt_when_no_project_open():
-    tab = _make_welcome_tab()
-    tab.app_context.get_app_state.return_value.has_project = False
-
-    result = tab._confirm_replace_current_project("Title", "Message")
-
-    assert result is True
-    tab.app_context.get_ui_controller.return_value.show_question.assert_not_called()
-
-
-def test_confirm_replace_current_project_asks_and_returns_answer_when_project_open():
-    tab = _make_welcome_tab()
-    tab.app_context.get_app_state.return_value.has_project = True
-    tab.app_context.get_ui_controller.return_value.show_question.return_value = False
-
-    result = tab._confirm_replace_current_project("Title", "Message")
-
-    assert result is False
-    tab.app_context.get_ui_controller.return_value.show_question.assert_called_once_with(
-        "Title", "Message"
-    )
-
-
 def test_recent_project_click_emits_signal_when_no_project_open():
     tab = _make_welcome_tab()
     tab.app_context.get_app_state.return_value.has_project = False
@@ -204,28 +181,17 @@ def test_recent_project_click_emits_signal_when_no_project_open():
     spy.assert_called_once_with("/path/to/project.ppp")
 
 
-def test_recent_project_click_confirms_and_emits_when_project_open_and_confirmed():
+def test_recent_project_click_emits_without_its_own_prompt_when_project_open():
+    """LoadProjectCommand owns the unsaved-changes prompt."""
     tab = _make_welcome_tab()
     tab.app_context.get_app_state.return_value.has_project = True
-    tab.app_context.get_ui_controller.return_value.show_question.return_value = True
     spy = Mock()
     tab.recent_project_selected.connect(spy)
 
     tab._on_recent_project_clicked("/path/to/project.ppp")
 
     spy.assert_called_once_with("/path/to/project.ppp")
-
-
-def test_recent_project_click_does_not_emit_when_confirmation_declined():
-    tab = _make_welcome_tab()
-    tab.app_context.get_app_state.return_value.has_project = True
-    tab.app_context.get_ui_controller.return_value.show_question.return_value = False
-    spy = Mock()
-    tab.recent_project_selected.connect(spy)
-
-    tab._on_recent_project_clicked("/path/to/project.ppp")
-
-    spy.assert_not_called()
+    tab.app_context.get_ui_controller.return_value.show_question.assert_not_called()
 
 
 def test_show_examples_dialog_emits_when_selected_and_no_project_open():
@@ -269,29 +235,6 @@ def test_show_examples_dialog_releases_the_dialog_when_it_is_cancelled_or_raises
         failing.deleteLater.assert_called_once_with()
     finally:
         welcome_tab_module.ExamplesDialog = original
-
-
-def test_show_examples_dialog_confirms_before_emitting_when_project_open():
-    tab = _make_welcome_tab()
-    tab.app_context.get_app_state.return_value.has_project = True
-    tab.app_context.get_ui_controller.return_value.show_question.return_value = False
-    spy = Mock()
-    tab.example_project_selected.connect(spy)
-
-    fake_dialog = Mock()
-    fake_dialog.exec.return_value = True
-    fake_dialog.selected_path = "/examples/demo.ppp"
-
-    import pandaplot.gui.components.tabs.welcome_tab as welcome_tab_module
-    original = welcome_tab_module.ExamplesDialog
-    welcome_tab_module.ExamplesDialog = Mock(return_value=fake_dialog)
-    try:
-        tab.show_examples_dialog()
-    finally:
-        welcome_tab_module.ExamplesDialog = original
-
-    spy.assert_not_called()
-    tab.app_context.get_ui_controller.return_value.show_question.assert_called_once()
 
 
 def test_show_examples_dialog_does_nothing_when_cancelled():

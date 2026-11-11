@@ -21,6 +21,7 @@ from pandaplot.gui.dialogs.sketch.export_sketch_dialog import ExportSketchDialog
 from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.models.project.items import Chart, Dataset, Sketch
 from pandaplot.models.project.items.sketch import RectangleElement
+from pandaplot.services.data_managers.project_manager import ProjectManager
 
 
 def click_menu(qtbot: QtBot, window: PandaMainWindow, menu_name: str, action_name: str) -> None:
@@ -423,3 +424,54 @@ def test_example_opens_as_untitled_copy_and_save_never_overwrites_it(
     assert saved_path.exists()
     assert state.project_file_path == str(saved_path)
     assert example.read_bytes() == original_bytes
+
+
+def test_closing_an_edited_example_offers_save_as_and_clears_the_recovery_copy(
+    app_window: PandaMainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from pandaplot.services.autosave import AutoSaveManager
+    from pandaplot.services.autosave.recovery import session_recovery_path
+    from pandaplot.utils.examples import discover_example_projects
+
+    example = Path(discover_example_projects()[0].path)
+    context = app_window.app_context
+    state = context.app_state
+
+    app_window.tab_container.command_manager.handle_example_project(str(example))
+    qtbot.waitUntil(lambda: state.has_project, timeout=10000)
+    assert context.get_command_executor().execute_command(
+        CreateEmptyDatasetCommand(context, dataset_name="Edit after opening")
+    )
+    assert state.is_modified
+    assert state.project_file_path is None
+
+    manager = context.get_manager(AutoSaveManager)
+    manager._on_timer()
+    qtbot.waitUntil(lambda: not manager._recovery_write_in_flight, timeout=10000)
+
+    assert session_recovery_path().is_file()
+    assert state.project_file_path is None
+    assert state.is_modified
+
+    saved_path = tmp_path / "closed_with_save_as.pplot"
+    prompts: list[tuple[str, str]] = []
+
+    def answer_save_as(title: str, message: str) -> str:
+        prompts.append((title, message))
+        return "save_as"
+
+    monkeypatch.setattr(context.ui_controller, "show_save_as_discard_cancel", answer_save_as)
+    monkeypatch.setattr(
+        "pandaplot.gui.controllers.ui_controller.QFileDialog.getSaveFileName",
+        lambda *args, **kwargs: (str(saved_path), "Project files"),
+    )
+
+    assert app_window.close()
+
+    assert len(prompts) == 1
+    assert saved_path.is_file()
+    assert state.project_file_path == str(saved_path)
+    assert not state.is_modified
+    assert not session_recovery_path().exists()
+    reopened = context.get_manager(ProjectManager).load_project(str(saved_path))
+    assert any(item.name == "Edit after opening" for item in reopened.get_all_items())
