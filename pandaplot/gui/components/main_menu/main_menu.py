@@ -9,6 +9,7 @@ from shiboken6 import isValid
 
 from pandaplot.commands.app.exit_command import ExitCommand
 from pandaplot.commands.project.chart import CreateChartFromWizardCommand
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset import ImportDataCommand
 from pandaplot.commands.project.dataset.add_rows_columns_command import (
     AddRowsColumnsCommand,
@@ -235,6 +236,11 @@ class MainMenu(PMenuBar):
         ).execute_command(SaveProjectAsCommand(self.app_context)))
         file_menu.addAction(save_as_action)
 
+        self.project_details_action = QAction("Project Details...", self)
+        self.project_details_action.triggered.connect(self.show_project_details_dialog)
+        file_menu.addAction(self.project_details_action)
+        self._update_project_dependent_actions()
+
         file_menu.addSeparator()
 
         exit_action = QAction("Exit", self)
@@ -397,6 +403,15 @@ class MainMenu(PMenuBar):
         self._update_dataset_dependent_actions()
         return chart_menu
 
+    def _update_project_dependent_actions(self) -> None:
+        """Enable File > Project Details... only while a project is open."""
+        self.project_details_action.setEnabled(get_current_project(self.app_context) is not None)
+
+    def _on_project_opened_or_closed(self) -> None:
+        """Refresh every action whose availability depends on the open project."""
+        self._update_dataset_dependent_actions()
+        self._update_project_dependent_actions()
+
     def _update_dataset_dependent_actions(self):
         """Enable the action that needs an existing dataset (row/column
         insertion) to act on. Chart creation is always enabled -- it now
@@ -424,8 +439,8 @@ class MainMenu(PMenuBar):
         from pandaplot.models.events.event_types import AppEvents, ConfigEvents
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_ADDED, lambda _data: self._update_dataset_dependent_actions())
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_REMOVED, lambda _data: self._update_dataset_dependent_actions())
-        self.subscribe_to_event(ProjectEvents.PROJECT_LOADED, lambda _data: self._update_dataset_dependent_actions())
-        self.subscribe_to_event(ProjectEvents.PROJECT_CLOSED, lambda _data: self._update_dataset_dependent_actions())
+        for project_event in (ProjectEvents.PROJECT_LOADED, ProjectEvents.PROJECT_CLOSED):
+            self.subscribe_to_event(project_event, lambda _data: self._on_project_opened_or_closed())
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(AppEvents.HISTORY_CHANGED, self._update_undo_redo_actions)
         self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._update_recent_menu)
@@ -437,19 +452,31 @@ class MainMenu(PMenuBar):
         dialog = SettingsDialog(self.app_context, self.parent())
         dialog.exec()
 
+    def show_project_details_dialog(self) -> None:
+        """Open the Project Details dialog for the current project."""
+        from pandaplot.gui.dialogs.project.project_details_dialog import edit_project_details
+        edit_project_details(self.app_context, self.window())
+
     def show_examples_dialog(self):
         """Open the examples dialog and load the chosen example project, if any."""
         from pandaplot.gui.dialogs.examples_dialog import ExamplesDialog
 
         dialog = ExamplesDialog(self.app_context, self.parent())
-        if not dialog.exec() or not dialog.selected_path:
+        try:
+            accepted = bool(dialog.exec())
+            selected_path = dialog.selected_path
+        finally:
+            # The dialog has a parent, so without this every opening would stay alive (with its loaded projects and
+            # pictures) until the parent is destroyed.
+            dialog.deleteLater()
+        if not accepted or not selected_path:
             return
 
         # LoadProjectCommand itself confirms before replacing a modified
         # project, so that check is not duplicated here. The example opens as
         # an untitled copy, so it is never skipped as "already open".
         self.app_context.get_command_executor().execute_command(
-            LoadProjectCommand(self.app_context, dialog.selected_path, as_untitled_copy=True)
+            LoadProjectCommand(self.app_context, selected_path, as_untitled_copy=True)
         )
 
     def show_about_dialog(self):

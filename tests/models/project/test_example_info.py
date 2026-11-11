@@ -9,6 +9,7 @@ from pandaplot.models.project.example_info import (
     ExampleSection,
     TagGroup,
     example_tag,
+    markdown_to_plain_text,
     summary_from_description,
 )
 from pandaplot.models.project.project import Project
@@ -156,3 +157,75 @@ class TestSummaryFromDescription:
 
     def test_nested_emphasis_and_strikethrough(self):
         assert summary_from_description("A **bold _and italic_** and ~~old~~ note.") == "A bold and italic and old note."
+
+    def test_code_span_with_period_is_not_split(self):
+        assert summary_from_description("Use `a. b` in code. Then.") == "Use a. b in code."
+
+    def test_code_span_with_link_syntax_survives(self):
+        assert summary_from_description("Use `arr[0](x)` to index.") == "Use arr[0](x) to index."
+
+    def test_first_paragraph_after_heading_paragraph(self):
+        assert summary_from_description("Overview\n\nThis example fits data. More.") == "Overview"
+
+    def test_heading_paragraph_is_skipped_for_body(self):
+        assert summary_from_description("# Overview\n\nThis example fits data. More.") == "This example fits data."
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [("- First item. x\n- Second", "First item."), ("* Star\n* Two", "Star"), ("1. Numbered one\n2. Two", "Numbered one"),
+         ("Intro text\n\n- later list", "Intro text")],
+    )
+    def test_list_markers_removed_and_first_item_used(self, text, expected):
+        assert summary_from_description(text) == expected
+
+    def test_second_paragraph_is_not_merged(self):
+        assert summary_from_description("No period here\n\nSecond paragraph.") == "No period here"
+
+    @pytest.mark.parametrize("abbrev", ["e.g.", "i.e.", "etc."])
+    def test_abbreviation_does_not_end_sentence(self, abbrev):
+        assert summary_from_description(f"Fit curves {abbrev} Gaussians to data. Next.") == f"Fit curves {abbrev} Gaussians to data."
+
+    @pytest.mark.parametrize("abbrev", ["(e.g.", "(i.e.", "(cf."])
+    def test_abbreviation_after_opening_parenthesis_does_not_end_sentence(self, abbrev):
+        text = f"Measure lengths {abbrev} with a ruler) and plot them. Next."
+        assert summary_from_description(text) == f"Measure lengths {abbrev} with a ruler) and plot them."
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [("**Important.** Read the notes first.", "Important."), ("*Note.* Then more.", "Note."), ("**Done!** Next step.", "Done!"),
+         ('She said "stop." Then left.', 'She said "stop."'), ("Fit a line (see below.) Then more.", "Fit a line (see below.)")],
+    )
+    def test_sentence_ending_inside_emphasis_quote_or_parenthesis(self, text, expected):
+        assert summary_from_description(text) == expected
+
+
+class TestDuplicateIds:
+    def test_from_dict_dedupes_featured_before_truncating(self):
+        info = ExampleInfo.from_dict({"featured_chart_ids": ["a", "a", "b", "c", "d"]})
+        assert info.featured_chart_ids == ("a", "b", "c")
+
+    def test_duplicate_tags_rejected(self):
+        with pytest.raises(ValueError, match="Duplicate example tag"):
+            ExampleInfo(tag_ids=("physics", "physics"))
+
+    def test_duplicate_featured_rejected(self):
+        with pytest.raises(ValueError, match="Duplicate featured"):
+            ExampleInfo(featured_chart_ids=("a", "a"))
+
+    def test_dirty_dict_round_trips_exactly(self):
+        info = ExampleInfo.from_dict({"tags": ["physics", "physics"], "featured_chart_ids": ["a", "a", "b"]})
+        assert ExampleInfo.from_dict(info.to_dict()) == info
+
+
+@pytest.mark.parametrize(
+    ("markdown", "expected"),
+    [
+        ("See [the archive][src].\n\n[src]: https://noaa.example/data.csv", "See the archive."),
+        ('The [manual][] here.\n[manual]: <https://manual.example> "Manual"', "The manual here."),
+        ("![a photo][pic] below\n\n   [pic]: cover.png 'Cover'", "a photo below"),
+        ("Inline `[a]: b` and `[x][y]` stay literal.", "Inline [a]: b and [x][y] stay literal."),
+        ("```\n[a]: kept in code\n```", "[a]: kept in code"),
+    ],
+)
+def test_markdown_to_plain_text_drops_reference_targets_but_keeps_labels_and_code(markdown, expected):
+    assert markdown_to_plain_text(markdown) == expected

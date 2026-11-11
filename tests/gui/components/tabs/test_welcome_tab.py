@@ -213,6 +213,28 @@ def test_show_examples_dialog_emits_when_selected_and_no_project_open():
         welcome_tab_module.ExamplesDialog = original
 
     spy.assert_called_once_with("/examples/demo.ppp")
+    fake_dialog.deleteLater.assert_called_once_with()
+
+
+def test_show_examples_dialog_releases_the_dialog_when_it_is_cancelled_or_raises():
+    tab = _make_welcome_tab()
+    import pandaplot.gui.components.tabs.welcome_tab as welcome_tab_module
+    original = welcome_tab_module.ExamplesDialog
+    try:
+        cancelled = Mock()
+        cancelled.exec.return_value = False
+        welcome_tab_module.ExamplesDialog = Mock(return_value=cancelled)
+        tab.show_examples_dialog()
+        cancelled.deleteLater.assert_called_once_with()
+
+        failing = Mock()
+        failing.exec.side_effect = RuntimeError("boom")
+        welcome_tab_module.ExamplesDialog = Mock(return_value=failing)
+        with pytest.raises(RuntimeError):
+            tab.show_examples_dialog()
+        failing.deleteLater.assert_called_once_with()
+    finally:
+        welcome_tab_module.ExamplesDialog = original
 
 
 def test_show_examples_dialog_does_nothing_when_cancelled():

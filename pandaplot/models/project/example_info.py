@@ -94,7 +94,8 @@ class ExampleInfo:
     Turning ``is_example`` off keeps the other values.
 
     Raises:
-        ValueError: If a tag id is not in ``EXAMPLE_TAGS`` or more than 3 featured charts are given.
+        ValueError: If a tag id is not in ``EXAMPLE_TAGS``, a tag or featured chart id is repeated, or more than 3
+            featured charts are given.
     """
 
     is_example: bool = False
@@ -110,6 +111,10 @@ class ExampleInfo:
         unknown = [tag_id for tag_id in self.tag_ids if tag_id not in _TAGS_BY_ID]
         if unknown:
             raise ValueError(f"Unknown example tag ids: {unknown}")
+        if len(set(self.tag_ids)) != len(self.tag_ids):
+            raise ValueError(f"Duplicate example tag ids: {list(self.tag_ids)}")
+        if len(set(self.featured_chart_ids)) != len(self.featured_chart_ids):
+            raise ValueError(f"Duplicate featured chart ids: {list(self.featured_chart_ids)}")
         if len(self.featured_chart_ids) > MAX_FEATURED_CHARTS:
             raise ValueError(f"At most {MAX_FEATURED_CHARTS} featured charts are allowed, got {len(self.featured_chart_ids)}")
 
@@ -130,7 +135,8 @@ class ExampleInfo:
     def from_dict(cls, data: dict | None) -> "ExampleInfo":
         """Build from file data. Never raises: invalid values fall back to defaults.
 
-        Unknown tag ids are dropped with a warning, and featured chart ids beyond 3 are truncated.
+        Unknown and repeated tag ids are dropped (unknown ones with a warning). Repeated featured chart ids are
+        dropped first (keeping the first), then the list is truncated to 3.
         """
         if not isinstance(data, dict):
             return cls()
@@ -142,7 +148,7 @@ class ExampleInfo:
             elif tag_id not in tag_ids:
                 tag_ids.append(tag_id)
 
-        featured = _string_ids(data.get("featured_chart_ids"))[:MAX_FEATURED_CHARTS]
+        featured = list(dict.fromkeys(_string_ids(data.get("featured_chart_ids"))))[:MAX_FEATURED_CHARTS]
         start_note_id = data.get("start_note_id")
         summary = data.get("summary")
         data_credit = data.get("data_credit")
@@ -169,10 +175,15 @@ class ExampleInfo:
 
 _HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
 _LINK_RE = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
+_REFERENCE_LINK_RE = re.compile(r"!?\[([^\]]*)\]\[[^\]]*\]")
+_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*\S")
+_FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
 _CODE_SPAN_RE = re.compile(r"(`+)(.+?)\1")
 _EMPHASIS_RE = re.compile(r"(?<![\w*_])(\*\*|__|\*|_|~~)(?=\S)(.+?)(?<=\S)\1(?![\w*_])")
 _CODE_PLACEHOLDER_RE = re.compile("\ue000(\\d+)\ue001")
-_SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
+# Sentence-ending punctuation plus any closing emphasis, quote or bracket right after it ("**Done.**", "(see below.)").
+_SENTENCE_END_RE = re.compile(r"[.!?][*_~\"'\u201d\u2019)\]]*(?=\s)")
+_OPENING_PUNCTUATION = "([{\"'\u201c\u2018*_~"
 
 
 def _strip_inline_markdown(text: str) -> str:
@@ -193,8 +204,9 @@ def _strip_inline_markdown(text: str) -> str:
         spans.append(match.group(2).strip())
         return f"\ue000{len(spans) - 1}\ue001"
 
-    plain = _LINK_RE.sub(r"\1", text)
-    plain = _CODE_SPAN_RE.sub(protect, plain)
+    plain = _CODE_SPAN_RE.sub(protect, text)
+    plain = _LINK_RE.sub(r"\1", plain)
+    plain = _REFERENCE_LINK_RE.sub(r"\1", plain)
     previous = None
     while previous != plain:
         previous = plain
@@ -203,12 +215,83 @@ def _strip_inline_markdown(text: str) -> str:
     return re.sub(r"\s+", " ", plain).strip()
 
 
+def markdown_to_plain_text(text: str) -> str:
+    """Return the words of a Markdown text without its markup, for searching.
+
+    Heading markers, emphasis delimiters and code ticks are removed, and links and images (inline ``[t](u)`` or
+    reference-style ``[t][r]`` and ``[t][]``) keep only their text. Reference definitions (``[r]: url``) outside
+    fenced code are dropped, so link and image targets (URLs, file names) are never searchable.
+
+    Args:
+        text: Markdown text.
+
+    Returns:
+        Plain text with whitespace collapsed, or an empty string for empty input.
+    """
+    if not isinstance(text, str) or not text.strip():
+        return ""
+    lines: list[str] = []
+    fence: str | None = None
+    for line in text.splitlines():
+        fence_match = _FENCE_RE.match(line)
+        if fence_match is not None:
+            marker = fence_match.group(1)
+            if fence is None:
+                fence = marker
+            elif marker[0] == fence[0] and len(marker) >= len(fence):
+                fence = None
+        elif fence is None and _REFERENCE_DEFINITION_RE.match(line):
+            continue
+        lines.append(_HEADING_RE.sub("", line))
+    return _strip_inline_markdown(" ".join(lines))
+
+
+_LIST_MARKER_RE = re.compile(r"^\s{0,3}(?:[-*+]|\d+[.)])\s+")
+_BLANK_LINE_RE = re.compile(r"\n\s*\n")
+_ABBREVIATIONS = frozenset({"e.g.", "i.e.", "etc.", "vs.", "cf."})
+
+
+def _first_sentence(markdown: str) -> str:
+    """Return the Markdown up to the first sentence end, ignoring code spans and common abbreviations."""
+    spans: list[str] = []
+
+    def mask(match: re.Match[str]) -> str:
+        spans.append(match.group(0))
+        return f"\ue000{len(spans) - 1}\ue001"
+
+    masked = _CODE_SPAN_RE.sub(mask, markdown)
+    sentence = masked
+    for match in _SENTENCE_END_RE.finditer(masked):
+        sentence_end = match.start() + 1
+        word = masked[:sentence_end].split()[-1].lstrip(_OPENING_PUNCTUATION).lower()
+        if word in _ABBREVIATIONS:
+            continue
+        sentence = masked[: match.end()]
+        break
+    return _CODE_PLACEHOLDER_RE.sub(lambda match: spans[int(match.group(1))], sentence)
+
+
+def _first_block(paragraph: list[str]) -> list[str]:
+    """Return the lines forming a paragraph's first unit: its first list item without marker, or all lines."""
+    if not _LIST_MARKER_RE.match(paragraph[0]):
+        return paragraph
+    block = [_LIST_MARKER_RE.sub("", paragraph[0], count=1)]
+    for line in paragraph[1:]:
+        if _LIST_MARKER_RE.match(line):
+            break
+        block.append(line)
+    return block
+
+
 def summary_from_description(text: str, max_chars: int = 160) -> str:
     """Return the first sentence of a Markdown description as plain text.
 
-    Markdown markers (heading ``#``, emphasis, code ticks, links ``[t](u)`` -> ``t``) are removed. Heading
-    lines are skipped when the text has other content. A sentence longer than ``max_chars`` is cut at a word
-    boundary and ends with an ellipsis.
+    The first blank-line separated paragraph with real content is used. Heading lines are skipped, and for a
+    list its first item is used without the marker. Markdown markers (emphasis, code ticks, links
+    ``[t](u)`` -> ``t``) are removed, keeping code span contents intact. A sentence does not end inside a code
+    span or after ``e.g.``, ``i.e.``, ``etc.``, ``vs.`` or ``cf.`` (also after an opening parenthesis), and
+    closing emphasis, quotes or brackets right after the end punctuation stay with the sentence. A sentence
+    longer than ``max_chars`` is cut at a word boundary and ends with an ellipsis. When the text holds only headings, the first heading is used.
 
     Args:
         text: Markdown text.
@@ -219,18 +302,17 @@ def summary_from_description(text: str, max_chars: int = 160) -> str:
     """
     if not isinstance(text, str) or not text.strip():
         return ""
-    lines = text.splitlines()
-    body = [line for line in lines if line.strip() and not _HEADING_RE.match(line)]
-    chosen = body or [_HEADING_RE.sub("", line) for line in lines if line.strip()]
-
-    paragraph: list[str] = []
-    for line in chosen:
-        paragraph.append(line.strip())
-        # Stop at the first line that completes a sentence; otherwise keep joining wrapped lines.
-        if _SENTENCE_END_RE.search(" ".join(paragraph) + " ") or paragraph[-1].endswith((".", "!", "?")):
+    block: list[str] = []
+    for raw_paragraph in _BLANK_LINE_RE.split(text):
+        lines = [line.strip() for line in raw_paragraph.splitlines() if line.strip() and not _HEADING_RE.match(line)]
+        if lines:
+            block = _first_block(lines)
             break
-    plain = _strip_inline_markdown(" ".join(paragraph))
-    sentence = _SENTENCE_END_RE.split(plain, maxsplit=1)[0]
+    if not block:
+        headings = [_HEADING_RE.sub("", line).strip() for line in text.splitlines() if line.strip()]
+        block = [headings[0]]
+
+    sentence = _strip_inline_markdown(_first_sentence(" ".join(block)))
 
     if len(sentence) <= max_chars:
         return sentence

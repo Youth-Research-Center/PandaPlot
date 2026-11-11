@@ -14,6 +14,7 @@ from pandaplot.gui.components.main_menu.main_menu import MainMenu
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import UIEvents
 from pandaplot.models.events.event_bus import EventBus
+from pandaplot.models.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_catalog import HelpCatalog
 from pandaplot.services.help.help_types import HelpCategory, HelpTopic
@@ -145,6 +146,7 @@ class TestMainMenuHelpMenu:
         command_executor.execute_command.assert_called_once()
         executed_command = command_executor.execute_command.call_args[0][0]
         assert executed_command.file_path == "/examples/sample.pplot"
+        dialog.deleteLater.assert_called_once_with()
         assert executed_command.as_untitled_copy is True
 
     def test_open_example_project_does_nothing_when_dialog_cancelled(self, app_context):
@@ -160,6 +162,7 @@ class TestMainMenuHelpMenu:
             menu.show_examples_dialog()
 
         command_executor.execute_command.assert_not_called()
+        dialog.deleteLater.assert_called_once_with()
 
     def test_open_example_project_delegates_the_unsaved_changes_guard(self, app_context):
         """Regression (PR #235 review): this used to ask its own "replace
@@ -848,3 +851,76 @@ class TestMainMenuRecentSubmenu:
 
         subscribed_events = [event_type for event_type, _handler in menu._subscriptions]
         assert ConfigEvents.CONFIG_UPDATED in subscribed_events
+
+
+def _find_file_action(menu: MainMenu, text: str) -> QAction:
+    file_menu = next(m for m in menu.findChildren(type(menu.actions()[0].menu())) if m.title() == "File")
+    return next(a for a in file_menu.actions() if a.text() == text)
+
+
+class TestMainMenuProjectDetails:
+    def test_action_follows_save_as_in_the_file_menu(self, app_context):
+        menu = MainMenu(parent=None, app_context=app_context)
+        file_menu = next(m for m in menu.findChildren(type(menu.actions()[0].menu())) if m.title() == "File")
+        texts = [a.text() for a in file_menu.actions()]
+        assert texts[texts.index("Save As...") + 1] == "Project Details..."
+
+    def test_action_is_disabled_without_a_project(self, app_context):
+        menu = MainMenu(parent=None, app_context=app_context)
+        assert not _find_file_action(menu, "Project Details...").isEnabled()
+
+    def test_action_is_enabled_when_a_project_is_open_and_follows_project_events(self, app_context):
+        from pandaplot.models.events.event_types import ProjectEvents
+
+        app_context.event_bus = EventBus()
+        app_state = app_context.get_app_state.return_value
+        menu = MainMenu(parent=None, app_context=app_context)
+        action = _find_file_action(menu, "Project Details...")
+        assert not action.isEnabled()
+
+        app_state.has_project = True
+        app_state.current_project = Project("Demo")
+        app_context.event_bus.emit(ProjectEvents.PROJECT_LOADED, {"project": app_state.current_project})
+        assert action.isEnabled()
+
+        app_state.has_project = False
+        app_state.current_project = None
+        app_context.event_bus.emit(ProjectEvents.PROJECT_CLOSED, {})
+        assert not action.isEnabled()
+
+    def test_triggering_executes_the_update_command_when_accepted(self, app_context):
+        from pandaplot.commands.project.project import UpdateProjectDetailsCommand
+        from pandaplot.gui.dialogs.project.project_details_dialog import ProjectDetailsResult
+        from pandaplot.models.project.example_info import ExampleInfo
+
+        app_state = app_context.get_app_state.return_value
+        app_state.has_project = True
+        app_state.current_project = Project("Demo")
+        menu = MainMenu(parent=None, app_context=app_context)
+        executor = app_context.get_command_executor.return_value
+
+        with patch("pandaplot.gui.dialogs.project.project_details_dialog.ProjectDetailsDialog") as dialog_cls:
+            dialog = dialog_cls.return_value
+            dialog.exec.return_value = QDialog.DialogCode.Accepted
+            dialog.get_result.return_value = ProjectDetailsResult(
+                name="Renamed", description="Notes", cover_image=None, example_info=ExampleInfo())
+            _find_file_action(menu, "Project Details...").trigger()
+
+        command = executor.execute_command.call_args.args[0]
+        assert isinstance(command, UpdateProjectDetailsCommand)
+        assert command._new.name == "Renamed"
+        assert command._new.description == "Notes"
+
+    def test_triggering_does_nothing_when_cancelled(self, app_context):
+
+        app_state = app_context.get_app_state.return_value
+        app_state.has_project = True
+        app_state.current_project = Project("Demo")
+        menu = MainMenu(parent=None, app_context=app_context)
+        executor = app_context.get_command_executor.return_value
+
+        with patch("pandaplot.gui.dialogs.project.project_details_dialog.ProjectDetailsDialog") as dialog_cls:
+            dialog_cls.return_value.exec.return_value = QDialog.DialogCode.Rejected
+            _find_file_action(menu, "Project Details...").trigger()
+
+        executor.execute_command.assert_not_called()

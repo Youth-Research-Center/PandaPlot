@@ -77,7 +77,7 @@ PandaPlot features a modern, intuitive PySide6 desktop interface divided into th
 - **Data**: Import data and images, add a dataset, add rows or columns, and create new notes and sketches.
 - **Chart**: **Create New** opens the Chart Creation Wizard.
 - **Settings**: **Preferences...** opens the settings dialog, including the theme.
-- **Help**: Open Help Topics (`F1`), the Welcome tab, the example project, and About information.
+- **Help**: Open Help Topics (`F1`), the Welcome tab, the examples browser, and About information. In the examples browser (**Open Example Project**), examples appear as cards grouped in sections; search or pick topic and technique tags to narrow the list, **See details** shows the full description and live previews of the example's charts, and **Open example** opens it.
 
 ### Collapsible Sidebar
 Located on the left, the sidebar uses icon tabs to switch contextual control panels:
@@ -115,6 +115,15 @@ A `.pplot` file is a ZIP archive containing a project index and files for its it
 - **Creating Folders**: Click the **New Folder** button in the Project View toolbar or right-click to add nested subfolders.
 - **Renaming Items**: Select an item in the Project View and press `F2`, or right-click and select **Rename**.
 - **Deleting Items**: Right-click an item and select **Delete**. All item deletions are fully undoable (`Ctrl+Z`).
+
+### Project Details
+Choose **File → Project Details...** (or right-click the project at the top of the Project View) to edit:
+- **Name**: the project name. It cannot be empty.
+- **About this project**: your notes about the project, such as background and findings, written in Markdown. **Preview** shows how they will look.
+- **Cover image**: **Choose image...** picks a picture (under 25 MB) that is shrunk to at most 800 pixels and stored in the project; **Remove** clears it.
+- **Use this project as an example**: tick it to set the example's short description, section, level, tags, up to three featured charts, a "start here" note and a data source or credit. Unticking hides these settings but keeps them. Charts and notes that were deleted are dropped when you press **OK**.
+
+All changes are applied together and can be undone with `Ctrl+Z`.
 
 ### Auto-Save & Session Recovery
 PandaPlot supports optional auto-saving and automatic session state preservation across restarts. If enabled in Settings, project changes are automatically flushed to disk upon major operations.
