@@ -220,30 +220,43 @@ def protect_code_regions(text: str) -> tuple[str, list[str], str]:
     placeholder can never collide with literal note text that happens to
     look like one (e.g. a note containing the literal string
     "zzcodeplaceholder-0-0zz").
+
+    The regions come from `code_region_spans`, so this and every caller that
+    needs real offsets agree on what counts as code.
     """
     token = uuid.uuid4().hex
     blocks: list[str] = []
-
-    def _stash(m: re.Match) -> str:
-        idx = len(blocks)
-        blocks.append(m.group(0))
-        return _CODE_TOKEN.format(token=token, index=idx)
-
-    text = _FENCED_CODE_RE.sub(_stash, text)
-    text = _INLINE_CODE_RE.sub(_stash, text)
-    return text, blocks, token
+    parts: list[str] = []
+    position = 0
+    for start, end in code_region_spans(text):
+        parts.append(text[position:start])
+        parts.append(_CODE_TOKEN.format(token=token, index=len(blocks)))
+        blocks.append(text[start:end])
+        position = end
+    parts.append(text[position:])
+    return "".join(parts), blocks, token
 
 
 def code_region_spans(text: str) -> list[tuple[int, int]]:
-    """Return the (start, end) spans of every fenced/inline code region in
-    `text`, without altering it -- unlike protect_code_regions, which
-    substitutes placeholders (changing offsets). Used by callers that need
-    to know a match's real position in the original text, not just whether
-    it should be excluded."""
+    """Return the sorted (start, end) spans of every fenced/inline code region
+    in `text`, without altering it, so offsets refer to the original text.
+
+    Fenced blocks are found first and inline code only in the text between
+    them, so a backtick inside (or adjoining) a fence never forms an inline
+    span of its own. `protect_code_regions` builds its placeholders from these
+    spans; callers that need a match's real position (not just whether it
+    should be excluded) use them directly.
+
+    Returns:
+        Non-overlapping (start, end) offsets in ascending order.
+    """
     spans: list[tuple[int, int]] = []
-    for regex in (_FENCED_CODE_RE, _INLINE_CODE_RE):
-        for m in regex.finditer(text):
-            spans.append((m.start(), m.end()))
+    position = 0
+    for fence in _FENCED_CODE_RE.finditer(text):
+        spans.extend((m.start(), m.end()) for m in _INLINE_CODE_RE.finditer(text, position, fence.start()))
+        spans.append((fence.start(), fence.end()))
+        position = fence.end()
+    spans.extend((m.start(), m.end()) for m in _INLINE_CODE_RE.finditer(text, position))
     return spans
 
 

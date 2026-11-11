@@ -14,6 +14,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 ## [Unreleased]
 
 ### Fixed
+- Transient context menus in the tab bar, dataset table, image gallery, and sidebar icon bar are now deleted after closing instead of remaining attached to their parent widget (#587).
 - Buttons and other controls drawn by the platform style (for example the Back, Next and Cancel buttons of the Analyze Measurements wizard) were unreadable white-on-white when the app used the light theme while Windows was in dark mode (or the reverse): the app now tells Qt which colour scheme its theme uses.
 - The (x, y) mouse readout on the chart toolbar reserves a fixed amount of space, so moving the cursor over the chart or leaving it no longer resizes the toolbar and makes the chart area flicker; readouts too long for the space, such as two Y values, are shortened with an ellipsis (#511).
 - Adding an item beneath a non-folder project item keeps it in the nearest ancestor folder instead of relocating it to the root.
