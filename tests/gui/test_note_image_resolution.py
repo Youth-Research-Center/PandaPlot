@@ -1262,6 +1262,53 @@ def test_compute_note_artefact_rows_match_offsets_survive_a_preceding_code_span(
     assert content[row.match_start:row.match_end] == f"![Line Plot]({chart.id} =500x)"
 
 
+def _project_with_snapshot_image(note_id: str) -> tuple[Project, Image]:
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    image = Image(name="Snapshot", note_id=note_id)
+    project.add_item(image, parent_id=gallery.id)
+    return project, image
+
+
+def _app_context_for(project: Project) -> MagicMock:
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    return app_context
+
+
+def test_compute_note_artefact_rows_treats_a_stray_backtick_before_a_fence_as_plain_text(qapp):
+    """The preview stashes fences before inline code, so a lone backtick that
+    precedes a fence on the same line is not an inline span and the image after
+    it is live. The Artefacts list must list it, with offsets that cut exactly
+    that reference."""
+    project, image = _project_with_snapshot_image("note-1")
+    reference = f"![Snapshot]({image.id} =500x)"
+    content = f"`{reference} ```\ncode with `ticks`\n```"
+    note = Note(id="note-1", name="Note 1", content=content)
+
+    rows = compute_note_artefact_rows(_app_context_for(project), note, content)
+
+    assert len(rows) == 1
+    assert rows[0].status == "ok"
+    assert rows[0].item_id == image.id
+    assert content[rows[0].match_start:rows[0].match_end] == reference
+
+
+def test_compute_note_artefact_rows_ignores_references_inside_a_fence_containing_backticks(qapp):
+    project, image = _project_with_snapshot_image("note-1")
+    reference = f"![Snapshot]({image.id} =500x)"
+    content = f"```\nuse `ticks` here\n{reference}\n```\n\n{reference}"
+    note = Note(id="note-1", name="Note 1", content=content)
+
+    rows = compute_note_artefact_rows(_app_context_for(project), note, content)
+
+    assert len(rows) == 1
+    assert rows[0].match_start == content.rindex(reference)
+
+
 def test_compute_note_artefact_rows_resolves_real_on_disk_file_as_ok(qapp, tmp_path):
     project = Project(name="Test Project")
     project.project_file_path = str(tmp_path / "project.ppf")
