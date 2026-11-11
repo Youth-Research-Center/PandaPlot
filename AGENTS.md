@@ -41,7 +41,11 @@ consume the whole job: it dumps all stacks and kills the worker, which xdist
 reports as `worker crashed while running <test>`. Keep legitimate tests well under
 that 120s limit. `--max-worker-restart=1` is one replacement for the whole session,
 not per test: a second crash anywhere shuts down the remaining workers and can leave
-tests unexecuted. `--cov` works with xdist.
+tests unexecuted. `tests/xdist_crash_safe.py` replaces xdist's `loadfile` scheduler so a
+crashed worker cannot hang the run and the crashed test is not re-run; it relies on xdist
+internals and is used only with the pytest-xdist series it was checked against
+(`SUPPORTED_XDIST_SERIES`), falling back to xdist's scheduler with a warning otherwise.
+`--cov` works with xdist.
 
 Every test runs with `HOME`/`USERPROFILE` redirected to its own empty directory
 (the autouse `isolated_home` fixture in `tests/conftest.py`), so `build_app_context()`
