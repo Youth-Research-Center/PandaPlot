@@ -36,6 +36,9 @@ SESSION_ID = f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
 
 # (lock path, lock) held for this session's copy; re-created if the home folder changes (tests).
 _session_lock: tuple[Path, QLockFile] | None = None
+# Advanced by every deletion of this session's copy, so a background write that was
+# already running when the copy was deleted can tell its result is stale.
+_session_copy_generation = 0
 
 
 def recovery_dir() -> Path:
@@ -91,8 +94,19 @@ def hold_session_lock() -> bool:
     return True
 
 
+def session_copy_generation() -> int:
+    """Return a number that changes every time this session's recovery copy is deleted."""
+    return _session_copy_generation
+
+
 def delete_session_recovery_copy() -> None:
-    """Delete this session's recovery copy and any half-written temporary file; a missing file is fine."""
+    """Delete this session's recovery copy and any half-written temporary file; a missing file is fine.
+
+    Also advances ``session_copy_generation()``, so a recovery write still running in the
+    background drops its result instead of recreating the deleted copy.
+    """
+    global _session_copy_generation
+    _session_copy_generation += 1
     for candidate in (session_recovery_path(), session_recovery_temp_path()):
         try:
             candidate.unlink(missing_ok=True)
@@ -172,6 +186,7 @@ __all__ = [
     "delete_session_recovery_copy",
     "hold_session_lock",
     "recovery_dir",
+    "session_copy_generation",
     "session_recovery_path",
     "session_recovery_temp_path",
 ]

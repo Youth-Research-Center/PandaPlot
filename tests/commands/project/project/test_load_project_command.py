@@ -13,7 +13,11 @@ from pandaplot.utils.error_messages import ErrorDescription, describe_error
 
 
 def _make_app_context():
-    return Mock()
+    app_context = Mock()
+    # An int like production: a Mock revision never equals the one captured at dispatch,
+    # so every result would look like the project changed during the load.
+    app_context.get_app_state.return_value.modification_revision = 0
+    return app_context
 
 
 def test_marks_project_modified_is_false():
@@ -101,6 +105,7 @@ class TestLoadProjectCommandRaceGuard:
     def test_reconfirms_when_the_project_changed_during_the_load(self):
         command, app_context, app_state = self._dispatch()
         app_state.modification_revision = 1  # an edit landed while loading
+        app_state.is_modified = True
         app_context.get_ui_controller.return_value.show_question.return_value = True
 
         project = Mock()
@@ -114,6 +119,7 @@ class TestLoadProjectCommandRaceGuard:
     def test_discards_the_load_when_the_user_declines_reconfirmation(self):
         command, app_context, app_state = self._dispatch()
         app_state.modification_revision = 1
+        app_state.is_modified = True
         app_context.get_ui_controller.return_value.show_question.return_value = False
 
         project = Mock()
@@ -147,6 +153,7 @@ class TestLoadProjectCommandRaceGuard:
 
         def fake_flush(ctx):
             app_state.modification_revision = 1  # simulates the note's EditNoteCommand landing
+            app_state.is_modified = True
             return True
 
         monkeypatch.setattr(
@@ -182,6 +189,52 @@ class TestLoadProjectCommandRaceGuard:
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
         app_context.get_ui_controller.return_value.show_question.assert_not_called()
 
+
+class TestLateEditOfAnUntitledProject:
+    """Review (#634): an untitled project edited while another project loads must be offered Save As, not a yes/no question."""
+
+    def _dispatch_untitled(self):
+        app_context, app_state = _make_configured_app_context(has_project=True, project_file_path=None, is_modified=False)
+        app_state.modification_revision = 0
+        command = LoadProjectCommand(app_context, "/p/other.pplot")
+        assert command.execute() is CommandResult.SUCCESS
+        app_state.modification_revision = 1  # an edit landed while loading
+        app_state.is_modified = True
+        project = Mock()
+        project.name = "New"
+        project.failed_item_ids = []
+        return command, app_context, app_state, project
+
+    @pytest.mark.parametrize(("choice", "loads"), [("discard", True), ("cancel", False)])
+    def test_offers_save_as_discard_cancel(self, choice, *, loads):
+        command, app_context, app_state, project = self._dispatch_untitled()
+        ui = app_context.get_ui_controller.return_value
+        ui.show_save_as_discard_cancel.return_value = choice
+
+        command._on_load_result({"success": True, "project": project, "file_path": "/p/other.pplot"})
+
+        ui.show_save_as_discard_cancel.assert_called_once()
+        ui.show_question.assert_not_called()
+        assert app_state.load_project.called is loads
+
+    def test_titled_project_keeps_the_additional_changes_question(self):
+        app_context, app_state = _make_configured_app_context(has_project=True, project_file_path="/p/current.pplot", is_modified=False)
+        app_state.modification_revision = 0
+        command = LoadProjectCommand(app_context, "/p/other.pplot")
+        assert command.execute() is CommandResult.SUCCESS
+        app_state.modification_revision = 1
+        app_state.is_modified = True
+        ui = app_context.get_ui_controller.return_value
+        ui.show_question.return_value = True
+        project = Mock()
+        project.name = "New"
+        project.failed_item_ids = []
+
+        command._on_load_result({"success": True, "project": project, "file_path": "/p/other.pplot"})
+
+        ui.show_save_as_discard_cancel.assert_not_called()
+        assert "changed while the new one was loading" in ui.show_question.call_args.args[1]
+        app_state.load_project.assert_called_once_with(project)
 
 def _make_configured_app_context(*, has_project=False, project_file_path=None, is_modified=False):
     """Like _make_app_context, but with an app_state whose has_project/
@@ -310,6 +363,7 @@ class TestLoadProjectCommandGuards:
 def env():
     app_state = Mock()
     app_state.has_project = True
+    app_state.modification_revision = 0
     app_context = Mock()
     app_context.get_app_state.return_value = app_state
     app_context.get_ui_controller.return_value = Mock()

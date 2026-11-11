@@ -225,3 +225,20 @@ def test_quit_with_a_modified_untitled_project_keeps_the_copy(context) -> None:
     _flush_save_on_quit(context)
 
     assert session_recovery_path().is_file()
+
+
+def test_an_unreadable_remembered_project_still_offers_the_copy(context, qtbot: QtBot, tmp_path: Path) -> None:
+    """Review (#634): when the remembered project exists but fails to load, on_loaded never ran and the offer was lost."""
+    broken = tmp_path / "broken.pplot"
+    broken.write_bytes(b"not a project archive")
+    context.get_manager(SessionPersistenceManager).update_project(str(broken))
+    _write_pending(context)
+    context.ui_controller.show_choice.return_value = None
+    context.ui_controller.show_error_message = Mock()
+    window = Mock()
+
+    restore_last_session(context, window)
+
+    qtbot.waitUntil(lambda: context.ui_controller.show_choice.called, timeout=10000)
+    context.ui_controller.show_error_message.assert_called()
+    window.tab_container.restore_tab_session.assert_not_called()

@@ -287,10 +287,11 @@ def restore_last_session(app_context: AppContext, main_window: PandaMainWindow) 
     """Reopen the project (and tabs) that were open at the end of the previous session.
 
     A remembered titled project is restored as before and the untitled-project
-    recovery offer (if a recovery copy exists) follows once it has loaded, so
-    the question never competes with the load. Without a remembered project
-    (an untitled project is remembered as "no project") or when its file is
-    gone, the recovery offer is shown straight away.
+    recovery offer (if a recovery copy exists) follows once its load has ended,
+    so the question never competes with the load. The offer follows a failed
+    load too (an unreadable file); tabs are only restored after a successful
+    one. Without a remembered project (an untitled project is remembered as
+    "no project") or when its file is gone, the offer is shown straight away.
     """
     session_manager = app_context.get_manager(SessionPersistenceManager)
     last_path = session_manager.last_project_path
@@ -302,13 +303,24 @@ def restore_last_session(app_context: AppContext, main_window: PandaMainWindow) 
     active_tab_id = session_manager.last_active_tab_id
     splitter_sizes = session_manager.last_splitter_sizes
 
-    def _on_loaded(project) -> None:
-        main_window.tab_container.restore_tab_session(panes_data, active_tab_id, splitter_sizes)
-        # Deferred: this callback runs inside the load command's completion handler.
+    offered = False
+
+    def _offer_once() -> None:
+        nonlocal offered
+        if offered:
+            return
+        offered = True
+        # Deferred: this runs inside the load command's completion handler.
         QTimer.singleShot(0, lambda: offer_recovered_untitled_project(app_context))
 
-    command = LoadProjectCommand(app_context, last_path, on_loaded=_on_loaded)
+    def _on_loaded(project) -> None:
+        main_window.tab_container.restore_tab_session(panes_data, active_tab_id, splitter_sizes)
+
+    command = LoadProjectCommand(app_context, last_path, on_loaded=_on_loaded, on_finished=_offer_once)
     app_context.get_command_executor().execute_command(command)
+    if not command.is_loading:
+        # The load never started (refused before dispatch), so on_finished will not run.
+        _offer_once()
 
 
 def launch(app_context: AppContext) -> int:

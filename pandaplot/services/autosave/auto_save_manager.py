@@ -33,6 +33,7 @@ from pandaplot.models.state.config import AutoSaveConfig
 from pandaplot.services.autosave.recovery import (
     delete_session_recovery_copy,
     hold_session_lock,
+    session_copy_generation,
     session_recovery_path,
     session_recovery_temp_path,
 )
@@ -56,9 +57,8 @@ class AutoSaveManager:
         # (id(project), modification_revision) of the last recovery copy written,
         # so an idle untitled project is not rewritten on every tick.
         self._last_recovery_write: tuple[int, int] | None = None
-        # Bumped whenever this session's copy is deleted, so a background write that was
-        # already running when the copy became stale does not recreate it on completion.
-        self._recovery_generation = 0
+        # A background write that finds the copy deleted (session_copy_generation() changed) or
+        # the project edited meanwhile drops its result instead of replacing the copy.
         self._recovery_write_in_flight = False
 
         event_bus.subscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
@@ -158,8 +158,7 @@ class AutoSaveManager:
             self._logger.exception("Auto-save failed")
 
     def _discard_session_copy(self) -> None:
-        """Delete this session's recovery copy and drop any background write still running for it."""
-        self._recovery_generation += 1
+        """Delete this session's recovery copy; a background write still running for it is dropped."""
         self._last_recovery_write = None
         delete_session_recovery_copy()
 
@@ -169,7 +168,10 @@ class AutoSaveManager:
         The copy is written to a temporary name on a worker thread and renamed over
         the previous copy on the main thread, so a crash mid-write never destroys the
         last good copy and a copy that became stale meanwhile is not recreated. The
-        project's file path and modified flag are not changed.
+        project's file path and modified flag are not changed. A write is dropped, keeping
+        the previous copy, when the copy is deleted meanwhile (Save As, Discard, close,
+        replace) or when the project is edited while it is serialised, since such a copy
+        may mix the states before and after the edit; the next tick writes it again.
         """
         if not self._app_state.is_modified or self._app_state.is_saving or self._recovery_write_in_flight:
             return
@@ -179,7 +181,7 @@ class AutoSaveManager:
         if not hold_session_lock():
             self._logger.warning("Writing the recovery copy without holding its lock")
 
-        generation = self._recovery_generation
+        generation = session_copy_generation()
         self._recovery_write_in_flight = True
         try:
             self._app_context.get_task_scheduler().run_task(
@@ -203,8 +205,16 @@ class AutoSaveManager:
 
     def _on_recovery_written(self, _result: object, *, project_name: str, stamp: tuple[int, int], generation: int) -> None:
         temp_path = session_recovery_temp_path()
-        if generation != self._recovery_generation:
-            # The copy became stale (saved, closed, replaced) while it was being written.
+        if generation != session_copy_generation():
+            # The copy was deleted (saved, discarded, closed, replaced) while it was being written.
+            temp_path.unlink(missing_ok=True)
+            return
+        project_id, revision = stamp
+        current = self._app_state.current_project
+        if current is None or id(current) != project_id or self._app_state.modification_revision != revision:
+            # Edited (or replaced) while being serialised: the file may be inconsistent. Keep the
+            # previous copy; the next tick writes the current state.
+            self._logger.debug("Dropping the recovery copy of '%s': the project changed while it was written", project_name)
             temp_path.unlink(missing_ok=True)
             return
         try:

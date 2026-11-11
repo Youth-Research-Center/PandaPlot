@@ -3,6 +3,7 @@
 QMessageBox.exec is replaced by a function that clicks the named button, so no modal loop runs.
 """
 import sys
+from collections.abc import Callable, Iterator
 
 import pytest
 from PySide6.QtWidgets import QApplication, QMessageBox
@@ -66,43 +67,83 @@ def test_show_choice_returns_none_when_the_dialog_is_dismissed(
     assert controller.show_choice("Restore Project", "Message", "Restore", "Discard") is None
 
 
-def _dismiss_shown_box(dismissal: str) -> list[str]:
-    """Dismiss the next shown QMessageBox by a real Esc key press or a real close, from a timer.
+class _ShownBoxDismisser:
+    """Dismisses the next shown QMessageBox by a real Esc key press or a real close, from a timer.
 
-    A second timer force-closes any box still open after 5s, so a regression fails instead of hanging.
+    A watchdog force-closes that same box if it is still open after 5s, so a regression fails instead of
+    hanging. Both timers are owned here and stopped by ``stop()`` (and as soon as the box finishes), so
+    nothing outlives the test and touches a dialog opened by a later one.
     """
-    from PySide6.QtCore import Qt, QTimer
-    from PySide6.QtTest import QTest
 
-    done: list[str] = []
+    def __init__(self, dismissal: str) -> None:
+        from PySide6.QtCore import QTimer
 
-    def dismiss() -> None:
+        self.dismissal = dismissal
+        self.done: list[str] = []
+        self._box: QMessageBox | None = None
+        self._poll = QTimer()
+        self._poll.setInterval(10)
+        self._poll.timeout.connect(self._dismiss)
+        self._watchdog = QTimer()
+        self._watchdog.setSingleShot(True)
+        self._watchdog.setInterval(5000)
+        self._watchdog.timeout.connect(self._force_close)
+
+    def start(self) -> None:
+        self._poll.start()
+        self._watchdog.start()
+
+    def stop(self) -> None:
+        self._poll.stop()
+        self._watchdog.stop()
+
+    def _dismiss(self) -> None:
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+
         box = QApplication.activeModalWidget()
         if not isinstance(box, QMessageBox) or not box.isVisible():
-            QTimer.singleShot(10, dismiss)
             return
-        if dismissal == "escape":
+        self._poll.stop()
+        self._box = box
+        box.finished.connect(self._watchdog.stop)
+        if self.dismissal == "escape":
             QTest.keyClick(box, Qt.Key.Key_Escape)
         else:
             box.close()
-        done.append(dismissal)
+        self.done.append(self.dismissal)
 
-    def force_close() -> None:
-        for widget in QApplication.topLevelWidgets():
-            if isinstance(widget, QMessageBox) and widget.isVisible():
-                widget.done(0)
+    def _force_close(self) -> None:
+        self._poll.stop()
+        box = self._box if self._box is not None else QApplication.activeModalWidget()
+        if isinstance(box, QMessageBox) and box.isVisible():
+            box.done(0)
 
-    QTimer.singleShot(0, dismiss)
-    QTimer.singleShot(5000, force_close)
-    return done
+
+@pytest.fixture
+def dismiss_shown_box(controller: UIController) -> Iterator[Callable[[str], _ShownBoxDismisser]]:
+    dismissers: list[_ShownBoxDismisser] = []
+
+    def start(dismissal: str) -> _ShownBoxDismisser:
+        dismisser = _ShownBoxDismisser(dismissal)
+        dismissers.append(dismisser)
+        dismisser.start()
+        return dismisser
+
+    yield start
+    for dismisser in dismissers:
+        dismisser.stop()
 
 
 @pytest.mark.parametrize("dismissal", ["escape", "close"])
-def test_show_choice_returns_none_when_a_shown_dialog_is_dismissed(controller: UIController, dismissal: str) -> None:
+def test_show_choice_returns_none_when_a_shown_dialog_is_dismissed(
+    controller: UIController, dismiss_shown_box: Callable[[str], _ShownBoxDismisser], dismissal: str
+) -> None:
     """Regression (#629 review): with a single RejectRole button Qt makes that button the escape button,
     so Esc or the title-bar close clicked "Discard" and deleted the recovery copy. Dismissing must not
     pick either choice."""
-    done = _dismiss_shown_box(dismissal)
+    dismisser = dismiss_shown_box(dismissal)
 
     assert controller.show_choice("Restore Project", "Message", "Restore", "Discard") is None
-    assert done == [dismissal]
+    assert dismisser.done == [dismissal]
+    assert not dismisser._watchdog.isActive()

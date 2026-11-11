@@ -258,3 +258,40 @@ def test_writing_the_session_copy_never_overwrites_another_sessions_copy(context
 
     assert other.read_bytes() == b"another session's copy"
     assert session_recovery_path().is_file()
+
+
+def test_discard_during_a_background_write_does_not_bring_the_copy_back(context, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Review (#634): Discard deleted the files but a write already running promoted its temp file afterwards."""
+    from pandaplot.commands.project.project.unsaved_changes import confirm_discard_unsaved_changes
+
+    _open_untitled(context, modified=True)
+    manager = context.get_manager(AutoSaveManager)
+    monkeypatch.setattr(context.ui_controller, "show_save_as_discard_cancel", lambda *_args: "discard")
+
+    manager._on_timer()
+    assert manager._recovery_write_in_flight
+    assert confirm_discard_unsaved_changes(context) is True
+    qtbot.waitUntil(lambda: not manager._recovery_write_in_flight, timeout=10000)
+
+    assert not session_recovery_path().exists()
+    assert not session_recovery_temp_path().exists()
+
+
+def test_an_edit_during_a_background_write_keeps_the_previous_copy_and_retries(context, qtbot: QtBot) -> None:
+    """Review (#634): a copy serialised while the project changed may be inconsistent, so it must not replace the last good one."""
+    _open_untitled(context, modified=True)
+    manager = context.get_manager(AutoSaveManager)
+    _tick(context, qtbot)
+    session_recovery_path().write_bytes(b"last good copy")
+    context.app_state.mark_modified()
+
+    manager._on_timer()
+    assert manager._recovery_write_in_flight
+    context.app_state.mark_modified()  # an edit lands while the copy is being written
+    qtbot.waitUntil(lambda: not manager._recovery_write_in_flight, timeout=10000)
+
+    assert session_recovery_path().read_bytes() == b"last good copy"
+    assert not session_recovery_temp_path().exists()
+
+    _tick(context, qtbot)  # the next tick writes the current state
+    assert session_recovery_path().read_bytes() != b"last good copy"
