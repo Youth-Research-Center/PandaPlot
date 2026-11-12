@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0;background:#E8E9ED;color:#1C1E26;font-family:'IBM Plex Sans',sans-serif}a{color:#0A5F67}a:hover{color:#1C1E26}*{box-sizing:border-box}</style>
+</helmet>
+<section id="step2b" data-screen-label="Step 2B Containers" style="padding:56px; display:flex; flex-direction:column; gap:56px; width:2440px">
+  <header style="display:flex; flex-direction:column; gap:10px; max-width:1200px">
+    <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#5B6270; letter-spacing:1px">PANDAPLOT COMPONENTS · STEP 2B · CONTAINERS 2 OF 2</span>
+    <h1 style="margin:0; font-size:44px; font-weight:600; letter-spacing:-0.5px">Tabs · Side panel shell · Dialog</h1>
+    <p style="margin:0; font-size:18px; line-height:1.5; color:#3F4350; text-wrap:pretty">These are built from the approved tokens and the 2A picks (2b card, 2d section, 2h sub-group), so each option is shown as it would ship. Pick one per component.</p>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; padding-top:6px">
+      <sc-for list="{{ picks }}" as="pk" hint-placeholder-count="4"><span style="font-family:'IBM Plex Mono',monospace; font-size:13px; padding:5px 10px; border-radius:5px; background:#FFFFFF; border:1px solid #D5D8DE; white-space:nowrap; flex:none">{{ pk }}</span></sc-for>
+    </div>
+  </header>
+
+  <div style="display:flex; flex-direction:column; gap:18px">
+    <div style="display:flex; flex-direction:column; gap:4px"><h2 style="margin:0; font-size:28px; font-weight:600">Tab container</h2><span style="font-size:15px; color:#5B6270">Chart Properties (Data / Style / Axes), Wizard pages, Settings. New shared component wrapping QTabWidget. States: selected, hover, keyboard focus, disabled tab, overflow at 260px.</span></div>
+    <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start">
+      <sc-for list="{{ tabOpts }}" as="opt" hint-placeholder-count="3">
+        <div id="{{ opt.id }}" style="width:760px; background:#FFFFFF; border:1px solid #D5D8DE; border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:14px">
+          <div style="display:flex; gap:12px; align-items:flex-start">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500; background:#1C1E26; color:#FFFFFF; padding:4px 9px; border-radius:6px">{{ opt.id }}</span>
+            <div style="display:flex; flex-direction:column; gap:3px; flex:1; min-width:0">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap"><span style="font-size:18px; font-weight:600">{{ opt.title }}</span><sc-if value="{{ opt.rec }}"><span style="font-size:12px; font-weight:600; color:#1F6B42; background:#E3F4EA; padding:2px 8px; border-radius:4px">Recommended</span></sc-if><sc-if value="{{ opt.bold }}"><span style="font-size:12px; font-weight:600; color:#6A2C91; background:#F2E8F9; padding:2px 8px; border-radius:4px">Bold</span></sc-if></div>
+              <span style="font-size:14px; color:#5B6270; line-height:1.45; text-wrap:pretty">{{ opt.sub }}</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px">
+            <sc-for list="{{ opt.themes }}" as="t" hint-placeholder-count="2">
+              <div style="flex:1 1 0; min-width:0; background:{{ t.canvas }}; color:{{ t.text }}; border:1px solid {{ t.bPanel }}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:10px; font-family:'Segoe UI', system-ui, sans-serif; font-size:{{ t.font }}px">
+                <span style="font-weight:700; font-size:11px; color:{{ t.muted }}; letter-spacing:.5px">{{ t.label }}</span>
+                <sc-for list="{{ t.states }}" as="st" hint-placeholder-count="5">
+                  <div style="display:flex; flex-direction:column; gap:4px">
+                    <span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ st.s }}</span>
+                    <div style="background:{{ t.surface }}; border:1px solid {{ t.bSubtle }}; border-radius:6px; padding:8px; display:flex; flex-direction:{{ opt.wrapDir }}; gap:8px">
+                      <div style="display:flex; flex-direction:{{ opt.stripDir }}; gap:{{ opt.stripGap }}px; padding:{{ opt.stripPad }}px; background:{{ st.stripBg }}; border-radius:{{ opt.stripRadius }}px; border-bottom:1px solid {{ st.stripLine }}; border-right:1px solid {{ st.stripLineR }}; width:{{ opt.stripW }}; flex:none">
+                        <sc-for list="{{ st.tabs }}" as="tb">
+                          <div style="height:{{ t.h }}px; padding:0 {{ opt.tabPx }}px; display:flex; align-items:center; justify-content:{{ opt.tabJustify }}; flex:{{ opt.tabFlex }}; background:{{ tb.bg }}; color:{{ tb.col }}; font-weight:{{ tb.w }}; border:1px solid {{ tb.bd }}; border-bottom:{{ opt.bbw }}px solid {{ tb.bb }}; border-radius:{{ opt.tabRadius }}px; white-space:nowrap; min-width:0; overflow:hidden">{{ tb.l }}</div>
+                        </sc-for>
+                      </div>
+                      <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; padding:2px 2px 0">
+                        <span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ t.muted }}">▾  LINE</span>
+                        <div style="height:{{ t.h }}px; border:1px solid {{ t.bControl }}; border-radius:4px; display:flex; align-items:center; padding:0 {{ t.px }}px; color:{{ t.text }}">1.5 px</div>
+                      </div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:5px">
+            <sc-for list="{{ opt.notes }}" as="nt"><div style="display:grid; grid-template-columns:14px minmax(0,1fr); gap:6px; font-size:14px; line-height:1.45"><span style="color:{{ nt.col }}; font-weight:700">{{ nt.s }}</span><span style="text-wrap:pretty">{{ nt.t }}</span></div></sc-for>
+          </div>
+          <pre style="margin:0; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.55; background:#F4F5F8; border:1px solid #E5E6EA; border-radius:6px; padding:10px 12px; white-space:pre-wrap; color:#3F4350">{{ opt.qss }}</pre>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:18px">
+    <div style="display:flex; flex-direction:column; gap:4px"><h2 style="margin:0; font-size:28px; font-weight:600">Side panel shell</h2><span style="font-size:15px; color:#5B6270">Frame shared by every side panel: header, scrolling body, footer. Absorbs <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">DirtyFooter</span>. States: clean, dirty, scrolled (header divider appears).</span></div>
+    <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start">
+      <sc-for list="{{ shellOpts }}" as="opt" hint-placeholder-count="3">
+        <div id="{{ opt.id }}" style="width:760px; background:#FFFFFF; border:1px solid #D5D8DE; border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:14px">
+          <div style="display:flex; gap:12px; align-items:flex-start">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500; background:#1C1E26; color:#FFFFFF; padding:4px 9px; border-radius:6px">{{ opt.id }}</span>
+            <div style="display:flex; flex-direction:column; gap:3px; flex:1; min-width:0">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap"><span style="font-size:18px; font-weight:600">{{ opt.title }}</span><sc-if value="{{ opt.rec }}"><span style="font-size:12px; font-weight:600; color:#1F6B42; background:#E3F4EA; padding:2px 8px; border-radius:4px">Recommended</span></sc-if><sc-if value="{{ opt.bold }}"><span style="font-size:12px; font-weight:600; color:#6A2C91; background:#F2E8F9; padding:2px 8px; border-radius:4px">Bold</span></sc-if></div>
+              <span style="font-size:14px; color:#5B6270; line-height:1.45; text-wrap:pretty">{{ opt.sub }}</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px">
+            <sc-for list="{{ opt.themes }}" as="t" hint-placeholder-count="2">
+              <div style="flex:1 1 0; min-width:0; background:{{ t.canvas }}; color:{{ t.text }}; border:1px solid {{ t.bPanel }}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:10px; font-family:'Segoe UI', system-ui, sans-serif; font-size:{{ t.font }}px">
+                <span style="font-weight:700; font-size:11px; color:{{ t.muted }}; letter-spacing:.5px">{{ t.label }}</span>
+                <sc-for list="{{ t.states }}" as="st" hint-placeholder-count="3">
+                  <div style="display:flex; flex-direction:column; gap:4px">
+                    <span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ st.s }}</span>
+                    <div style="height:290px; background:{{ t.surface }}; border:1px solid {{ t.bPanel }}; border-radius:6px; display:flex; flex-direction:column; overflow:hidden">
+                      <div style="padding:8px 10px; display:flex; flex-direction:column; gap:6px; border-bottom:1px solid {{ st.hdrLine }}; flex:none">
+                        <div style="display:flex; align-items:center; gap:8px; min-height:20px">
+                          <span style="font-size:13px; font-weight:600">Series</span>
+                          <sc-if value="{{ st.badge }}"><span style="font-size:10.5px; font-weight:600; padding:1px 6px; border-radius:4px; background:{{ t.selBg }}; color:{{ t.selText }}">{{ st.badge }}</span></sc-if>
+                          <span style="flex:1"></span>
+                          <sc-for list="{{ st.actions }}" as="a"><span style="font-size:11px; font-weight:600; color:{{ a.col }}">{{ a.l }}</span></sc-for>
+                          <span style="color:{{ t.muted }}; font-size:13px">×</span>
+                        </div>
+                        <sc-if value="{{ opt.ctx }}"><span style="font-size:11px; color:{{ t.muted }}">Chart 1  ›  Revenue (line)</span></sc-if>
+                        <sc-if value="{{ opt.search }}"><div style="height:{{ t.h }}px; border:1px solid {{ t.bControl }}; border-radius:4px; display:flex; align-items:center; padding:0 {{ t.px }}px; color:{{ t.muted }}">Filter properties…</div></sc-if>
+                      </div>
+                      <div style="flex:1; min-height:0; overflow:hidden; padding:8px 10px; display:flex; flex-direction:column; gap:8px">
+                        <div style="display:flex; align-items:center; gap:6px"><span style="font-size:9px; color:{{ t.muted }}">▾</span><span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ t.muted }}">{{ st.first }}</span><sc-if value="{{ st.dirty }}"><span style="width:6px; height:6px; border-radius:3px; background:{{ t.accent }}"></span></sc-if></div>
+                        <div style="background:{{ t.inset }}; border-radius:6px; padding:10px; display:flex; flex-direction:column; gap:6px">
+                          <div style="display:grid; grid-template-columns:50px minmax(0,1fr); gap:8px; align-items:center"><span style="color:{{ t.text2 }}">Width</span><div style="height:{{ t.h }}px; border:1px solid {{ st.fieldBd }}; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; padding:0 {{ t.px }}px">{{ st.val }}</div></div>
+                          <div style="display:grid; grid-template-columns:50px minmax(0,1fr); gap:8px; align-items:center"><span style="color:{{ t.text2 }}">Style</span><div style="height:{{ t.h }}px; border:1px solid {{ t.bControl }}; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; padding:0 {{ t.px }}px">Dashed</div></div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px"><span style="font-size:9px; color:{{ t.muted }}">▸</span><span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ t.muted }}">MARKERS</span></div>
+                        <div style="display:flex; align-items:center; gap:6px"><span style="font-size:9px; color:{{ t.muted }}">▸</span><span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ t.muted }}">LABELS</span></div>
+                      </div>
+                      <sc-if value="{{ st.footer }}">
+                        <div style="padding:8px 10px; border-top:1px solid {{ t.bPanel }}; display:flex; align-items:center; gap:6px; flex:none; background:{{ st.footBg }}">
+                          <sc-if value="{{ st.dirty }}"><span style="width:6px; height:6px; border-radius:3px; background:{{ t.accent }}"></span></sc-if>
+                          <span style="font-size:11px; color:{{ st.statusCol }}; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ st.status }}</span>
+                          <div style="height:{{ t.h }}px; padding:0 10px; display:flex; align-items:center; border:1px solid {{ st.revBd }}; color:{{ st.revCol }}; border-radius:4px">Revert</div>
+                          <div style="height:{{ t.h }}px; padding:0 12px; display:flex; align-items:center; background:{{ st.appBg }}; color:#FFFFFF; border-radius:4px; font-weight:600">Apply</div>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:5px">
+            <sc-for list="{{ opt.notes }}" as="nt"><div style="display:grid; grid-template-columns:14px minmax(0,1fr); gap:6px; font-size:14px; line-height:1.45"><span style="color:{{ nt.col }}; font-weight:700">{{ nt.s }}</span><span style="text-wrap:pretty">{{ nt.t }}</span></div></sc-for>
+          </div>
+          <pre style="margin:0; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.55; background:#F4F5F8; border:1px solid #E5E6EA; border-radius:6px; padding:10px 12px; white-space:pre-wrap; color:#3F4350">{{ opt.qss }}</pre>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:18px">
+    <div style="display:flex; flex-direction:column; gap:4px"><h2 style="margin:0; font-size:28px; font-weight:600">Dialog</h2><span style="font-size:15px; color:#5B6270">QDialog content frame for New chart, Import, Settings and Confirm dialogs. The OS draws the window chrome and shadow. States: default, validation error.</span></div>
+    <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start">
+      <sc-for list="{{ dlgOpts }}" as="opt" hint-placeholder-count="3">
+        <div id="{{ opt.id }}" style="width:760px; background:#FFFFFF; border:1px solid #D5D8DE; border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:14px">
+          <div style="display:flex; gap:12px; align-items:flex-start">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500; background:#1C1E26; color:#FFFFFF; padding:4px 9px; border-radius:6px">{{ opt.id }}</span>
+            <div style="display:flex; flex-direction:column; gap:3px; flex:1; min-width:0">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap"><span style="font-size:18px; font-weight:600">{{ opt.title }}</span><sc-if value="{{ opt.rec }}"><span style="font-size:12px; font-weight:600; color:#1F6B42; background:#E3F4EA; padding:2px 8px; border-radius:4px">Recommended</span></sc-if><sc-if value="{{ opt.bold }}"><span style="font-size:12px; font-weight:600; color:#6A2C91; background:#F2E8F9; padding:2px 8px; border-radius:4px">Bold</span></sc-if></div>
+              <span style="font-size:14px; color:#5B6270; line-height:1.45; text-wrap:pretty">{{ opt.sub }}</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px">
+            <sc-for list="{{ opt.themes }}" as="t" hint-placeholder-count="2">
+              <div style="flex:1 1 0; min-width:0; background:{{ t.canvas }}; color:{{ t.text }}; border:1px solid {{ t.bPanel }}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:10px; font-family:'Segoe UI', system-ui, sans-serif; font-size:{{ t.font }}px">
+                <span style="font-weight:700; font-size:11px; color:{{ t.muted }}; letter-spacing:.5px">{{ t.label }}</span>
+                <sc-for list="{{ t.states }}" as="st" hint-placeholder-count="2">
+                  <div style="display:flex; flex-direction:column; gap:4px">
+                    <span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ st.s }}</span>
+                    <div style="background:{{ t.scrim }}; border-radius:6px; padding:14px 10px">
+                      <div style="background:{{ t.surface }}; border:1px solid {{ t.bPanel }}; border-radius:8px; display:flex; flex-direction:column; overflow:hidden">
+                        <div style="padding:12px 14px 10px; display:flex; flex-direction:column; gap:10px; border-bottom:1px solid {{ t.bSubtle }}">
+                          <div style="display:flex; align-items:center; gap:8px"><span style="font-size:15px; font-weight:600">{{ opt.dTitle }}</span><span style="flex:1"></span><span style="color:{{ t.muted }}; font-size:14px">×</span></div>
+                          <sc-if value="{{ opt.stepper }}">
+                            <div style="display:flex; align-items:center; gap:6px">
+                              <sc-for list="{{ t.steps }}" as="sp"><div style="display:flex; align-items:center; gap:5px; min-width:0"><span style="width:16px; height:16px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; background:{{ sp.bg }}; color:{{ sp.fg }}; border:1px solid {{ sp.bd }}; flex:none">{{ sp.n }}</span><span style="font-size:11px; color:{{ sp.lc }}; font-weight:{{ sp.w }}; white-space:nowrap">{{ sp.l }}</span><sc-if value="{{ sp.line }}"><span style="width:12px; height:1px; background:{{ t.bControl }}"></span></sc-if></div></sc-for>
+                            </div>
+                          </sc-if>
+                        </div>
+                        <div style="display:flex; min-height:150px">
+                          <sc-if value="{{ opt.nav }}">
+                            <div style="width:92px; flex:none; background:{{ t.inset }}; border-right:1px solid {{ t.bSubtle }}; padding:8px 6px; display:flex; flex-direction:column; gap:2px">
+                              <sc-for list="{{ t.navItems }}" as="ni"><div style="height:{{ t.h }}px; display:flex; align-items:center; padding:0 8px; border-radius:4px; background:{{ ni.bg }}; color:{{ ni.col }}; font-weight:{{ ni.w }}">{{ ni.l }}</div></sc-for>
+                            </div>
+                          </sc-if>
+                          <div style="flex:1; min-width:0; padding:12px 14px; display:flex; flex-direction:column; gap:8px">
+                            <div style="display:flex; flex-direction:column; gap:4px"><span style="color:{{ t.text2 }}">Name</span><div style="height:{{ t.h }}px; border:1px solid {{ st.nameBd }}; border-radius:4px; display:flex; align-items:center; padding:0 {{ t.px }}px; color:{{ st.nameCol }}">{{ st.name }}</div><sc-if value="{{ st.err }}"><span style="font-size:11px; color:{{ t.danger }}">Name is required</span></sc-if></div>
+                            <div style="display:flex; flex-direction:column; gap:4px"><span style="color:{{ t.text2 }}">Data source</span><div style="height:{{ t.h }}px; border:1px solid {{ t.bControl }}; border-radius:4px; display:flex; align-items:center; justify-content:space-between; padding:0 {{ t.px }}px; gap:6px"><span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">sales_2026.csv</span><span style="font-size:8px; color:{{ t.muted }}">▼</span></div></div>
+                          </div>
+                        </div>
+                        <div style="padding:10px 14px; border-top:1px solid {{ t.bSubtle }}; display:flex; align-items:center; gap:6px; background:{{ opt.footBg }}">
+                          <sc-if value="{{ opt.back }}"><div style="height:{{ t.h }}px; padding:0 10px; display:flex; align-items:center; border:1px solid {{ t.bControl }}; border-radius:4px">Back</div></sc-if>
+                          <span style="flex:1"></span>
+                          <div style="height:{{ t.h }}px; padding:0 10px; display:flex; align-items:center; border:1px solid {{ t.bControl }}; border-radius:4px">Cancel</div>
+                          <div style="height:{{ t.h }}px; padding:0 12px; display:flex; align-items:center; background:{{ st.priBg }}; color:#FFFFFF; border-radius:4px; font-weight:600">{{ opt.primary }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:5px">
+            <sc-for list="{{ opt.notes }}" as="nt"><div style="display:grid; grid-template-columns:14px minmax(0,1fr); gap:6px; font-size:14px; line-height:1.45"><span style="color:{{ nt.col }}; font-weight:700">{{ nt.s }}</span><span style="text-wrap:pretty">{{ nt.t }}</span></div></sc-for>
+          </div>
+          <pre style="margin:0; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.55; background:#F4F5F8; border:1px solid #E5E6EA; border-radius:6px; padding:10px 12px; white-space:pre-wrap; color:#3F4350">{{ opt.qss }}</pre>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:10px; max-width:1500px; padding:20px; background:#1C1E26; color:#FFFFFF; border-radius:12px">
+    <span style="font-size:18px; font-weight:600">Next</span>
+    <span style="font-size:15px; line-height:1.6; color:#D5D8DE">Reply with picks (e.g. "2j, 2m, 2p"). Then comes <b style="color:#FFFFFF">Step 3 · Controls</b>: PButton, slider + spinbox, and dropdown / value combo.</span>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Compact&quot;,&quot;Default&quot;,&quot;Comfortable&quot;],&quot;default&quot;:&quot;Default&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;themes&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Both&quot;,&quot;Light&quot;,&quot;Dark&quot;],&quot;default&quot;:&quot;Both&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const mix = (a, b, t) => { const p = s => [1, 3, 5].map(i => parseInt(s.substr(i, 2), 16)); const A = p(a), B = p(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+    const DEN = { Compact: { h: 22, px: 6, gap: 4, font: 12 }, Default: { h: 26, px: 8, gap: 6, font: 12 }, Comfortable: { h: 30, px: 10, gap: 8, font: 13 } };
+    const dn = DEN[this.props.density ?? 'Default'] || DEN.Default;
+    const view = this.props.themes ?? 'Both';
+    const T = {
+      light: { label: 'LIGHT', canvas: '#FBFBFC', surface: '#FFFFFF', inset: '#F4F5F8', bPanel: '#E5E6EA', bControl: '#C9CDD5', bSubtle: '#ECEEF2', text: '#1C1E26', text2: '#3F4350', muted: '#6B7280', disabled: '#AEB2BC', danger: '#C82333', accent: '#0E7C86', selBg: '#E3F4F5', selText: '#0A5F67', focus: '#0E7C86', scrim: '#D9DBE0' },
+      dark: { label: 'DARK', canvas: '#1F2123', surface: '#2A2C2E', inset: '#242628', bPanel: '#3A3D40', bControl: '#5A5E64', bSubtle: '#33363A', text: '#E2E2E2', text2: '#C7CAD1', muted: '#A3A9B3', disabled: '#5B6270', danger: '#F07171', accent: '#11808A', selBg: '#163A3E', selText: '#8FDDE3', focus: '#3FB6C1', scrim: '#151618' }
+    };
+    const keys = view === 'Light' ? ['light'] : view === 'Dark' ? ['dark'] : ['light', 'dark'];
+    const N = (s, t) => ({ s, t, col: s === '+' ? '#1F7A45' : s === '–' ? '#C0283A' : '#5B6270' });
+    const themesFor = fn => keys.map(k => { const t = { ...T[k], ...dn }; return { ...t, ...fn(t) }; });
+
+    // TABS
+    const tabStates = (t, sty) => {
+      const mk = (labels, sel, mods = {}) => labels.map((l, i) => { const m = mods[i] || 'rest'; const s = sty[i === sel ? 'sel' : m] || sty.rest; return { l, ...sty.rest, ...s }; });
+      const L = ['Data', 'Style', 'Axes'];
+      return { states: [
+        { s: 'selected: Style', tabs: mk(L, 1), ...sty.strip },
+        { s: 'hover: Axes', tabs: mk(L, 1, { 2: 'hover' }), ...sty.strip },
+        { s: 'focus (keyboard): Axes', tabs: mk(L, 1, { 2: 'focus' }), ...sty.strip },
+        { s: 'disabled: Axes (no data)', tabs: mk(L, 1, { 2: 'dis' }), ...sty.strip },
+        { s: 'overflow: 5 tabs at 260px', tabs: mk(sty.overflow, 1), ...sty.strip }
+      ] };
+    };
+    const tabOpt = (id, title, sub, rec, bold, layout, sty, notes, qss) => ({ id, title, sub, rec, bold, notes, qss, ...layout, themes: themesFor(t => tabStates(t, sty(t))) });
+    const hz = { wrapDir: 'column', stripDir: 'row', stripW: 'auto', tabJustify: 'center' };
+    const tabOpts = [
+      tabOpt('2j', 'Underline', 'Text tabs on a hairline, with a 2px accent underline on the selected tab. The QTabBar default, styled.', true, false,
+        { ...hz, stripGap: 0, stripPad: 0, stripRadius: 0, tabPx: 10, tabFlex: '0 0 auto', tabRadius: 0, bbw: 2 },
+        t => ({ strip: { stripBg: 'transparent', stripLine: t.bSubtle, stripLineR: 'transparent' }, rest: { bg: 'transparent', col: t.muted, w: 400, bd: 'transparent', bb: 'transparent' }, sel: { col: t.text, w: 600, bb: t.accent }, hover: { col: t.text, bb: t.bControl }, focus: { col: t.text, bd: t.focus, bb: t.focus }, dis: { col: t.disabled }, overflow: ['Data', 'Style', 'Axes', 'Legend', '›'] }),
+        [N('+', 'Lightest weight; nothing competes with sections below'), N('+', 'Native QTabBar with only QSS changes'), N('–', 'Overflow needs scroll arrows (Qt default) at 260px')],
+        'QTabBar::tab { background: transparent; color: text_muted; padding: 0 10px;\n  border: 1px solid transparent; border-bottom: 2px solid transparent; }\nQTabBar::tab:selected { color: text_primary; font-weight: 600; border-bottom-color: accent; }\nQTabBar::tab:hover { color: text_primary; border-bottom-color: border_control; }\nQTabWidget::pane { border: none; border-top: 1px solid border_subtle; }'),
+      tabOpt('2k', 'Segmented tabs', 'Tabs share the segmented-control look: an inset track with a raised surface for the selected tab. Same as the existing SegmentedControl.', false, false,
+        { ...hz, stripGap: 2, stripPad: 2, stripRadius: 4, tabPx: 8, tabFlex: '1 1 0', tabRadius: 3, bbw: 1 },
+        t => ({ strip: { stripBg: t.inset, stripLine: 'transparent', stripLineR: 'transparent' }, rest: { bg: 'transparent', col: t.muted, w: 400, bd: 'transparent', bb: 'transparent' }, sel: { bg: t.surface, col: t.text, w: 600, bd: t.bControl, bb: t.bControl }, hover: { bg: mix(t.inset, t.bPanel, .6), col: t.text }, focus: { bd: t.focus, bb: t.focus, col: t.text }, dis: { col: t.disabled }, overflow: ['Data', 'Style', 'Axes', 'Lgd', '…'] }),
+        [N('+', 'One visual language with SegmentedControl, so there are fewer patterns to learn'), N('+', 'Equal-width cells fill a narrow panel neatly'), N('–', 'Easy to confuse with a value picker inside the panel'), N('–', 'More than 4 tabs gets cramped; labels need shortening')],
+        'QTabBar { background: bg_inset; border-radius: 4px; padding: 2px; }\nQTabBar::tab { border: 1px solid transparent; border-radius: 3px; color: text_muted; }\nQTabBar::tab:selected { background: bg_surface; border-color: border_control;\n  color: text_primary; font-weight: 600; }\nQTabBar { qproperty-expanding: true; qproperty-drawBase: false; }'),
+      tabOpt('2l', 'Vertical rail', 'Tabs move to a narrow left rail and content takes the rest. This scales to many tabs (Settings, Chart Properties with 6+ groups) without overflow.', false, true,
+        { wrapDir: 'row', stripDir: 'column', stripW: '74px', tabJustify: 'flex-start', stripGap: 2, stripPad: 0, stripRadius: 0, tabPx: 8, tabFlex: '0 0 auto', tabRadius: 4, bbw: 1 },
+        t => ({ strip: { stripBg: 'transparent', stripLine: 'transparent', stripLineR: t.bSubtle }, rest: { bg: 'transparent', col: t.text2, w: 400, bd: 'transparent', bb: 'transparent' }, sel: { bg: t.selBg, col: t.selText, w: 600 }, hover: { bg: t.inset }, focus: { bd: t.focus, bb: t.focus }, dis: { col: t.disabled }, overflow: ['Data', 'Style', 'Axes', 'Legend', 'Export'] }),
+        [N('+', 'Unlimited tabs; labels never truncate'), N('+', 'Same selected style as list rows (accent_sel_bg)'), N('–', 'Costs ~74px of width; at 260px the content column is ~170px'), N('–', 'Unusual for a properties panel; best for Settings')],
+        'QTabWidget { tabPosition: West }   /* setTabPosition(QTabWidget.West) */\nQTabBar::tab { min-width: 64px; border-radius: 4px; color: text_secondary; text-align: left; }\nQTabBar::tab:selected { background: accent_sel_bg; color: accent_sel_text; font-weight: 600; }\n/* horizontal text via custom QProxyStyle or QListWidget + QStackedWidget */')
+    ];
+
+    // SHELL
+    const shell = (t, o) => ({ hdrLine: 'transparent', badge: '', actions: [], first: 'LINE', dirty: false, val: '1.5 px', fieldBd: t.bControl, footer: true, footBg: t.surface, status: 'No changes', statusCol: t.muted, revBd: t.bSubtle, revCol: t.disabled, appBg: mix(t.accent, t.surface, .55), ...o });
+    const dirtyFoot = t => ({ dirty: true, val: '2 px', fieldBd: t.accent, status: '2 unsaved changes', statusCol: t.text2, revBd: t.bControl, revCol: t.text, appBg: t.accent });
+    const shellOpts = [
+      { id: '2m', title: 'Classic footer', sub: 'Title row, scrolling body, and an always-visible Revert / Apply footer. Buttons are disabled when clean. Matches today\'s DirtyFooter behaviour.', rec: true, bold: false, ctx: false, search: false,
+        notes: [N('+', 'Predictable: Apply is always in the same place'), N('+', 'Smallest change from today'), N('–', 'Footer takes ~42px even when there is nothing to apply')],
+        qss: 'class PanelShell(QWidget):\n    header: QLabel title + close QToolButton\n    body: QScrollArea (frameShape NoFrame)  — divider appears when verticalScrollBar().value() > 0\n    footer: DirtyFooter, top border border_panel',
+        themes: themesFor(t => ({ states: [shell(t, { s: 'clean' }), shell(t, { s: 'dirty', ...dirtyFoot(t) }), shell(t, { s: 'scrolled', hdrLine: t.bPanel, first: 'AXES' })] })) },
+      { id: '2n', title: 'Context header + footer on demand', sub: 'The header names what you\'re editing (Chart 1 › Revenue) and includes a property filter. The footer only appears once there are unsaved changes.', rec: false, bold: false, ctx: true, search: true,
+        notes: [N('+', 'Answers "what am I editing?" for multi-series charts'), N('+', 'Filter field speeds up long panels'), N('–', 'The footer appearing shifts the body up by 42px'), N('–', 'Header grows to ~84px')],
+        qss: 'PanelShell(context: str, searchable=True)\n  footer.setVisible(is_dirty)   # animate maxHeight 0→42 to soften the jump\n  filter: QLineEdit, hides rows whose label does not match',
+        themes: themesFor(t => ({ states: [shell(t, { s: 'clean', footer: false }), shell(t, { s: 'dirty', ...dirtyFoot(t) }), shell(t, { s: 'scrolled', footer: false, hdrLine: t.bPanel, first: 'AXES' })] })) },
+      { id: '2o', title: 'Live apply', sub: 'No footer. Edits apply to the chart immediately. The header shows a change count with Undo and Revert. Suits fast, preview-driven editing.', rec: false, bold: true, ctx: false, search: false,
+        notes: [N('+', 'Instant feedback; no forgotten Apply'), N('+', 'Full panel height for content'), N('–', 'Needs reliable undo across every property'), N('–', 'Expensive re-renders on large datasets need debouncing')],
+        qss: 'PanelShell(live=True)\n  header actions: Undo (Ctrl+Z) · Revert all\n  badge: "{n} changes" in accent_sel_bg / accent_sel_text\n  property edits → QUndoStack, debounce 150ms before redraw',
+        themes: themesFor(t => ({ states: [
+          shell(t, { s: 'clean', footer: false }),
+          shell(t, { s: 'edited (applied live)', footer: false, dirty: true, val: '2 px', fieldBd: t.accent, badge: '2 changes', actions: [{ l: 'Undo', col: t.selText }, { l: 'Revert', col: t.selText }] }),
+          shell(t, { s: 'scrolled', footer: false, hdrLine: t.bPanel, first: 'AXES', badge: '2 changes', actions: [{ l: 'Undo', col: t.selText }, { l: 'Revert', col: t.selText }] })
+        ] })) }
+    ];
+
+    // DIALOG
+    const dState = t => [
+      { s: 'default', name: 'Revenue by region', nameBd: t.bControl, nameCol: t.text, err: false, priBg: t.accent },
+      { s: 'validation error', name: '', nameBd: t.danger, nameCol: t.muted, err: true, priBg: mix(t.accent, t.surface, .55) }
+    ];
+    const nav = t => ['General', 'Data', 'Style', 'Export'].map((l, i) => ({ l, bg: i === 1 ? t.selBg : 'transparent', col: i === 1 ? t.selText : t.text2, w: i === 1 ? 600 : 400 }));
+    const steps = t => ['Source', 'Type', 'Style'].map((l, i) => ({ n: i === 0 ? '✓' : String(i + 1), l, line: i < 2, bg: i === 0 ? t.accent : i === 1 ? t.selBg : 'transparent', fg: i === 0 ? '#FFFFFF' : i === 1 ? t.selText : t.muted, bd: i < 2 ? t.accent : t.bControl, lc: i === 1 ? t.text : t.muted, w: i === 1 ? 600 : 400 }));
+    const dlgOpts = [
+      { id: '2p', title: 'Standard', sub: 'Title, body, and a right-aligned footer (Cancel, then primary). The default for New chart, Import and Confirm.', rec: true, bold: false, dTitle: 'New chart', primary: 'Create', nav: false, stepper: false, back: false, footBg: 'transparent',
+        notes: [N('+', 'Fits every simple dialog; one class covers all'), N('+', 'Button order matches Windows and Linux; macOS swaps via QDialogButtonBox')],
+        qss: 'class PDialog(QDialog):\n    title 15px/600 · body margins 14 · footer QDialogButtonBox, top border border_subtle\n    primary = PButton(role="primary"), disabled until valid',
+        themes: themesFor(t => ({ states: dState(t) })) },
+      { id: '2q', title: 'Sidebar navigation', sub: 'Adds a left nav (styled like list rows) for multi-section dialogs such as Settings or Chart Properties as a modal.', rec: false, bold: false, dTitle: 'Chart settings', primary: 'Save', nav: true, stepper: false, back: false, footBg: 'transparent',
+        notes: [N('+', 'Scales to many sections without tabs'), N('+', 'Shares the selected-row style with 2l and the lists in Step 4'), N('–', 'Only worth it for 4+ sections; overkill for New chart')],
+        qss: 'PDialog(nav=True)\n  nav: QListWidget, bg_inset, item h = control_h, selected accent_sel_bg/text\n  content: QStackedWidget',
+        themes: themesFor(t => ({ states: dState(t), navItems: nav(t) })) },
+      { id: '2r', title: 'Stepper', sub: 'The header carries progress (Source → Type → Style), with Back and Next in the footer. Unifies the Chart Wizard and Import flows.', rec: false, bold: true, dTitle: 'New chart', primary: 'Next', nav: false, stepper: true, back: true, footBg: t => t,
+        notes: [N('+', 'One pattern for every multi-step flow'), N('+', 'Completed steps are clickable to go back'), N('–', 'Needs per-step validation; the error state blocks Next')],
+        qss: 'PDialog(steps=["Source","Type","Style"])\n  step dot 16px: done = accent fill, current = accent_sel_bg + accent border, todo = border_control\n  footer: Back (secondary, left) · Cancel · Next/Finish (primary)',
+        themes: themesFor(t => ({ states: dState(t), steps: steps(t) })) }
+    ];
+    dlgOpts[2].footBg = 'transparent';
+
+    const picks = ['Tokens 1bL/1bD · teal · 4/6/4 · 26px', 'Card 2b inset', 'Section 2d caps + chevron', 'Sub-group 2h hairline'];
+    return { tabOpts, shellOpts, dlgOpts, picks };
+  }
+}
+</script>
+</body>
+</html>
