@@ -68,11 +68,17 @@ class ApplyAnalysisDatasetResultCommand(Command):
     def undo(self) -> CommandResult:
         try:
             project = get_current_project(self.app_context)
-            if self.result_dataset is None or project is None or project.find_item(self.result_dataset.id) is None:
+            live_dataset = (
+                project.find_item(self.result_dataset.id)
+                if self.result_dataset is not None and project is not None
+                else None
+            )
+            if not isinstance(live_dataset, Dataset):
                 self.logger.warning("Undo skipped: the analysis result dataset no longer exists")
                 return CommandResult.ABORTED
 
-            remove_result_dataset(self.app_state, self.result_dataset.id)
+            remove_result_dataset(self.app_state, live_dataset.id)
+            self.result_dataset = live_dataset
             return CommandResult.SUCCESS
 
         except Exception:
