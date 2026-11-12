@@ -1,0 +1,153 @@
+label | "3D VIEW" | hidden
+label | "Elevation:" | hidden
+number | "" | value=30 range=-90..90 decimals=1 suffix="°" hidden
+label | "Azimuth:" | hidden
+number | "" | value=-60 range=-180..180 decimals=1 suffix="°" hidden
+label | "This chart type has no axes to configure. Its title, subtitle and legend are set on the Chart and Legend tabs." | hidden
+label | "Label:" |
+text | "" | value=""
+choice | "" | value="Linear" items=["Linear", "Log"]
+label | "Base:" | hidden
+combo | "" | value="10" items=["10", "2", "e (natural log)", "Custom..."] hidden
+number | "" | value=10 range=0.001..1000 decimals=2 hidden
+label | "RANGE" |
+label | "Auto" |
+checkable | "" | checked=true
+label | "Min:" |
+number | "" | value=0 range=-1000000000..1000000000 decimals=6 disabled
+label | "Max:" |
+number | "" | value=9.9 range=-1000000000..1000000000 decimals=6 disabled
+label | "TICKS" |
+choice | "" | value="Auto" items=["Auto", "Count", "Step"]
+label | "Count:" | hidden
+number | "" | value=5 range=2..50 decimals=0 hidden
+label | "Step:" | hidden
+number | "" | value=1 range=0.001..1000000000 decimals=2 hidden
+label | "Format:" |
+combo | "" | value="Auto" items=["Auto", "Integer", "1 Decimal", "2 Decimals", "Scientific", "Custom..."]
+text | "" | value="" placeholder="e.g. {:.2f} units" disabled
+label | "Show grid" |
+checkable | "" | checked=true
+label | "Direction:" |
+choice | "" | value="Out" items=["Out", "In", "In & Out"]
+label | "Minor ticks" |
+checkable | "" | checked=false
+label | "Minor direction:" | hidden
+choice | "" | value="Out" items=["Out", "In", "In & Out"] hidden
+label | "Minor grid:" | hidden
+checkable | "" | checked=false hidden
+label | "Label:" | hidden
+text | "" | value="" hidden
+choice | "" | value="Linear" items=["Linear", "Log"] hidden
+label | "Base:" | hidden
+combo | "" | value="10" items=["10", "2", "e (natural log)", "Custom..."] hidden
+number | "" | value=10 range=0.001..1000 decimals=2 hidden
+choice | "" | value="Left" items=["Left", "Right"] hidden
+label | "RANGE" | hidden
+label | "Auto" | hidden
+checkable | "" | checked=true hidden
+label | "Min:" | hidden
+number | "" | value=-0.999923 range=-1000000000..1000000000 decimals=6 hidden disabled
+label | "Max:" | hidden
+number | "" | value=0.999574 range=-1000000000..1000000000 decimals=6 hidden disabled
+label | "TICKS" | hidden
+choice | "" | value="Auto" items=["Auto", "Count", "Step"] hidden
+label | "Count:" | hidden
+number | "" | value=5 range=2..50 decimals=0 hidden
+label | "Step:" | hidden
+number | "" | value=1 range=0.001..1000000000 decimals=2 hidden
+label | "Format:" | hidden
+combo | "" | value="Auto" items=["Auto", "Integer", "1 Decimal", "2 Decimals", "Scientific", "Custom..."] hidden
+text | "" | value="" placeholder="e.g. {:.2f} units" hidden disabled
+label | "Show grid" | hidden
+checkable | "" | checked=true hidden
+label | "Direction:" | hidden
+choice | "" | value="Out" items=["Out", "In", "In & Out"] hidden
+label | "Minor ticks" | hidden
+checkable | "" | checked=false hidden
+label | "Minor direction:" | hidden
+choice | "" | value="Out" items=["Out", "In", "In & Out"] hidden
+label | "Minor grid:" | hidden
+checkable | "" | checked=false hidden
+button | "Copy settings to Y axis" | hidden
+label | "Label:" | hidden
+text | "" | value="" hidden
+choice | "" | value="Linear" items=["Linear", "Log"] hidden
+label | "Base:" | hidden
+combo | "" | value="10" items=["10", "2", "e (natural log)", "Custom..."] hidden
+number | "" | value=10 range=0.001..1000 decimals=2 hidden
+choice | "" | value="Right" items=["Left", "Right"] hidden
+label | "RANGE" | hidden
+label | "Auto" | hidden
+checkable | "" | checked=true hidden
+label | "Min:" | hidden
+number | "" | value=0 range=-1000000000..1000000000 decimals=6 hidden disabled
+label | "Max:" | hidden
+number | "" | value=1 range=-1000000000..1000000000 decimals=6 hidden disabled
+label | "TICKS" | hidden
+choice | "" | value="Auto" items=["Auto", "Count", "Step"] hidden
+label | "Count:" | hidden
+number | "" | value=5 range=2..50 decimals=0 hidden
+label | "Step:" | hidden
+number | "" | value=1 range=0.001..1000000000 decimals=2 hidden
+label | "Format:" | hidden
+combo | "" | value="Auto" items=["Auto", "Integer", "1 Decimal", "2 Decimals", "Scientific", "Custom..."] hidden
+text | "" | value="" placeholder="e.g. {:.2f} units" hidden disabled
+label | "Show grid" | hidden
+checkable | "" | checked=true hidden
+label | "Direction:" | hidden
+choice | "" | value="Out" items=["Out", "In", "In & Out"] hidden
+label | "Minor ticks" | hidden
+checkable | "" | checked=false hidden
+label | "Minor direction:" | hidden
+choice | "" | value="Out" items=["Out", "In", "In & Out"] hidden
+label | "Minor grid:" | hidden
+checkable | "" | checked=false hidden
+button | "Copy settings to Y axis" | hidden
+label | "Label:" | hidden
+text | "" | value="" hidden
+choice | "" | value="Linear" items=["Linear", "Log"] hidden
+label | "Base:" | hidden
+combo | "" | value="10" items=["10", "2", "e (natural log)", "Custom..."] hidden
+number | "" | value=10 range=0.001..1000 decimals=2 hidden
+label | "RANGE" | hidden
+label | "Auto" | hidden
+checkable | "" | checked=true hidden
+label | "Min:" | hidden
+number | "" | value=0 range=-1000000000..1000000000 decimals=6 hidden disabled
+label | "Max:" | hidden
+number | "" | value=1 range=-1000000000..1000000000 decimals=6 hidden disabled
+label | "TICKS" | hidden
+choice | "" | value="Auto" items=["Auto", "Count", "Step"] hidden
+label | "Count:" | hidden
+number | "" | value=5 range=2..50 decimals=0 hidden
+label | "Step:" | hidden
+number | "" | value=1 range=0.001..1000000000 decimals=2 hidden
+label | "Format:" | hidden
+combo | "" | value="Auto" items=["Auto", "Integer", "1 Decimal", "2 Decimals", "Scientific", "Custom..."] hidden
+text | "" | value="" placeholder="e.g. {:.2f} units" hidden disabled
+label | "Show grid" | hidden
+checkable | "" | checked=true hidden
+label | "Direction:" | hidden
+choice | "" | value="Out" items=["Out", "In", "In & Out"] hidden
+label | "Minor ticks" | hidden
+checkable | "" | checked=false hidden
+label | "Minor direction:" | hidden
+choice | "" | value="Out" items=["Out", "In", "In & Out"] hidden
+label | "Minor grid:" | hidden
+checkable | "" | checked=false hidden
+label | "COLOR MAP" | hidden
+label | "Colormap:" | hidden
+combo | "" | value="Viridis" items=["Viridis", "Plasma", "Cool", "Autumn", "Jet", "Hot", "Coolwarm"] hidden
+label | "Show colorbar:" | hidden
+checkable | "" | checked=true hidden
+label | "Colorbar label:" | hidden
+text | "" | value="" hidden
+label | "Auto scale:" | hidden
+checkable | "" | checked=true hidden
+label | "Min:" | hidden
+number | "" | value=0 range=-1000000000..1000000000 decimals=3 hidden
+label | "Max:" | hidden
+number | "" | value=1 range=-1000000000..1000000000 decimals=3 hidden
+button | "X" |
+button | "Y₁" |

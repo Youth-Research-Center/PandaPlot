@@ -1,0 +1,15 @@
+label | "Descriptive Statistics" |
+button | "?" |
+group | "Columns" |
+list | "" | items=["time", "signal", "reference"]
+label | "Select one or more numeric columns (Ctrl/Shift-click)." |
+button | "Select all" |
+group | "Options" |
+label | "Significant digits:" |
+number | "" | value=6 range=1..12 decimals=0
+checkable | "Also add a written report (note)" | checked=true
+group | "Results" |
+button | "Compute" |
+text | "" | value="" placeholder="Compute statistics to see a preview here..." read-only
+button | "Add to Project" | disabled
+button | "Clear" |

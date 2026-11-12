@@ -1,0 +1,19 @@
+label | "Statistical Tests" |
+button | "?" |
+group | "Test" |
+label | "Test:" |
+combo | "" | value="One-sample t-test" items=["One-sample t-test", "Independent (two-sample) t-test", "Paired t-test", "Mann-Whitney U (nonparametric)", "Wilcoxon signed-rank (nonparametric)", "One-way ANOVA", "Kruskal-Wallis (nonparametric)", "Pearson correlation", "Spearman correlation (rank)", "Shapiro-Wilk normality test"]
+button | "About this test" |
+label | "Tests whether the mean of a single sample differs from a known/expected value." |
+label | "Assumptions: Sample is approximately normally distributed; observations are independent." |
+group | "Data Selection" |
+group | "Parameters" |
+group | "Results" |
+button | "Run" |
+text | "" | value="" placeholder="Run a test to see results here..." read-only
+button | "Add to Project" | disabled
+button | "Clear" |
+number | "Significance (α):" | value=0.05 range=0.0001..0.5 decimals=4
+number | "Expected mean (μ₀):" | value=0 range=-1e+12..1e+12 decimals=6
+combo | "Alternative:" | value="two-sided" items=["two-sided", "less", "greater"]
+combo | "Sample column:" | value="time" items=["time", "signal", "reference"]

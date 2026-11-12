@@ -1,0 +1,47 @@
+label | "SERIES" |
+button | "+ Add series" |
+label | "Signal" |
+label | "Y₁" |
+button | "Move series up" | disabled
+button | "Move series down" | disabled
+button | "Remove series" |
+button | "Series details expanded" | disabled
+label | "Dataset:" |
+combo | "" | value="Measurements" items=["Measurements"]
+label | "X Column:" |
+combo | "" | value="time" items=["time", "signal", "reference"]
+label | "Y Column:" |
+combo | "" | value="signal" items=["time", "signal", "reference"]
+label | "Labels Column (optional):" | hidden
+combo | "" | value="None" items=["None", "time", "signal", "reference"] hidden
+label | "Y₂ Column (optional):" |
+combo | "Y₂ column" | value="None" items=["None", "time", "signal", "reference"]
+label | "Z Column:" | hidden
+combo | "" | value="None" items=["None", "time", "signal", "reference"] hidden
+label | "U Column:" | hidden
+combo | "" | value="None" items=["None", "time", "signal", "reference"] hidden
+label | "V Column:" | hidden
+combo | "" | value="None" items=["None", "time", "signal", "reference"] hidden
+label | "W Column:" | hidden
+combo | "" | value="None" items=["None", "time", "signal", "reference"] hidden
+label | "Y Axis:" |
+choice | "" | value="Y₁ left" items=["Y₁ left", "Y₂ right"]
+label | "Label:" |
+text | "" | value="Signal"
+checkable | "Asymmetric Error Bars" | checked=false
+label | "X Error Column:" |
+combo | "" | value="None" items=["None", "time", "signal", "reference"]
+label | "X Error (-) Column:" | hidden
+combo | "" | value="None" items=["None", "time", "signal", "reference"] hidden disabled
+label | "Y Error Column:" |
+combo | "" | value="None" items=["None", "time", "signal", "reference"]
+label | "Y Error (-) Column:" | hidden
+combo | "" | value="None" items=["None", "time", "signal", "reference"] hidden disabled
+label | "Color-by Column (optional):" | hidden
+combo | "" | value="None" items=["None", "time", "signal", "reference"] hidden
+label | "Series Type:" |
+combo | "" | value="Line" items=["Line", "Scatter", "Vector", "Fit"]
+label | "Confidence Lower Column (optional):" |
+combo | "" | value="None" items=["None", "time", "signal", "reference"]
+label | "Confidence Upper Column (optional):" |
+combo | "" | value="None" items=["None", "time", "signal", "reference"]

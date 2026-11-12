@@ -1,0 +1,7 @@
+label | "Search Notes" |
+text | "" | value="" placeholder="Search across all notes…"
+button | "" | hidden
+checkable | "Aa" | checked=false
+checkable | "W" | checked=false
+checkable | ".*" | checked=false
+list | "" | items=[]
