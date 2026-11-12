@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0;background:#E8E9ED;color:#1C1E26;font-family:'IBM Plex Sans',sans-serif}a{color:#0A5F67}a:hover{color:#1C1E26}*{box-sizing:border-box}</style>
+</helmet>
+<section id="step5" data-screen-label="Step 5 Unified Screens" style="padding:56px; display:flex; flex-direction:column; gap:48px; width:2400px">
+  <header style="display:flex; flex-direction:column; gap:10px; max-width:1300px">
+    <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#5B6270; letter-spacing:1px">PANDAPLOT COMPONENTS · STEP 5 · STYLE UNIFICATION</span>
+    <h1 style="margin:0; font-size:44px; font-weight:600; letter-spacing:-0.5px">Every pick, applied to real screens</h1>
+    <p style="margin:0; font-size:18px; line-height:1.5; color:#3F4350; text-wrap:pretty">These four screens are built only from the approved components, so this is what the app looks like after migration. Each component is tagged with its option id, so you can trace any element back to its step. Earlier versions of these screens are in <a href="All Side Panels.dc.html">All Side Panels</a>, <a href="Chart Properties Tabs.dc.html">Chart Properties Tabs</a> and <a href="Chart Wizard.dc.html">Chart Wizard</a>.</p>
+    <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:#FFF3DC; border:1px solid #E8C886; border-radius:8px; font-size:15px; line-height:1.5; color:#5A3A00"><b style="font-weight:600; white-space:nowrap">Showcase only.</b><span style="text-wrap:pretty">Panel contents here (sections, fields, ordering) are sample content to show the components together. Migration changes styling only: every real panel keeps its current sections, fields and order exactly as they are today.</span></div>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; padding-top:6px">
+      <sc-for list="{{ picks }}" as="pk" hint-placeholder-count="8"><span style="font-family:'IBM Plex Mono',monospace; font-size:13px; padding:5px 10px; border-radius:5px; background:#FFFFFF; border:1px solid #D5D8DE">{{ pk }}</span></sc-for>
+    </div>
+  </header>
+
+  <sc-for list="{{ themes }}" as="t" hint-placeholder-count="2">
+    <div style="display:flex; flex-direction:column; gap:16px">
+      <div style="display:flex; align-items:center; gap:10px"><span style="font-size:13px; font-weight:700; letter-spacing:1px; padding:4px 10px; border-radius:5px; background:{{ t.chipBg }}; color:{{ t.chipFg }}; border:1px solid #1C1E26">{{ t.label }}</span></div>
+      <div style="display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; font-family:'Segoe UI', system-ui, sans-serif; font-size:12px">
+
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <span style="font-family:'IBM Plex Sans',sans-serif; font-size:15px; font-weight:600; color:#1C1E26">Series panel · 260px</span>
+          <div style="width:260px; height:720px; background:{{ t.surface }}; color:{{ t.text }}; border:1px solid {{ t.bPanel }}; border-radius:6px; display:flex; flex-direction:column; overflow:hidden">
+            <div style="padding:8px 10px; display:flex; align-items:center; gap:8px; border-bottom:1px solid {{ t.bPanel }}"><span style="font-size:13px; font-weight:600">Series</span><span style="flex:1"></span><span style="font-size:9px; color:{{ t.tag }}; font-family:'IBM Plex Mono',monospace">2m</span><span style="color:{{ t.muted }}; font-size:13px">×</span></div>
+            <div style="flex:1; min-height:0; overflow:hidden; padding:10px; display:flex; flex-direction:column; gap:12px">
+              <div style="display:flex; flex-direction:column; gap:6px">
+                <div style="display:flex; align-items:center; gap:6px"><span style="font-size:9px; color:{{ t.muted }}">▾</span><span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ t.muted }}">VISIBLE</span><span style="flex:1"></span><span style="font-size:9px; color:{{ t.tag }}; font-family:'IBM Plex Mono',monospace">2d · 4a1</span></div>
+                <div style="border:1px solid {{ t.bControl }}; border-radius:4px; overflow:hidden">
+                  <div style="height:26px; display:flex; align-items:center; gap:8px; padding:0 8px; background:{{ t.inset }}; border-bottom:1px solid {{ t.bSubtle }}"><span style="width:14px; height:14px; border-radius:3px; background:{{ t.accent }}; color:#FFFFFF; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center">–</span><span style="font-weight:600; flex:1">All series</span><span style="font-size:11px; color:{{ t.muted }}">3 of 4</span></div>
+                  <sc-for list="{{ t.series }}" as="s">
+                    <div style="height:26px; display:flex; align-items:center; gap:8px; padding:0 8px; background:{{ s.bg }}"><span style="width:14px; height:14px; border-radius:3px; background:{{ s.cb }}; border:1px solid {{ s.cbBd }}; color:#FFFFFF; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center">{{ s.mark }}</span><span style="width:10px; height:3px; border-radius:2px; background:{{ s.sw }}"></span><span style="flex:1; font-weight:{{ s.w }}">{{ s.l }}</span><span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ s.meta }}</span></div>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px">
+                <div style="display:flex; align-items:center; gap:6px"><span style="font-size:9px; color:{{ t.muted }}">▾</span><span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ t.muted }}">LINE · COST</span><span style="width:6px; height:6px; border-radius:3px; background:{{ t.accent }}"></span><span style="flex:1"></span><span style="font-size:11px; font-weight:600; color:{{ t.selText }}">Reset</span></div>
+                <div style="background:{{ t.inset }}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:6px; position:relative">
+                  <span style="position:absolute; right:6px; top:4px; font-size:9px; color:{{ t.tag }}; font-family:'IBM Plex Mono',monospace">2b</span>
+                  <div style="display:grid; grid-template-columns:{{ t.c1 }}; gap:{{ t.g }}; align-items:center; padding-left:{{ t.pad }}"><span style="grid-column:{{ t.span }}; margin-left:{{ t.pull }}; color:{{ t.text2 }}">Width</span>
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0"><div style="flex:1; height:4px; border-radius:2px; background:{{ t.track }}; position:relative"><div style="position:absolute; left:0; top:0; bottom:0; width:30%; background:{{ t.accent }}; border-radius:2px"></div><div style="position:absolute; left:30%; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:{{ t.knob }}; border:1px solid {{ t.bControl }}"></div></div><div style="width:58px; height:26px; border:1px solid {{ t.bControl }}; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; justify-content:flex-end; gap:3px; padding:0 8px">2.0<span style="color:{{ t.muted }}">px</span></div></div>
+                  </div>
+                  <div style="display:grid; grid-template-columns:{{ t.c1 }}; gap:{{ t.g }}; align-items:center; padding-left:{{ t.pad }}"><span style="grid-column:{{ t.span }}; margin-left:{{ t.pull }}; color:{{ t.text2 }}">Style</span><div style="height:26px; border:1px solid {{ t.bControl }}; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; justify-content:space-between; padding:0 8px">Dashed<span style="font-size:8px; color:{{ t.muted }}">▼</span></div></div>
+                  <div style="display:grid; grid-template-columns:{{ t.c1 }}; gap:{{ t.g }}; align-items:center; padding-left:{{ t.pad }}"><span style="grid-column:{{ t.span }}; margin-left:{{ t.pull }}; color:{{ t.text2 }}">Opacity</span>
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0"><div style="flex:1; height:4px; border-radius:2px; background:{{ t.track }}; position:relative"><div style="position:absolute; left:0; top:0; bottom:0; width:80%; background:{{ t.accent }}; border-radius:2px"></div><div style="position:absolute; left:80%; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:{{ t.knob }}; border:1px solid {{ t.bControl }}"></div></div><div style="width:58px; height:26px; border:1px solid {{ t.bControl }}; outline:2px solid {{ t.focus }}; outline-offset:1px; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; justify-content:flex-end; gap:3px; padding:0 8px">80<span style="color:{{ t.muted }}">%</span></div></div>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:8px; padding-top:4px"><span style="font-size:11.5px; font-weight:600; color:{{ t.text2 }}">Markers</span><span style="flex:1; height:1px; background:{{ t.bSubtle }}"></span><span style="font-size:9px; color:{{ t.tag }}; font-family:'IBM Plex Mono',monospace">2h</span></div>
+                  <div style="display:grid; grid-template-columns:{{ t.c1 }}; gap:{{ t.g }}; align-items:center; padding-left:{{ t.pad }}"><span style="grid-column:{{ t.span }}; margin-left:{{ t.pull }}; color:{{ t.text2 }}">Shape</span><div style="height:26px; border:1px solid {{ t.bControl }}; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; justify-content:space-between; padding:0 8px">Circle<span style="font-size:8px; color:{{ t.muted }}">▼</span></div></div>
+                  <div style="display:grid; grid-template-columns:{{ t.c1 }}; gap:{{ t.g }}; align-items:center; padding-left:{{ t.pad }}"><span style="grid-column:{{ t.span }}; margin-left:{{ t.pull }}; color:{{ t.text2 }}">Size</span>
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0"><div style="flex:1; height:4px; border-radius:2px; background:{{ t.track }}; position:relative"><div style="position:absolute; left:0; top:0; bottom:0; width:40%; background:{{ t.accent }}; border-radius:2px"></div><div style="position:absolute; left:40%; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:{{ t.knob }}; border:1px solid {{ t.bControl }}"></div></div><div style="width:58px; height:26px; border:1px solid {{ t.bControl }}; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; justify-content:flex-end; gap:3px; padding:0 8px">6<span style="color:{{ t.muted }}">px</span></div></div>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px"><span style="font-size:9px; color:{{ t.muted }}">▸</span><span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ t.muted }}">LABELS</span></div>
+              <div style="display:flex; align-items:center; gap:6px"><span style="font-size:9px; color:{{ t.muted }}">▸</span><span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ t.muted }}">ERROR BARS</span></div>
+            </div>
+            <div style="padding:8px 10px; border-top:1px solid {{ t.bPanel }}; display:flex; align-items:center; gap:6px">
+              <span style="width:6px; height:6px; border-radius:3px; background:{{ t.accent }}"></span><span style="font-size:11px; color:{{ t.text2 }}; flex:1">2 unsaved changes</span>
+              <div style="height:26px; padding:0 12px; display:flex; align-items:center; border:1px solid {{ t.bControl }}; background:{{ t.surface }}; border-radius:4px">Revert</div>
+              <div style="height:26px; padding:0 12px; display:flex; align-items:center; background:{{ t.accent }}; color:#FFFFFF; border-radius:4px; font-weight:600">Apply</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <span style="font-family:'IBM Plex Sans',sans-serif; font-size:15px; font-weight:600; color:#1C1E26">Chart Properties · 360px</span>
+          <div style="width:360px; height:720px; background:{{ t.surface }}; color:{{ t.text }}; border:1px solid {{ t.bPanel }}; border-radius:6px; display:flex; flex-direction:column; overflow:hidden">
+            <div style="padding:8px 10px 0; display:flex; flex-direction:column; gap:6px">
+              <div style="display:flex; align-items:center; gap:8px"><span style="font-size:13px; font-weight:600">Chart Properties</span><span style="flex:1"></span><span style="color:{{ t.muted }}; font-size:13px">×</span></div>
+              <div style="display:flex; border-bottom:1px solid {{ t.bSubtle }}; position:relative">
+                <sc-for list="{{ t.tabs }}" as="tb"><div style="height:28px; padding:0 10px; display:flex; align-items:center; color:{{ tb.col }}; font-weight:{{ tb.w }}; border-bottom:2px solid {{ tb.bb }}; margin-bottom:-1px">{{ tb.l }}</div></sc-for>
+                <span style="position:absolute; right:0; top:8px; font-size:9px; color:{{ t.tag }}; font-family:'IBM Plex Mono',monospace">2j</span>
+              </div>
+            </div>
+            <div style="flex:1; min-height:0; overflow:hidden; padding:10px; display:flex; flex-direction:column; gap:12px">
+              <div style="display:flex; flex-direction:column; gap:6px">
+                <div style="display:flex; align-items:center; gap:6px"><span style="font-size:9px; color:{{ t.muted }}">▾</span><span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ t.muted }}">AXES</span></div>
+                <div style="display:flex; flex-direction:column; gap:6px">
+                  <div style="display:grid; grid-template-columns:{{ t.c1w }}; gap:{{ t.g }}; align-items:center; padding-left:{{ t.pad }}"><span style="grid-column:{{ t.span }}; margin-left:{{ t.pull }}; color:{{ t.text2 }}">Apply to</span>
+                    <div style="height:26px; border:1px solid {{ t.bControl }}; border-radius:4px; display:flex; align-items:center; gap:4px; padding:2px 4px; min-width:0">
+                      <sc-for list="{{ t.chips }}" as="c"><span style="height:20px; display:flex; align-items:center; gap:5px; padding:0 4px 0 7px; border-radius:4px; background:{{ t.selBg }}; color:{{ t.selText }}; font-size:11.5px; white-space:nowrap"><span style="width:8px; height:3px; border-radius:2px; background:{{ c.sw }}"></span>{{ c.l }}<span style="font-size:11px; padding:0 2px">×</span></span></sc-for>
+                      <span style="font-size:11px; color:{{ t.muted }}; padding:0 2px">+1</span><span style="flex:1"></span><span style="font-size:9px; color:{{ t.tag }}; font-family:'IBM Plex Mono',monospace">4b2</span><span style="font-size:8px; color:{{ t.muted }}; padding:0 3px">▼</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="background:{{ t.inset }}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:6px">
+                  <div style="display:flex; align-items:center; gap:8px"><span style="font-size:11.5px; font-weight:600; color:{{ t.text2 }}">X axis</span><span style="flex:1; height:1px; background:{{ t.bSubtle }}"></span></div>
+                  <div style="display:grid; grid-template-columns:{{ t.c1w }}; gap:{{ t.g }}; align-items:center; padding-left:{{ t.pad }}"><span style="grid-column:{{ t.span }}; margin-left:{{ t.pull }}; color:{{ t.text2 }}">Column</span><div style="height:26px; border:1px solid {{ t.bControl }}; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; gap:6px; padding:0 8px"><span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">date</span><span style="flex:1">order_date</span><span style="font-size:9px; color:{{ t.tag }}; font-family:'IBM Plex Mono',monospace">3i</span><span style="font-size:8px; color:{{ t.muted }}">▼</span></div></div>
+                  <div style="display:grid; grid-template-columns:{{ t.c2w }}; gap:{{ t.g }}; align-items:center; padding-left:{{ t.pad }}"><span style="grid-column:{{ t.span }}; margin-left:{{ t.pull }}; color:{{ t.text2 }}">Range</span><div style="height:26px; border:1px solid {{ t.bControl }}; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; padding:0 8px; color:{{ t.muted }}">Auto</div><div style="height:26px; border:1px solid {{ t.bControl }}; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; padding:0 8px; color:{{ t.muted }}">Auto</div></div>
+                  <div style="display:flex; align-items:center; gap:8px; padding-top:4px"><span style="font-size:11.5px; font-weight:600; color:{{ t.text2 }}">Y axis</span><span style="flex:1; height:1px; background:{{ t.bSubtle }}"></span></div>
+                  <div style="display:grid; grid-template-columns:{{ t.c1w }}; gap:{{ t.g }}; align-items:center; padding-left:{{ t.pad }}"><span style="grid-column:{{ t.span }}; margin-left:{{ t.pull }}; color:{{ t.text2 }}">Scale</span><div style="display:flex; border:1px solid {{ t.bControl }}; border-radius:4px; padding:1px; height:26px; background:{{ t.surface }}"><div style="flex:1; display:flex; align-items:center; justify-content:center; background:{{ t.selBg }}; color:{{ t.selText }}; font-weight:600; border-radius:3px">Linear</div><div style="flex:1; display:flex; align-items:center; justify-content:center; color:{{ t.muted }}">Log</div><div style="flex:1; display:flex; align-items:center; justify-content:center; color:{{ t.muted }}">Symlog</div></div></div>
+                  <div style="display:grid; grid-template-columns:{{ t.c2w }}; gap:{{ t.g }}; align-items:center; padding-left:{{ t.pad }}"><span style="grid-column:{{ t.span }}; margin-left:{{ t.pull }}; color:{{ t.text2 }}">Range</span><div style="height:26px; border:1px solid {{ t.bControl }}; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; padding:0 8px">0</div><div style="height:26px; border:1px solid {{ t.bControl }}; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; padding:0 8px">12 000</div></div>
+                </div>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px">
+                <div style="display:flex; align-items:center; gap:6px"><span style="font-size:9px; color:{{ t.muted }}">▾</span><span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ t.muted }}">GRID</span></div>
+                <div style="background:{{ t.inset }}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:6px">
+                  <div style="display:grid; grid-template-columns:{{ t.c1w }}; gap:{{ t.g }}; align-items:center; padding-left:{{ t.pad }}"><span style="grid-column:{{ t.span }}; margin-left:{{ t.pull }}; color:{{ t.text2 }}">Show</span><div style="width:26px; height:15px; border-radius:8px; background:{{ t.accent }}; position:relative"><div style="position:absolute; right:2px; top:2px; width:11px; height:11px; border-radius:6px; background:#FFFFFF"></div></div></div>
+                  <div style="display:grid; grid-template-columns:{{ t.c1w }}; gap:{{ t.g }}; align-items:center; padding-left:{{ t.pad }}"><span style="grid-column:{{ t.span }}; margin-left:{{ t.pull }}; color:{{ t.text2 }}">Opacity</span>
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0"><div style="flex:1; height:4px; border-radius:2px; background:{{ t.track }}; position:relative"><div style="position:absolute; left:0; top:0; bottom:0; width:25%; background:{{ t.accent }}; border-radius:2px"></div><div style="position:absolute; left:25%; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:{{ t.knob }}; border:1px solid {{ t.bControl }}"></div></div><div style="width:58px; height:26px; border:1px solid {{ t.bControl }}; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; justify-content:flex-end; gap:3px; padding:0 8px">25<span style="color:{{ t.muted }}">%</span></div></div>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px"><span style="font-size:9px; color:{{ t.muted }}">▸</span><span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ t.muted }}">LEGEND</span></div>
+            </div>
+            <div style="padding:8px 10px; border-top:1px solid {{ t.bPanel }}; display:flex; align-items:center; gap:6px">
+              <span style="font-size:11px; color:{{ t.muted }}; flex:1">No changes</span>
+              <div style="height:26px; padding:0 12px; display:flex; align-items:center; border:1px solid {{ t.bSubtle }}; color:{{ t.disabled }}; border-radius:4px">Revert</div>
+              <div style="height:26px; padding:0 12px; display:flex; align-items:center; background:{{ t.accentDis }}; color:#FFFFFF; border-radius:4px; font-weight:600">Apply</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <span style="font-family:'IBM Plex Sans',sans-serif; font-size:15px; font-weight:600; color:#1C1E26">Settings · dialog with rail</span>
+          <div style="width:640px; background:{{ t.scrim }}; border-radius:8px; padding:24px">
+            <div style="background:{{ t.surface }}; color:{{ t.text }}; border:1px solid {{ t.bPanel }}; border-radius:8px; display:flex; flex-direction:column; overflow:hidden">
+              <div style="padding:12px 14px 10px; display:flex; align-items:center; gap:8px; border-bottom:1px solid {{ t.bSubtle }}"><span style="font-size:15px; font-weight:600">Settings</span><span style="font-size:9px; color:{{ t.tag }}; font-family:'IBM Plex Mono',monospace">2q · 2l</span><span style="flex:1"></span><span style="color:{{ t.muted }}; font-size:14px">×</span></div>
+              <div style="display:flex; min-height:380px">
+                <div style="width:132px; flex:none; background:{{ t.inset }}; border-right:1px solid {{ t.bSubtle }}; padding:8px 6px; display:flex; flex-direction:column; gap:2px">
+                  <sc-for list="{{ t.nav }}" as="ni"><div style="height:26px; display:flex; align-items:center; padding:0 8px; border-radius:4px; background:{{ ni.bg }}; color:{{ ni.col }}; font-weight:{{ ni.w }}">{{ ni.l }}</div></sc-for>
+                </div>
+                <div style="flex:1; min-width:0; padding:12px 14px; display:flex; flex-direction:column; gap:12px">
+                  <div style="display:flex; flex-direction:column; gap:6px">
+                    <div style="display:flex; align-items:center; gap:6px"><span style="font-size:9px; color:{{ t.muted }}">▾</span><span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ t.muted }}">THEME</span></div>
+                    <div style="display:grid; grid-template-columns:110px minmax(0,1fr); gap:8px 10px; align-items:center">
+                      <span style="color:{{ t.text2 }}">Appearance</span>
+                      <div style="display:flex; border:1px solid {{ t.bControl }}; border-radius:4px; padding:1px; height:26px"><div style="flex:1; display:flex; align-items:center; justify-content:center; color:{{ t.muted }}">Light</div><div style="flex:1; display:flex; align-items:center; justify-content:center; color:{{ t.muted }}">Dark</div><div style="flex:1; display:flex; align-items:center; justify-content:center; background:{{ t.selBg }}; color:{{ t.selText }}; font-weight:600; border-radius:3px">System</div></div>
+                      <span style="color:{{ t.text2 }}">Accent</span>
+                      <div style="height:26px; border:1px solid {{ t.bControl }}; border-radius:4px; display:flex; align-items:center; gap:8px; padding:0 8px"><span style="width:12px; height:12px; border-radius:3px; background:{{ t.accent }}"></span><span style="flex:1">Teal (default)</span><span style="font-size:8px; color:{{ t.muted }}">▼</span></div>
+                      <span style="color:{{ t.text2 }}">Density</span>
+                      <div style="height:26px; border:1px solid {{ t.bControl }}; outline:2px solid {{ t.focus }}; outline-offset:1px; border-radius:4px; display:flex; align-items:center; padding:0 8px; justify-content:space-between">Default · 26px<span style="font-size:8px; color:{{ t.muted }}">▼</span></div>
+                    </div>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:6px">
+                    <div style="display:flex; align-items:center; gap:6px"><span style="font-size:9px; color:{{ t.muted }}">▾</span><span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ t.muted }}">CHART DEFAULTS</span></div>
+                    <div style="display:grid; grid-template-columns:110px minmax(0,1fr); gap:8px 10px; align-items:center">
+                      <span style="color:{{ t.text2 }}">Font</span>
+                      <div style="height:26px; border:1px solid {{ t.bControl }}; border-radius:4px; display:flex; align-items:center; padding:0 8px; justify-content:space-between">Segoe UI<span style="font-size:8px; color:{{ t.muted }}">▼</span></div>
+                      <span style="color:{{ t.text2 }}">Line width</span>
+                      <div style="display:flex; align-items:center; gap:8px; min-width:0"><div style="flex:1; height:4px; border-radius:2px; background:{{ t.track }}; position:relative"><div style="position:absolute; left:0; top:0; bottom:0; width:22%; background:{{ t.accent }}; border-radius:2px"></div><div style="position:absolute; left:22%; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:{{ t.knob }}; border:1px solid {{ t.bControl }}"></div></div><div style="width:58px; height:26px; border:1px solid {{ t.bControl }}; border-radius:4px; display:flex; align-items:center; justify-content:flex-end; gap:3px; padding:0 8px">1.5<span style="color:{{ t.muted }}">px</span></div></div>
+                    </div>
+                  </div>
+                  <div style="display:flex; gap:6px; padding-top:2px"><div style="height:26px; padding:0 12px; display:flex; align-items:center; color:{{ t.selText }}; font-weight:600; border-radius:4px">Restore defaults</div></div>
+                </div>
+              </div>
+              <div style="padding:10px 14px; border-top:1px solid {{ t.bSubtle }}; display:flex; align-items:center; gap:6px"><span style="flex:1"></span><div style="height:26px; padding:0 12px; display:flex; align-items:center; border:1px solid {{ t.bControl }}; border-radius:4px">Cancel</div><div style="height:26px; padding:0 12px; display:flex; align-items:center; background:{{ t.accent }}; color:#FFFFFF; border-radius:4px; font-weight:600">Save</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <span style="font-family:'IBM Plex Sans',sans-serif; font-size:15px; font-weight:600; color:#1C1E26">New chart · wizard step 2</span>
+          <div style="width:640px; background:{{ t.scrim }}; border-radius:8px; padding:24px">
+            <div style="background:{{ t.surface }}; color:{{ t.text }}; border:1px solid {{ t.bPanel }}; border-radius:8px; display:flex; flex-direction:column; overflow:hidden">
+              <div style="padding:12px 14px 10px; display:flex; flex-direction:column; gap:10px; border-bottom:1px solid {{ t.bSubtle }}">
+                <div style="display:flex; align-items:center; gap:8px"><span style="font-size:15px; font-weight:600">New chart</span><span style="font-size:9px; color:{{ t.tag }}; font-family:'IBM Plex Mono',monospace">2r</span><span style="flex:1"></span><span style="color:{{ t.muted }}; font-size:14px">×</span></div>
+                <div style="display:flex; align-items:center; gap:6px">
+                  <sc-for list="{{ t.steps }}" as="sp"><div style="display:flex; align-items:center; gap:5px"><span style="width:16px; height:16px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; background:{{ sp.bg }}; color:{{ sp.fg }}; border:1px solid {{ sp.bd }}">{{ sp.n }}</span><span style="font-size:11px; color:{{ sp.lc }}; font-weight:{{ sp.w }}">{{ sp.l }}</span><sc-if value="{{ sp.line }}"><span style="width:16px; height:1px; background:{{ t.bControl }}"></span></sc-if></div></sc-for>
+                </div>
+              </div>
+              <div style="padding:12px 14px; display:flex; flex-direction:column; gap:10px; min-height:380px">
+                <div style="display:grid; grid-template-columns:90px minmax(0,1fr); gap:8px; align-items:center"><span style="color:{{ t.text2 }}">X column</span><div style="height:26px; border:1px solid {{ t.bControl }}; border-radius:4px; display:flex; align-items:center; gap:6px; padding:0 8px"><span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">date</span><span style="flex:1">order_date</span><span style="font-size:8px; color:{{ t.muted }}">▼</span></div></div>
+                <div style="display:flex; align-items:center; gap:8px"><span style="font-size:11.5px; font-weight:600; color:{{ t.text2 }}">Y columns</span><span style="flex:1; height:1px; background:{{ t.bSubtle }}"></span><span style="font-size:9px; color:{{ t.tag }}; font-family:'IBM Plex Mono',monospace">4c1</span></div>
+                <div style="height:26px; border:1px solid {{ t.bControl }}; border-radius:4px; display:flex; align-items:center; padding:0 8px; color:{{ t.muted }}; width:calc(50% - 21px)">Search 14 columns…</div>
+                <div style="display:grid; grid-template-columns:minmax(0,1fr) 30px minmax(0,1fr); gap:6px; flex:1">
+                  <div style="border:1px solid {{ t.bControl }}; outline:2px solid {{ t.focus }}; outline-offset:1px; border-radius:4px; overflow:hidden; display:flex; flex-direction:column">
+                    <div style="height:22px; display:flex; align-items:center; justify-content:space-between; padding:0 8px; background:{{ t.inset }}; border-bottom:1px solid {{ t.bSubtle }}"><span style="font-size:10.5px; font-weight:700; letter-spacing:.8px; color:{{ t.muted }}">AVAILABLE</span><span style="font-size:10px; color:{{ t.muted }}">11</span></div>
+                    <sc-for list="{{ t.avail }}" as="it"><div style="height:26px; display:flex; align-items:center; padding:0 8px; background:{{ it.bg }}; color:{{ it.col }}; font-weight:{{ it.w }}"><span style="flex:1">{{ it.l }}</span><span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ it.m }}</span></div></sc-for>
+                  </div>
+                  <div style="display:flex; flex-direction:column; justify-content:center; gap:4px">
+                    <div style="height:26px; border:1px solid {{ t.bControl }}; border-radius:4px; display:flex; align-items:center; justify-content:center; font-weight:600">›</div>
+                    <div style="height:26px; border:1px solid {{ t.bSubtle }}; color:{{ t.disabled }}; border-radius:4px; display:flex; align-items:center; justify-content:center; font-weight:600">‹</div>
+                    <div style="height:26px; border:1px solid {{ t.bControl }}; border-radius:4px; display:flex; align-items:center; justify-content:center; font-weight:600">»</div>
+                  </div>
+                  <div style="border:1px solid {{ t.bControl }}; border-radius:4px; overflow:hidden; display:flex; flex-direction:column">
+                    <div style="height:22px; display:flex; align-items:center; justify-content:space-between; padding:0 8px; background:{{ t.inset }}; border-bottom:1px solid {{ t.bSubtle }}"><span style="font-size:10.5px; font-weight:700; letter-spacing:.8px; color:{{ t.muted }}">Y AXIS · ORDER</span><span style="font-size:10px; color:{{ t.muted }}">3</span></div>
+                    <sc-for list="{{ t.chosen }}" as="it"><div style="height:26px; display:flex; align-items:center; gap:6px; padding:0 8px"><span style="font-size:9px; color:{{ t.muted }}; letter-spacing:-1px">⋮⋮</span><span style="width:10px; height:3px; border-radius:2px; background:{{ it.sw }}"></span><span style="flex:1">{{ it.l }}</span><span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ it.m }}</span></div></sc-for>
+                  </div>
+                </div>
+              </div>
+              <div style="padding:10px 14px; border-top:1px solid {{ t.bSubtle }}; display:flex; align-items:center; gap:6px"><div style="height:26px; padding:0 12px; display:flex; align-items:center; border:1px solid {{ t.bControl }}; border-radius:4px">Back</div><span style="flex:1"></span><div style="height:26px; padding:0 12px; display:flex; align-items:center; border:1px solid {{ t.bControl }}; border-radius:4px">Cancel</div><div style="height:26px; padding:0 12px; display:flex; align-items:center; background:{{ t.accent }}; color:#FFFFFF; border-radius:4px; font-weight:600">Next</div></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </sc-for>
+
+  <div style="display:flex; flex-direction:column; gap:14px; max-width:1500px">
+    <h2 style="margin:0; font-size:28px; font-weight:600">Migration order</h2>
+    <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px">
+      <sc-for list="{{ phases }}" as="ph" hint-placeholder-count="6">
+        <div style="background:#FFFFFF; border:1px solid #D5D8DE; border-radius:10px; padding:16px; display:flex; flex-direction:column; gap:6px">
+          <div style="display:flex; align-items:center; gap:8px"><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; background:#1C1E26; color:#FFFFFF; padding:2px 7px; border-radius:4px">{{ ph.n }}</span><span style="font-size:16px; font-weight:600">{{ ph.t }}</span></div>
+          <span style="font-size:14px; line-height:1.5; color:#3F4350; text-wrap:pretty">{{ ph.b }}</span>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#5B6270">{{ ph.f }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;labels&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Above, indented&quot;,&quot;Beside&quot;],&quot;default&quot;:&quot;Above, indented&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Side panels&quot;},&quot;themes&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Both&quot;,&quot;Light&quot;,&quot;Dark&quot;],&quot;default&quot;:&quot;Both&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;showTags&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const mix = (a, b, t) => { const p = s => [1, 3, 5].map(i => parseInt(s.substr(i, 2), 16)); const A = p(a), B = p(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+    const showTags = this.props.showTags ?? true;
+    const view = this.props.themes ?? 'Both';
+    const T = {
+      light: { label: 'LIGHT', chipBg: '#FFFFFF', chipFg: '#1C1E26', surface: '#FFFFFF', inset: '#F4F5F8', bPanel: '#E5E6EA', bControl: '#C9CDD5', bSubtle: '#ECEEF2', text: '#1C1E26', text2: '#3F4350', muted: '#6B7280', disabled: '#AEB2BC', track: '#C9CDD5', knob: '#FFFFFF', accent: '#0E7C86', selBg: '#E3F4F5', selText: '#0A5F67', focus: '#0E7C86', scrim: '#D9DBE0' },
+      dark: { label: 'DARK', chipBg: '#1C1E26', chipFg: '#FFFFFF', surface: '#2A2C2E', inset: '#242628', bPanel: '#3A3D40', bControl: '#5A5E64', bSubtle: '#33363A', text: '#E2E2E2', text2: '#C7CAD1', muted: '#A3A9B3', disabled: '#5B6270', track: '#4A4D52', knob: '#E8E9EB', accent: '#11808A', selBg: '#163A3E', selText: '#8FDDE3', focus: '#3FB6C1', scrim: '#151618' }
+    };
+    const above = (this.props.labels ?? 'Above, indented') !== 'Beside';
+    const L = above ? { c1: 'minmax(0,1fr)', c1w: 'minmax(0,1fr)', c2w: 'minmax(0,1fr) minmax(0,1fr)', g: '3px 8px', pad: '10px', pull: '-10px', span: '1 / -1' }
+                    : { c1: '50px minmax(0,1fr)', c1w: '70px minmax(0,1fr)', c2w: '70px minmax(0,1fr) minmax(0,1fr)', g: '8px', pad: '0px', pull: '0px', span: 'auto' };
+    const keys = view === 'Light' ? ['light'] : view === 'Dark' ? ['dark'] : ['light', 'dark'];
+    const SER = [['Revenue', '#1F77B4', 'f64', true], ['Cost', '#FF7F0E', 'f64', true], ['Margin', '#2CA02C', 'f64', true], ['Units', '#D62728', 'i64', false]];
+    const themes = keys.map(k => {
+      const t = T[k];
+      return { ...t, ...L,
+        tag: showTags ? (k === 'light' ? '#8A4BB8' : '#C79BE6') : 'transparent',
+        accentDis: mix(t.accent, t.surface, .55),
+        series: SER.map(([l, sw, meta, on], i) => ({ l, sw, meta, mark: on ? '✓' : '', cb: on ? t.accent : t.surface, cbBd: on ? t.accent : t.bControl, bg: i === 1 ? t.inset : 'transparent', w: i === 1 ? 600 : 400 })),
+        tabs: [['Data', 0], ['Style', 0], ['Axes', 1], ['Legend', 0]].map(([l, s]) => ({ l, col: s ? t.text : t.muted, w: s ? 600 : 400, bb: s ? t.accent : 'transparent' })),
+        chips: [{ l: 'Revenue', sw: '#1F77B4' }, { l: 'Cost', sw: '#FF7F0E' }],
+        nav: ['General', 'Appearance', 'Data', 'Export', 'Shortcuts'].map((l, i) => ({ l, bg: i === 1 ? t.selBg : 'transparent', col: i === 1 ? t.selText : t.text2, w: i === 1 ? 600 : 400 })),
+        steps: ['Source', 'Columns', 'Style'].map((l, i) => ({ n: i === 0 ? '✓' : String(i + 1), l, line: i < 2, bg: i === 0 ? t.accent : i === 1 ? t.selBg : 'transparent', fg: i === 0 ? '#FFFFFF' : i === 1 ? t.selText : t.muted, bd: i < 2 ? t.accent : t.bControl, lc: i === 1 ? t.text : t.muted, w: i === 1 ? 600 : 400 })),
+        avail: [['units', 'i64'], ['discount', 'f64'], ['tax', 'f64'], ['region', 'str'], ['channel', 'str'], ['returns', 'i64']].map(([l, m], i) => ({ l, m, bg: i === 1 ? t.selBg : 'transparent', col: i === 1 ? t.selText : t.text, w: i === 1 ? 600 : 400 })),
+        chosen: [['revenue', 'f64', '#1F77B4'], ['cost', 'f64', '#FF7F0E'], ['margin', 'f64', '#2CA02C']].map(([l, m, sw]) => ({ l, m, sw }))
+      };
+    });
+    const picks = ['Tokens 1bL/1bD · 1e teal · 1h 4/6/4 · 26px', 'Card 2b', 'Section 2d', 'Sub-group 2h', 'Tabs 2j · Settings 2l', 'Shell 2m', 'Dialogs 2p / 2q / 2r', 'Controls 3a · 3d · 3g (+3i)', 'Multi-select 4a1 · 4b2 · 4c1', 'Focus = outline ring'];
+    const phases = [
+      { n: '1', t: 'Tokens + base QSS', b: 'Swap get_design_tokens() and add the focus, heights and disabled rules. Every screen shifts at once with no widget changes. Delete the Storybook contrast overrides.', f: '01_tokens' },
+      { n: '2', t: 'Controls', b: 'Replace PButton, SliderWithSpinbox and ValueComboBox (APIs stay compatible), add FocusRing, and delete DropDownComboBox.', f: '04_controls' },
+      { n: '3', t: 'Containers', b: 'Card → inset. SectionHeader → CollapsibleSection. Add SubGroup where panels currently nest with indents or bold labels.', f: '02_containers' },
+      { n: '4', t: 'Panel shell + tabs', b: 'Wrap each side panel in PanelShell, and replace Chart Properties tabs with PTabWidget.', f: '03_navigation' },
+      { n: '5', t: 'Dialogs', b: 'Chart Wizard and Import → PStepDialog. Settings → PNavDialog. All the rest → PDialog.', f: '03_navigation' },
+      { n: '6', t: 'Multi-select', b: 'Series visibility → CheckList, "Apply to" pickers → ChipSelect, wizard Y columns → DualList.', f: '05_multiselect' }
+    ];
+    return { themes, picks, phases };
+  }
+}
+</script>
+</body>
+</html>

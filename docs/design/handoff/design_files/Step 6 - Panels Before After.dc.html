@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0;background:#E8E9ED;color:#1C1E26;font-family:'IBM Plex Sans',sans-serif}a{color:#0A5F67}a:hover{color:#1C1E26}*{box-sizing:border-box}</style>
+</helmet>
+<section id="step6" data-screen-label="Step 6 Panels Before After" style="padding:56px; display:flex; flex-direction:column; gap:40px">
+  <header style="display:flex; flex-direction:column; gap:10px; max-width:1300px">
+    <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#5B6270; letter-spacing:1px">PANDAPLOT COMPONENTS · STEP 6 · MIGRATION TRACKER</span>
+    <h1 style="margin:0; font-size:44px; font-weight:600; letter-spacing:-0.5px">Side panels: before and after</h1>
+    <p style="margin:0; font-size:18px; line-height:1.5; color:#3F4350; text-wrap:pretty">Every panel from <a href="All Side Panels.dc.html">All Side Panels</a> keeps exactly the same sections, fields, values, order and buttons, restyled with the approved components only. Use each panel's status to track the migration in code.</p>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; padding-top:6px; align-items:center">
+      <sc-for list="{{ counts }}" as="ct" hint-placeholder-count="3"><span style="font-size:14px; font-weight:600; padding:5px 10px; white-space:nowrap; border-radius:5px; background:{{ ct.bg }}; color:{{ ct.fg }}">{{ ct.l }}</span></sc-for>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:4px; font-size:14px; line-height:1.5; color:#3F4350; padding-top:4px">
+      <span><b style="font-weight:600">Mapping:</b> fieldset → 2d section + 2b card · nested caps label → 2h sub-group · header/footer → 2m shell · tabs → 2j · buttons → 3a · slider → 3d · dropdown → 3g · multi-select column lists → 4a1 checklist (single-select lists keep a highlighted row) · focus → outline ring.</span>
+      <span><b style="font-weight:600">Only presentational changes:</b> sub-group labels go from CAPS to sentence case (2h), and section titles go from title case to CAPS (2d). The text itself is unchanged. <b style="font-weight:600">Review edits:</b> field labels that repeat the section or panel title are dropped, and those fields are no longer indented (single Input fields, and Method/Type/Test fields inside Method sections).</span>
+    </div>
+  </header>
+
+  <div style="display:flex; flex-wrap:wrap; gap:44px 56px; align-items:flex-start">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="6">
+      <div id="{{ g.anchor }}" style="display:flex; flex-direction:column; gap:10px">
+        <div style="display:flex; align-items:center; gap:8px">
+          <a href="#{{ g.anchor }}" style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; padding:3px 7px; background:#1C1E26; color:#FFFFFF; border-radius:5px">{{ g.num }}</a>
+          <b style="font-size:15px; font-weight:600; color:#1C1E26">{{ g.name }}</b>
+          <span style="font-size:12px; font-weight:600; padding:2px 8px; white-space:nowrap; border-radius:4px; background:{{ g.stBg }}; color:{{ g.stFg }}">{{ g.status }}</span>
+        </div>
+        <div style="display:flex; gap:18px; align-items:flex-start">
+
+          <sc-for list="{{ g.before }}" as="p">
+            <div style="display:flex; flex-direction:column; gap:6px">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#5B6270">BEFORE · {{ p.cap }}</span>
+              <div style="width:{{ p.wpx }};background:#26272b;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;color:#e4e5e8;font-size:12px;font-family:'Segoe UI',system-ui,sans-serif">
+                <div style="height:34px;padding:0 12px;display:flex;align-items:center;background:#2c2d31;border-bottom:1px solid #1b1c1f;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.title }}</div>
+                <sc-if value="{{ p.hasTabs }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;border-bottom:1px solid #1b1c1f;background:#292a2e;padding:0 4px">
+                    <sc-for list="{{ p.tabs }}" as="tb">
+                      <sc-if value="{{ tb.on }}"><div style="flex:1;text-align:center;padding:8px 0 6px;font-weight:600;border-bottom:2px solid #5b64e3">{{ tb.label }}</div></sc-if>
+                      <sc-if value="{{ tb.off }}"><div style="flex:1;text-align:center;padding:8px 0 6px;color:#9a9ea8;border-bottom:2px solid transparent">{{ tb.label }}</div></sc-if>
+                    </sc-for>
+                  </div>
+                </sc-if>
+                <div style="padding:16px 10px 12px;display:flex;flex-direction:column;gap:18px">
+                  <sc-for list="{{ p.secs }}" as="s">
+                    <div style="position:relative;border:1px solid #3e4046;border-radius:6px;padding:14px 9px 9px;display:flex;flex-direction:column;gap:8px">
+                      <span style="position:absolute;top:-8px;left:7px;padding:0 5px;background:#26272b;font-weight:600;font-size:11.5px;line-height:15px">{{ s.title }}</span>
+                      <sc-if value="{{ s.togOn }}"><div style="position:absolute;top:-8px;right:7px;padding:0 5px;background:#26272b;height:15px;display:flex;align-items:center"><div style="width:26px;height:14px;border-radius:7px;background:#5b64e3;position:relative"><div style="position:absolute;right:2px;top:2px;width:10px;height:10px;border-radius:50%;background:#fff"></div></div></div></sc-if>
+                      <sc-if value="{{ s.togOff }}"><div style="position:absolute;top:-8px;right:7px;padding:0 5px;background:#26272b;height:15px;display:flex;align-items:center"><div style="width:26px;height:14px;border-radius:7px;background:#44464c;position:relative"><div style="position:absolute;left:2px;top:2px;width:10px;height:10px;border-radius:50%;background:#c4c7ce"></div></div></div></sc-if>
+                      <sc-if value="{{ s.hasAction }}"><span style="position:absolute;top:-8px;right:7px;padding:0 5px;background:#26272b;font-size:11.5px;line-height:15px;color:#8f96ff">{{ s.action }}</span></sc-if>
+                      <sc-for list="{{ s.rows }}" as="r">
+                        <sc-if value="{{ r.isField }}"><div style="display:grid;grid-template-columns:{{ r.cols }};gap:{{ r.gap }};align-items:center">
+                          <span style="color:{{ r.lc }};font-size:{{ r.ls }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.label }}</span>
+                          <sc-if value="{{ r.isSel }}"><div style="height:26px;background:#1d1e21;border:1px solid #3e4046;border-radius:4px;padding:0 8px;display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.value }}</span><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#9a9ea8" stroke-width="1.4" style="flex:none"><path d="M2 3.5 5 6.5 8 3.5"></path></svg></div></sc-if>
+                          <sc-if value="{{ r.isTxt }}"><div style="height:26px;background:#1d1e21;border:1px solid #3e4046;border-radius:4px;padding:0 8px;display:flex;align-items:center;min-width:0"><span style="color:{{ r.vcOld }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.value }}</span></div></sc-if>
+                          <sc-if value="{{ r.isNum }}"><div style="height:26px;background:#1d1e21;border:1px solid #3e4046;border-radius:4px;padding:0 8px;display:flex;align-items:center;gap:6px;min-width:0"><span style="color:#8d919a;font-size:10px;flex:none">⇆</span><span style="color:#8d919a;font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.hint }}</span><span style="font-variant-numeric:tabular-nums">{{ r.value }}</span><span style="color:#9a9ea8">{{ r.unit }}</span></div></sc-if>
+                          <sc-if value="{{ r.isNumd }}"><div style="height:26px;background:#232427;border:1px solid #34363b;border-radius:4px;padding:0 8px;display:flex;align-items:center;justify-content:flex-end;gap:6px;color:#62656d"><span>{{ r.value }}</span><span>{{ r.unit }}</span></div></sc-if>
+                          <sc-if value="{{ r.isKv }}"><span style="font-variant-numeric:tabular-nums;font-family:{{ r.ff }}">{{ r.value }}</span></sc-if>
+                          <sc-if value="{{ r.isOn }}"><div style="width:26px;height:14px;border-radius:7px;background:#5b64e3;position:relative"><div style="position:absolute;right:2px;top:2px;width:10px;height:10px;border-radius:50%;background:#fff"></div></div></sc-if>
+                          <sc-if value="{{ r.isOff }}"><div style="width:26px;height:14px;border-radius:7px;background:#44464c;position:relative"><div style="position:absolute;left:2px;top:2px;width:10px;height:10px;border-radius:50%;background:#c4c7ce"></div></div></sc-if>
+                          <sc-if value="{{ r.isSeg }}"><div style="height:26px;border:1px solid #3e4046;border-radius:4px;display:flex;overflow:hidden;min-width:0"><sc-for list="{{ r.optsOld }}" as="o"><sc-if value="{{ o.on }}"><div style="flex:1;min-width:0;background:#5b64e3;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11.5px;white-space:nowrap">{{ o.label }}</div></sc-if><sc-if value="{{ o.off }}"><div style="flex:1;min-width:0;display:flex;align-items:center;justify-content:center;border-left:1px solid #3e4046;color:#c4c7ce;font-size:11.5px;white-space:nowrap">{{ o.label }}</div></sc-if></sc-for></div></sc-if>
+                          <sc-if value="{{ r.isSlider }}"><div style="display:flex;align-items:center;gap:8px;min-width:0"><div style="flex:1;height:3px;background:#44464c;border-radius:2px;position:relative"><div style="width:{{ r.pct }};height:3px;background:#5b64e3;border-radius:2px"></div><div style="position:absolute;left:{{ r.pct }};top:-5px;width:12px;height:12px;margin-left:-6px;background:#e4e5e8;border-radius:50%"></div></div><div style="width:56px;flex:none;height:26px;background:#1d1e21;border:1px solid #3e4046;border-radius:4px;display:flex;align-items:center;justify-content:flex-end;gap:4px;padding:0 7px"><span>{{ r.value }}</span><span style="color:#9a9ea8">{{ r.unit }}</span></div></div></sc-if>
+                          <sc-if value="{{ r.isColor }}"><div style="height:26px;background:#1d1e21;border:1px solid #3e4046;border-radius:4px;padding:0 8px 0 4px;display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:3px;background:{{ r.value }}"></div><span style="font-family:ui-monospace,monospace;font-size:11.5px;flex:1">{{ r.value }}</span><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#9a9ea8" stroke-width="1.4"><path d="M2 3.5 5 6.5 8 3.5"></path></svg></div></sc-if>
+                        </div></sc-if>
+                        <sc-if value="{{ r.isHelp }}"><div style="display:grid;grid-template-columns:{{ r.cols }};gap:8px;margin-top:-3px"><span></span><span style="color:#9a9ea8;font-size:11px;line-height:1.45;text-wrap:pretty">{{ r.label }}</span></div></sc-if>
+                        <sc-if value="{{ r.isSub }}"><div style="display:flex;align-items:baseline;gap:8px;padding-top:4px"><span style="flex:1;font-size:10px;font-weight:600;letter-spacing:.07em;color:#8d919a">{{ r.label }}</span><span style="font-size:11px;color:#8f96ff">{{ r.value }}</span></div></sc-if>
+                        <sc-if value="{{ r.isInfo }}"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.label }}</span><span style="color:#9a9ea8;font-size:11px">{{ r.value }}</span></div></sc-if>
+                        <sc-if value="{{ r.isHead }}"><div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:2px;background:#1f77b4;flex:none"></div><span style="flex:1;font-weight:600;padding-left:4px">{{ r.label }}</span><div style="width:22px;height:22px;background:#383a40;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#c4c7ce;font-size:11px">↑</div><div style="width:22px;height:22px;background:#383a40;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#c4c7ce;font-size:11px">↓</div><div style="width:22px;height:22px;background:#383a40;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#c4c7ce;font-size:11px">×</div></div></sc-if>
+                        <sc-if value="{{ r.isList }}"><div style="background:#1d1e21;border:1px solid #3e4046;border-radius:4px;padding:2px 0;display:flex;flex-direction:column"><sc-for list="{{ r.items }}" as="it"><sc-if value="{{ it.on }}"><div style="height:22px;padding:0 7px;display:flex;align-items:center;gap:7px;background:#3f4586;white-space:nowrap;overflow:hidden"><span style="width:3px;height:12px;background:#8f96ff;border-radius:1px;flex:none"></span>{{ it.label }}</div></sc-if><sc-if value="{{ it.off }}"><div style="height:22px;padding:0 7px 0 17px;display:flex;align-items:center;white-space:nowrap;overflow:hidden">{{ it.label }}</div></sc-if></sc-for></div></sc-if>
+                        <sc-if value="{{ r.isCode }}"><div style="display:flex;flex-direction:column;gap:6px"><div style="display:flex;gap:6px"><div style="height:24px;padding:0 9px;background:#383a40;border-radius:4px;display:flex;align-items:center;gap:6px;font-size:11.5px"><i style="font-family:Georgia,serif">ƒ</i>Insert function ▾</div><span style="flex:1"></span><div style="width:24px;height:24px;background:#383a40;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#c4c7ce;font-size:11.5px">?</div></div><div style="height:72px;background:#1d1e21;border:1px solid #3e4046;border-radius:4px;padding:7px 8px;color:#6f727a;font-family:ui-monospace,monospace;font-size:11px;line-height:1.5">{{ r.label }}</div></div></sc-if>
+                        <sc-if value="{{ r.isOut }}"><div style="height:{{ r.h }};background:#1d1e21;border:1px solid #3e4046;border-radius:4px;padding:7px 8px;color:#6f727a;font-size:11.5px">{{ r.label }}</div></sc-if>
+                        <sc-if value="{{ r.isSearch }}"><div style="height:26px;background:#1d1e21;border:1px solid #3e4046;border-radius:4px;padding:0 8px;display:flex;align-items:center;gap:7px"><span style="color:#9a9ea8">⌕</span><span style="color:#6f727a">{{ r.label }}</span></div></sc-if>
+                        <sc-if value="{{ r.isChips }}"><div style="display:flex;gap:4px;align-items:center"><sc-for list="{{ r.optsOld }}" as="o"><div style="height:24px;min-width:28px;padding:0 6px;border:1px solid #3e4046;border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:ui-monospace,monospace;font-size:11px;color:#c4c7ce">{{ o.label }}</div></sc-for><span style="flex:1;text-align:right;color:#8d919a;font-size:11px">{{ r.value }}</span></div></sc-if>
+                        <sc-if value="{{ r.isTree }}"><div style="display:flex;flex-direction:column;margin:0 -4px"><sc-for list="{{ r.itemsOld }}" as="n"><div style="height:24px;display:flex;align-items:center;gap:6px;padding-left:{{ n.indent }};padding-right:6px;border-radius:3px;background:{{ n.bg }};white-space:nowrap;overflow:hidden"><span style="width:10px;flex:none;color:#8d919a;font-size:9px;text-align:center">{{ n.chev }}</span><div style="width:11px;height:10px;border-radius:2px;background:{{ n.color }};flex:none"></div><span style="overflow:hidden;text-overflow:ellipsis">{{ n.label }}</span></div></sc-for></div></sc-if>
+                      </sc-for>
+                    </div>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ p.hasFooter }}">
+                  <div style="padding:9px 10px;border-top:1px solid #1b1c1f;background:#222326;display:flex;gap:6px;align-items:center">
+                    <span style="flex:1;min-width:0;color:#8d919a;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.status }}</span>
+                    <sc-if value="{{ p.secOn }}"><div style="height:26px;padding:0 12px;background:#383a40;border-radius:4px;display:flex;align-items:center;flex:none">{{ p.secondary }}</div></sc-if>
+                    <sc-if value="{{ p.secDis }}"><div style="height:26px;padding:0 12px;background:#2e2f34;color:#62656d;border-radius:4px;display:flex;align-items:center;flex:none">{{ p.secondary }}</div></sc-if>
+                    <sc-if value="{{ p.primOn }}"><div style="height:26px;padding:0 14px;background:#5b64e3;color:#fff;border-radius:4px;display:flex;align-items:center;font-weight:600;flex:none;white-space:nowrap">{{ p.primary }}</div></sc-if>
+                    <sc-if value="{{ p.primDis }}"><div style="height:26px;padding:0 14px;background:#393c5e;color:#7c80a3;border-radius:4px;display:flex;align-items:center;font-weight:600;flex:none;white-space:nowrap">{{ p.primary }}</div></sc-if>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+
+          <sc-for list="{{ g.after }}" as="a">
+            <div style="display:flex; flex-direction:column; gap:6px">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#0A5F67; font-weight:600">AFTER · {{ a.cap }}</span>
+              <div style="width:{{ a.wpx }}; background:{{ c.surface }}; color:{{ c.text }}; border:1px solid {{ c.bPanel }}; border-radius:6px; overflow:hidden; display:flex; flex-direction:column; font-size:12px; font-family:'Segoe UI',system-ui,sans-serif">
+                <div style="padding:8px 10px; display:flex; align-items:center; gap:8px; border-bottom:1px solid {{ c.bPanel }}"><span style="font-size:13px; font-weight:600; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ a.title }}</span><span style="color:{{ c.muted }}; font-size:13px">×</span></div>
+                <sc-if value="{{ a.hasTabs }}">
+                  <div style="display:flex; border-bottom:1px solid {{ c.bSubtle }}; padding:0 6px">
+                    <sc-for list="{{ a.tabs }}" as="tb"><div style="flex:1 1 auto; height:30px; padding:0 4px; display:flex; align-items:center; justify-content:center; color:{{ tb.col }}; font-weight:{{ tb.w }}; border-bottom:2px solid {{ tb.bb }}; margin-bottom:-1px">{{ tb.label }}</div></sc-for>
+                  </div>
+                </sc-if>
+                <div style="padding:10px; display:flex; flex-direction:column; gap:12px">
+                  <sc-for list="{{ a.secs }}" as="s">
+                    <div style="display:flex; flex-direction:column; gap:6px">
+                      <div style="display:flex; align-items:center; gap:6px; min-height:20px">
+                        <span style="font-size:9px; color:{{ c.muted }}; width:10px">{{ s.chev }}</span>
+                        <span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ c.muted }}">{{ s.title }}</span>
+                        <span style="flex:1"></span>
+                        <sc-if value="{{ s.hasAction }}"><span style="font-size:11px; font-weight:600; color:{{ c.selText }}">{{ s.action }}</span></sc-if>
+                        <sc-if value="{{ s.hasTog }}"><div style="width:26px; height:15px; border-radius:8px; background:{{ s.tgBg }}; position:relative; flex:none"><div style="position:absolute; top:2px; left:{{ s.tgX }}px; width:11px; height:11px; border-radius:6px; background:{{ s.tgKnob }}"></div></div></sc-if>
+                      </div>
+                      <sc-if value="{{ s.hasRows }}">
+                        <div style="background:{{ c.inset }}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:8px">
+                          <sc-for list="{{ s.rows }}" as="r">
+                            <sc-if value="{{ r.isField }}"><div style="display:grid; grid-template-columns:{{ r.cols }}; gap:{{ r.gap }}; align-items:center; padding-left:{{ r.pad }}">
+                              <sc-if value="{{ r.showLabel }}"><span style="margin-left:{{ r.pull }}; color:{{ c.text2 }}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.label }}</span></sc-if>
+                              <sc-if value="{{ r.isSel }}"><div style="height:26px; background:{{ c.surface }}; border:1px solid {{ c.bControl }}; border-radius:4px; padding:0 8px; display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0"><span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ r.value }}</span><span style="font-size:8px; color:{{ c.muted }}">▼</span></div></sc-if>
+                              <sc-if value="{{ r.isTxt }}"><div style="height:26px; background:{{ c.surface }}; border:1px solid {{ c.bControl }}; border-radius:4px; padding:0 8px; display:flex; align-items:center; min-width:0"><span style="color:{{ r.vc }}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ r.value }}</span></div></sc-if>
+                              <sc-if value="{{ r.isNum }}"><div style="height:26px; background:{{ c.surface }}; border:1px solid {{ c.bControl }}; border-radius:4px; padding:0 8px; display:flex; align-items:center; gap:6px; min-width:0"><span style="color:{{ c.muted }}; font-size:11px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ r.hint }}</span><span style="font-variant-numeric:tabular-nums">{{ r.value }}</span><span style="color:{{ c.muted }}">{{ r.unit }}</span></div></sc-if>
+                              <sc-if value="{{ r.isNumd }}"><div style="height:26px; background:{{ c.surface }}; border:1px solid {{ c.bSubtle }}; border-radius:4px; padding:0 8px; display:flex; align-items:center; justify-content:flex-end; gap:6px; color:{{ c.disabled }}"><span>{{ r.value }}</span><span>{{ r.unit }}</span></div></sc-if>
+                              <sc-if value="{{ r.isKv }}"><span style="font-variant-numeric:tabular-nums; font-family:{{ r.ff }}">{{ r.value }}</span></sc-if>
+                              <sc-if value="{{ r.isTog }}"><div style="width:26px; height:15px; border-radius:8px; background:{{ r.tgBg }}; position:relative"><div style="position:absolute; top:2px; left:{{ r.tgX }}px; width:11px; height:11px; border-radius:6px; background:{{ r.tgKnob }}"></div></div></sc-if>
+                              <sc-if value="{{ r.isSeg }}"><div style="height:26px; border:1px solid {{ c.bControl }}; background:{{ c.surface }}; border-radius:4px; padding:1px; display:flex; min-width:0"><sc-for list="{{ r.opts }}" as="o"><div style="flex:1; min-width:0; display:flex; align-items:center; justify-content:center; border-radius:3px; background:{{ o.bg }}; color:{{ o.col }}; font-weight:{{ o.w }}; font-size:11.5px; white-space:nowrap">{{ o.label }}</div></sc-for></div></sc-if>
+                              <sc-if value="{{ r.isSlider }}"><div style="display:flex; align-items:center; gap:8px; min-width:0"><div style="flex:1; height:4px; background:{{ c.track }}; border-radius:2px; position:relative"><div style="position:absolute; left:0; top:0; bottom:0; width:{{ r.pct }}; background:{{ c.accent }}; border-radius:2px"></div><div style="position:absolute; left:{{ r.pct }}; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:{{ c.knob }}; border:1px solid {{ c.bControl }}"></div></div><div style="width:58px; flex:none; height:26px; background:{{ c.surface }}; border:1px solid {{ c.bControl }}; border-radius:4px; display:flex; align-items:center; justify-content:flex-end; gap:3px; padding:0 8px"><span>{{ r.value }}</span><span style="color:{{ c.muted }}">{{ r.unit }}</span></div></div></sc-if>
+                              <sc-if value="{{ r.isColor }}"><div style="height:26px; background:{{ c.surface }}; border:1px solid {{ c.bControl }}; border-radius:4px; padding:0 8px 0 4px; display:flex; align-items:center; gap:8px"><div style="width:18px; height:18px; border-radius:3px; background:{{ r.value }}; border:1px solid {{ c.bPanel }}"></div><span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; flex:1">{{ r.value }}</span><span style="font-size:8px; color:{{ c.muted }}">▼</span></div></sc-if>
+                            </div></sc-if>
+                            <sc-if value="{{ r.isHelp }}"><span style="padding-left:{{ r.pad }}; margin-top:-4px; color:{{ c.muted }}; font-size:11px; line-height:1.45; text-wrap:pretty">{{ r.label }}</span></sc-if>
+                            <sc-if value="{{ r.isSub }}"><div style="display:flex; align-items:center; gap:8px; padding-top:4px"><span style="font-size:11.5px; font-weight:600; color:{{ c.text2 }}; white-space:nowrap">{{ r.subLabel }}</span><span style="flex:1; height:1px; background:{{ c.bSubtle }}"></span><sc-if value="{{ r.value }}"><span style="font-size:11px; font-weight:600; color:{{ c.selText }}">{{ r.value }}</span></sc-if></div></sc-if>
+                            <sc-if value="{{ r.isInfo }}"><div style="display:flex; flex-direction:column; gap:2px"><span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.label }}</span><span style="color:{{ c.muted }}; font-size:11px">{{ r.value }}</span></div></sc-if>
+                            <sc-if value="{{ r.isHead }}"><div style="display:flex; align-items:center; gap:4px"><div style="width:10px; height:10px; border-radius:2px; background:#1F77B4; flex:none"></div><span style="flex:1; font-weight:600; padding-left:4px">{{ r.label }}</span><sc-for list="{{ c.headBtns }}" as="hb"><div style="width:26px; height:26px; background:{{ c.surface }}; border:1px solid {{ c.bControl }}; border-radius:4px; display:flex; align-items:center; justify-content:center; color:{{ c.text2 }}; font-size:11px; font-weight:600">{{ hb }}</div></sc-for></div></sc-if>
+                            <sc-if value="{{ r.isList }}"><div style="background:{{ c.surface }}; border:1px solid {{ c.bControl }}; border-radius:4px; display:flex; flex-direction:column; overflow:hidden"><sc-for list="{{ r.itemsNew }}" as="it"><div style="height:26px; padding:0 8px; display:flex; align-items:center; gap:8px; white-space:nowrap; overflow:hidden; background:{{ it.bg }}; color:{{ it.col }}; font-weight:{{ it.w }}"><sc-if value="{{ it.cb }}"><div style="width:14px; height:14px; border-radius:3px; flex:none; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:#FFFFFF; background:{{ it.cbBg }}; border:1px solid {{ it.cbBd }}">{{ it.mark }}</div></sc-if><span style="overflow:hidden; text-overflow:ellipsis">{{ it.label }}</span></div></sc-for></div></sc-if>
+                            <sc-if value="{{ r.isCode }}"><div style="display:flex; flex-direction:column; gap:6px"><div style="display:flex; gap:6px"><div style="height:26px; padding:0 10px; background:{{ c.surface }}; border:1px solid {{ c.bControl }}; border-radius:4px; display:flex; align-items:center; gap:6px; white-space:nowrap; flex:none"><i style="font-family:Georgia,serif">ƒ</i>Insert function<span style="font-size:8px; color:{{ c.muted }}">▼</span></div><span style="flex:1"></span><div style="width:26px; height:26px; background:{{ c.surface }}; border:1px solid {{ c.bControl }}; border-radius:4px; display:flex; align-items:center; justify-content:center; color:{{ c.text2 }}; font-weight:600">?</div></div><div style="height:72px; background:{{ c.surface }}; border:1px solid {{ c.bControl }}; border-radius:4px; padding:7px 8px; color:{{ c.muted }}; font-family:'IBM Plex Mono',monospace; font-size:11px; line-height:1.5">{{ r.label }}</div></div></sc-if>
+                            <sc-if value="{{ r.isOut }}"><div style="height:{{ r.h }}; background:{{ c.surface }}; border:1px solid {{ c.bPanel }}; border-radius:4px; padding:7px 8px; color:{{ c.muted }}; font-size:11.5px">{{ r.label }}</div></sc-if>
+                            <sc-if value="{{ r.isSearch }}"><div style="height:26px; background:{{ c.surface }}; border:1px solid {{ c.bControl }}; border-radius:4px; padding:0 8px; display:flex; align-items:center; gap:7px"><span style="color:{{ c.muted }}">⌕</span><span style="color:{{ c.muted }}">{{ r.label }}</span></div></sc-if>
+                            <sc-if value="{{ r.isChips }}"><div style="display:flex; gap:4px; align-items:center"><sc-for list="{{ r.opts }}" as="o"><div style="height:24px; min-width:28px; padding:0 6px; border:1px solid {{ o.bd }}; background:{{ o.bg }}; color:{{ o.col }}; border-radius:4px; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px">{{ o.label }}</div></sc-for><span style="flex:1; text-align:right; color:{{ c.muted }}; font-size:11px">{{ r.value }}</span></div></sc-if>
+                            <sc-if value="{{ r.isTree }}"><div style="display:flex; flex-direction:column; margin:0 -6px"><sc-for list="{{ r.itemsNew }}" as="n"><div style="height:24px; display:flex; align-items:center; gap:6px; padding-left:{{ n.indent }}; padding-right:6px; border-radius:4px; background:{{ n.bg }}; color:{{ n.col }}; font-weight:{{ n.w }}; white-space:nowrap; overflow:hidden"><span style="width:10px; flex:none; color:{{ c.muted }}; font-size:9px; text-align:center">{{ n.chev }}</span><div style="width:11px; height:10px; border-radius:2px; background:{{ n.color }}; flex:none"></div><span style="overflow:hidden; text-overflow:ellipsis">{{ n.label }}</span></div></sc-for></div></sc-if>
+                          </sc-for>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ a.hasFooter }}">
+                  <div style="padding:8px 10px; border-top:1px solid {{ c.bPanel }}; display:flex; gap:6px; align-items:center">
+                    <span style="flex:1; min-width:0; color:{{ c.muted }}; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ a.status }}</span>
+                    <div style="height:26px; padding:0 12px; background:{{ c.surface }}; border:1px solid {{ a.secBd }}; color:{{ a.secCol }}; border-radius:4px; display:flex; align-items:center; flex:none">{{ a.secondary }}</div>
+                    <div style="height:26px; padding:0 12px; background:{{ a.primBg }}; border:1px solid {{ a.primBg }}; color:#FFFFFF; border-radius:4px; display:flex; align-items:center; font-weight:600; flex:none; white-space:nowrap">{{ a.primary }}</div>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Dark&quot;,&quot;Light&quot;],&quot;default&quot;:&quot;Dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;After&quot;},&quot;width&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;260&quot;,&quot;360&quot;],&quot;default&quot;:&quot;260&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    // Migration status — update as panels land in code: 'Not started' | 'In progress' | 'Migrated'
+    const STATUS = {};
+
+    const mix = (a, b, t) => { const p = s => [1, 3, 5].map(i => parseInt(s.substr(i, 2), 16)); const A = p(a), B = p(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+    const theme = this.props.theme ?? 'Dark';
+    const W = parseInt(this.props.width ?? '260', 10);
+    const C = theme === 'Light'
+      ? { surface: '#FFFFFF', inset: '#F4F5F8', bPanel: '#E5E6EA', bControl: '#C9CDD5', bSubtle: '#ECEEF2', text: '#1C1E26', text2: '#3F4350', muted: '#6B7280', disabled: '#AEB2BC', track: '#C9CDD5', toggleOff: '#C9CDD5', knob: '#FFFFFF', accent: '#0E7C86', selBg: '#E3F4F5', selText: '#0A5F67' }
+      : { surface: '#2A2C2E', inset: '#242628', bPanel: '#3A3D40', bControl: '#5A5E64', bSubtle: '#33363A', text: '#E2E2E2', text2: '#C7CAD1', muted: '#A3A9B3', disabled: '#5B6270', track: '#4A4D52', toggleOff: '#4A4D52', knob: '#E8E9EB', accent: '#11808A', selBg: '#163A3E', selText: '#8FDDE3' };
+    const c = { ...C, accentDis: mix(C.accent, C.surface, .55), headBtns: ['↑', '↓', '×'] };
+
+    const sel=(l,v)=>({t:'Sel',label:l,value:v}), txt=(l,v,ph)=>({t:'Txt',label:l,value:v,ph}),
+      num=(l,v,u='',h='')=>({t:'Num',label:l,value:v,unit:u,hint:h}), numd=(l,v,u='')=>({t:'Numd',label:l,value:v,unit:u}),
+      on=l=>({t:'On',label:l}), off=l=>({t:'Off',label:l}), seg=(l,o,a=0)=>({t:'Seg',label:l,opts0:o,act:a}),
+      sld=(l,v,u,p)=>({t:'Slider',label:l,value:v,unit:u,pct:p+'%'}), col=(l,v)=>({t:'Color',label:l,value:v}), kv=(l,v,mono)=>({t:'Kv',label:l,value:v,ff:mono?"'IBM Plex Mono',monospace":'inherit'}),
+      help=l=>({t:'Help',label:l}), sub=(l,a='')=>({t:'Sub',label:l,value:a}), info=(l,v)=>({t:'Info',label:l,value:v}), head=l=>({t:'Head',label:l}),
+      list=(items,s=[0],single=false)=>({t:'List',items0:items,selIdx:s,single}),
+      code=l=>({t:'Code',label:l}), out=(l,h=100)=>({t:'Out',label:l,h:h+'px'}), search=l=>({t:'Search',label:l}),
+      chips=(o,v='')=>({t:'Chips',value:v,chips0:o});
+    const B=r=>({...r,bare:true}); // After: label dropped (redundant with section/panel title), no indent
+    const S=(title,rows,o={})=>({title,rows,...o});
+    const input=[B(sel('Series','Angle')),help('Data series and fitted curves of this chart.')];
+    const range=(a,b)=>S('Range',[num(a[0],a[1],'',a[2]),num(b[0],b[1],'',b[2])]);
+    const cols=['Time','Angle_rad','Angle_deg','Angular_Velocity','Position_X'];
+    const TABS=['Chart','Data','Style','Axes','Legend'];
+    const cp={status:'No changes',secondary:'Revert',secDis:true,primary:'Apply',primDis:true};
+    const K={folder:'#d4a64a',data:'#5b8fd9',chart:'#8f96ff',note:'#a9adb6'};
+    const tree0=[[0,'folder','Damped Pendulum Simulation','▾'],[1,'folder','Simulations','▾'],[2,'folder','Parameter Study','▾'],
+      [3,'data','Damping γ=0.05'],[3,'data','Damping γ=0.1'],[3,'data','Damping γ=0.2'],[3,'data','Damping γ=0.5'],[3,'data','Damping γ=1.0'],
+      [2,'data','Main Simulation (γ=0.1)'],[1,'folder','Analysis','▾'],[2,'data','Amplitude Envelope'],[2,'chart','Pendulum Angle vs Time','',1],
+      [2,'chart','Phase Portrait (θ vs ω)'],[2,'chart','Energy Analysis'],[2,'chart','Pendulum Trajectory'],[2,'note','Simulation Results'],[1,'folder','Theory & Notes','▸']];
+    const P=[
+      {name:'Project Explorer',secs:[S('Project',[info('Damped Pendulum Simulation','Unsaved project')]),S('Structure',[{t:'Tree'}])]},
+      {name:'Search Notes',secs:[S('Query',[search('Search across all notes…'),chips([['Aa','Match case'],['W','Whole word'],['.*','Regex']])]),S('Results',[out('Type to search across all notes.',140)])]},
+      {name:'Chart Properties',tab:0,...cp,secs:[S('Chart',[txt('Title','Pendulum Angle vs Time (Damping γ=0.1)'),txt('Subtitle','Optional — supports $LaTeX$',1),sel('Type','Line')])]},
+      {name:'Chart Properties',tab:1,...cp,secs:[S('Series',[head('Angle'),sel('Dataset','Main Simulation (γ=0.1)'),sel('X column','Time'),sel('Y column','Angle_deg'),seg('Y axis',['Y₁ left','Y₂ right']),txt('Label','Angle'),sel('Series type','Line'),
+        sub('ERROR BARS'),sel('X error','None'),sel('Y error','None'),off('Asymmetric'),sub('CONFIDENCE BAND'),sel('Lower bound','None'),sel('Upper bound','None')],{action:'+ Add series'})]},
+      {name:'Chart Properties',tab:2,...cp,secs:[S('Input',[B(sel('Series','Angle'))]),S('Line',[col('Color','#1F77B4'),sel('Style','— Solid'),sld('Width','2','px',20),sld('Opacity','100','%',100)]),S('Fill',[],{tog:false}),
+        S('Markers',[sel('Shape','● Circle'),sld('Size','6','px',30),sld('Edge width','1','px',20),on('Match line color'),col('Color','#1F77B4')],{tog:true}),S('Value labels',[],{tog:false})]},
+      {name:'Chart Properties',tab:3,...cp,secs:[S('Axis',[seg('Axis',['X','Y₁','Y₂']),txt('Label','Time (s)'),seg('Scale',['Linear','Log'])]),S('Range',[on('Auto range'),numd('Min','0.000'),numd('Max','19.990')]),
+        S('Ticks',[seg('Mode',['Auto','Count','Step']),sel('Format','Auto'),txt('Pattern','e.g. {:.2f} units',1),seg('Direction',['Out','In','Both']),on('Show grid'),off('Minor ticks')])]},
+      {name:'Chart Properties',tab:4,...cp,secs:[S('Legend',[sel('Position','Upper right'),num('Font size','10','pt'),seg('Columns',['1','2','3']),sel('Font family','DejaVu Sans')],{tog:true}),S('Frame',[col('Background','#FFFFFF'),sld('Opacity','100','%',100)],{tog:true})]},
+      {name:'Curve Fitting',status:'No fit performed',secondary:'Fit',primary:'Apply',primDis:true,secs:[S('Input',[sel('Series','Angle'),kv('Data points','2000')]),S('Method',[sel('Model','Linear (y = ax + b)'),num('Fit points','500')]),
+        S('Range',[on('Auto range'),numd('Min','0'),numd('Max','19.99')]),S('Output',[off('Confidence bands'),on('Calculate R²')]),S('Results',[out('Fit results will appear here…',120),kv('Equation','—',1)])]},
+      {name:'Chart Analysis',status:'Not previewed',secondary:'Preview',primary:'Add to project',primDis:true,secs:[S('Input',input),S('Method',[sel('Operation','Derivative'),sel('Method','Central difference')]),
+        range(['Start index','0','x=0, y=60'],['End index','1999','x=19.99, y=−9.997']),S('Output',[txt('Dataset name','Derivative — Angle',1),on('Plot result'),sel('Plot on','New chart')]),S('Results',[out('Preview results will appear here…')])]},
+      {name:'Chart Signal Analysis',status:'Not run',secondary:'Run',primary:'Add to project',primDis:true,secs:[S('Input',input),S('Method',[B(sel('Method','Fast Fourier Transform (FFT)')),help('Transforms the signal from time into frequency domain.')]),
+        S('Parameters',[num('Sampling rate','100.00','Hz'),num('FFT size','1024'),sel('Window','Hann')]),range(['Start index','0','x=0, y=60'],['End index','1999','x=19.99, y=−9.997']),
+        S('Output',[txt('Dataset name','FFT — Angle',1),on('Plot result'),sel('Plot on','New chart')]),S('Results',[out('Run analysis to see results…')])]},
+      {name:'Chart Transform',status:'Not previewed',secondary:'Preview',primary:'Add to project',primDis:true,secs:[S('Input',input),S('Method',[sel('Replace','Y values'),help('Result becomes the new Y; x stays as-is.'),code('y * 2   # use x and/or y')]),
+        S('Output',[txt('Dataset name','Angle (Y transformed)',1)]),S('Results',[out('Preview results will appear here…')])]},
+      {name:'Transform Operations',status:'Not previewed',secondary:'Preview',primary:'Apply',primDis:true,secs:[S('Input',[info('Main Simulation (γ=0.1)','2000 rows · 11 columns'),sub('SOURCE COLUMNS'),list(['Time  → x','Angle_rad','Angle_deg'],[0],true)]),
+        S('Method',[B(sel('Type','Custom function')),code("x ** 2   # x = highlighted column")]),S('Output',[txt('New column','Time_transformed'),off('Replace existing')]),S('Results',[num('Preview rows','5'),out('Preview results will appear here…',80)])]},
+      {name:'Preprocessing',status:'No columns selected',secondary:'Preview',primary:'Apply',primDis:true,secs:[S('Input',[sub('NUMERIC COLUMNS','Select all'),list(cols.slice(0,4),[])]),
+        S('Method',[B(sel('Method','Center (mean removal)')),help('Subtracts the mean so values center on zero; spread and units unchanged.'),kv('Formula','x − mean(x)',1)]),S('Output',[off('Replace in place')]),S('Results',[out('Preview results will appear here…')])]},
+      {name:'Analysis Operations',status:'Not previewed',secondary:'Preview',primary:'Apply',primDis:true,secs:[S('Input',[sel('X column','Time'),sel('Y column','Angle_rad')]),S('Method',[sel('Type','Derivative'),sel('Method','Central difference')]),
+        range(['Start row','1','x=0, y=1.047'],['End row','2000','x=19.99, y=−0.175']),S('Output',[B(txt('Result column','Angle_rad_derivative')),off('Replace if exists')]),S('Results',[out('Preview results will appear here…')])]},
+      {name:'Descriptive Statistics',status:'1 column selected',secondary:'Compute',primary:'Add to project',primOn:true,secs:[S('Input',[sub('NUMERIC COLUMNS','Select all'),list(cols)]),
+        S('Parameters',[num('Significant digits','6'),on('Written report')]),S('Results',[out('Compute statistics to see a preview here…')])]},
+      {name:'Statistical Tests',status:'Not run',secondary:'Run',primary:'Add to project',primDis:true,secs:[S('Input',[B(sel('Sample column','Time'))]),
+        S('Method',[B(sel('Test','One-sample t-test')),help('Tests whether a sample mean differs from an expected value. Assumes normality and independent observations.')]),
+        S('Parameters',[num('Significance α','0.050'),num('Expected mean μ₀','0.000'),seg('Alternative',['Two-sided','Less','Greater'])]),S('Results',[out('Run a test to see results here…')])]},
+      {name:'Signal Analysis',status:'Not run',secondary:'Run',primary:'Add to project',primDis:true,secs:[S('Input',[B(sel('Signal column','Time'))]),
+        S('Method',[B(sel('Method','Fast Fourier Transform (FFT)')),help('Transforms the signal from time into frequency domain.')]),S('Parameters',[num('Sampling rate','1000.00','Hz'),num('FFT size','1024'),sel('Window','Hann')]),S('Results',[out('Run analysis to see results…')])]},
+    ];
+
+    const FIELD=['Sel','Txt','Num','Numd','Kv','On','Off','Seg','Slider','Color'];
+    const tog = on => ({ tgBg: on ? c.accent : c.toggleOff, tgX: on ? 13 : 2, tgKnob: on ? '#FFFFFF' : c.knob });
+    const sentence = s => s.charAt(0) + s.slice(1).toLowerCase();
+
+    const row = (r0, stack) => {
+      const r = { ...r0, value: r0.value ?? '', unit: r0.unit ?? '', hint: r0.hint ?? '', ['is' + r0.t]: true };
+      r.isField = FIELD.includes(r.t);
+      const inl = r.t === 'On' || r.t === 'Off' || r.t === 'Kv';
+      // before
+      const lw = '104px';
+      if (r.t === 'Help') r.cols = stack ? '0px minmax(0,1fr)' : lw + ' minmax(0,1fr)';
+      else if (stack && !inl) { r.cols = 'minmax(0,1fr)'; r.gap = '4px'; r.lc = '#9a9ea8'; r.ls = '11px'; }
+      else { r.cols = stack ? 'minmax(0,1fr) auto' : lw + ' minmax(0,1fr)'; r.gap = '8px'; r.lc = '#c4c7ce'; r.ls = '12px'; }
+      r.vcOld = r.ph ? '#6f727a' : '#e4e5e8';
+      if (r.t === 'Seg') r.optsOld = r.opts0.map((x, i) => ({ label: x, on: i === r.act, off: i !== r.act }));
+      if (r.t === 'List') r.items = r.items0.map((x, i) => ({ label: x, on: r.selIdx.includes(i), off: !r.selIdx.includes(i) }));
+      if (r.t === 'Chips') r.optsOld = r.chips0.map(([l]) => ({ label: l }));
+      if (r.t === 'Tree') r.itemsOld = tree0.map(([d, k, l, ch = '', s]) => ({ indent: (6 + d * 14) + 'px', color: K[k], label: l, chev: ch, bg: s ? '#3f4586' : 'transparent' }));
+      return r;
+    };
+    const rowNew = (r0, i, arr) => {
+      const prev = arr[i - 1];
+      const r = { ...r0, value: r0.value ?? '', unit: r0.unit ?? '', hint: r0.hint ?? '', ['is' + r0.t]: true };
+      r.isField = FIELD.includes(r.t);
+      const inl = r.t === 'On' || r.t === 'Off' || r.t === 'Kv';
+      Object.assign(r, inl ? { cols: 'minmax(0,1fr) auto', gap: '8px', pad: '0px', pull: '0px' } : r0.bare ? { cols: 'minmax(0,1fr)', gap: '0px', pad: '0px', pull: '0px' } : { cols: 'minmax(0,1fr)', gap: '3px', pad: '10px', pull: '-10px' });
+      r.showLabel = !r0.bare;
+      if (r.t === 'Help') r.pad = prev && prev.bare ? '0px' : '10px';
+      if (r.t === 'On' || r.t === 'Off') { r.isTog = true; Object.assign(r, tog(r.t === 'On')); }
+      r.vc = r.ph ? c.muted : c.text;
+      if (r.t === 'Sub') r.subLabel = sentence(r.label);
+      if (r.t === 'Seg') r.opts = r.opts0.map((x, i) => i === r.act ? { label: x, bg: c.selBg, col: c.selText, w: 600 } : { label: x, bg: 'transparent', col: c.muted, w: 400 });
+      if (r.t === 'Chips') r.opts = r.chips0.map(([l, , x]) => x ? { label: l, bg: c.selBg, bd: c.accent, col: c.selText } : { label: l, bg: c.surface, bd: c.bControl, col: c.text2 });
+      if (r.t === 'List') r.itemsNew = r.items0.map((x, i) => { const on = r.selIdx.includes(i); return r.single
+        ? { label: x, cb: false, bg: on ? c.selBg : 'transparent', col: on ? c.selText : c.text, w: on ? 600 : 400 }
+        : { label: x, cb: true, mark: on ? '✓' : '', cbBg: on ? c.accent : c.surface, cbBd: on ? c.accent : c.bControl, bg: 'transparent', col: c.text, w: 400 }; });
+      if (r.t === 'Tree') r.itemsNew = tree0.map(([d, k, l, ch = '', s]) => ({ indent: (6 + d * 14) + 'px', color: K[k], label: l, chev: ch, bg: s ? c.selBg : 'transparent', col: s ? c.selText : c.text, w: s ? 600 : 400 }));
+      return r;
+    };
+
+    const before = (p, w) => {
+      const stack = w < 300;
+      return { title: p.name, cap: w + ' px · ' + (stack ? 'labels above' : 'labels left'), wpx: w + 'px',
+        hasTabs: p.tab !== undefined, tabs: p.tab !== undefined ? TABS.map((l, i) => ({ label: l, on: i === p.tab, off: i !== p.tab })) : [],
+        secs: p.secs.map(s => ({ title: s.title, togOn: s.tog === true, togOff: s.tog === false, hasAction: !!s.action, action: s.action || '', rows: s.rows.map(r => row(r, stack)) })),
+        hasFooter: !!p.primary, status: stack ? '' : (p.status || ''), secondary: p.secondary || '', primary: p.primary || '',
+        secOn: !!p.secondary && !p.secDis, secDis: !!p.secDis, primOn: !!p.primOn, primDis: !p.primOn };
+    };
+    const after = (p, w) => ({ title: p.name, cap: w + ' px · ' + theme.toLowerCase(), wpx: w + 'px',
+      hasTabs: p.tab !== undefined, tabs: p.tab !== undefined ? TABS.map((l, i) => ({ label: l, col: i === p.tab ? c.text : c.muted, w: i === p.tab ? 600 : 400, bb: i === p.tab ? c.accent : 'transparent' })) : [],
+      secs: p.secs.map(s => ({ title: s.title.toUpperCase(), chev: s.rows.length ? '▾' : '▸', hasRows: s.rows.length > 0, hasAction: !!s.action, action: s.action || '',
+        hasTog: s.tog !== undefined, ...(s.tog !== undefined ? tog(s.tog) : {}), rows: s.rows.map(rowNew) })),
+      hasFooter: !!p.primary, status: w < 300 ? '' : (p.status || ''), secondary: p.secondary || '', primary: p.primary || '',
+      secBd: p.secDis ? c.bSubtle : c.bControl, secCol: p.secDis ? c.disabled : c.text, primBg: p.primOn ? c.accent : c.accentDis });
+
+    const ST = { 'Not started': ['#ECEEF2', '#3F4350'], 'In progress': ['#FFF3DC', '#8A5200'], 'Migrated': ['#E3F4EA', '#1F6B42'] };
+    const groups = P.map((p, i) => {
+      const num = String(i + 1).padStart(2, '0');
+      const name = p.name + (p.tab !== undefined ? ' · ' + TABS[p.tab] : '');
+      const status = STATUS[name] || 'Not started';
+      return { num, anchor: 'p' + num, name, status, stBg: ST[status][0], stFg: ST[status][1], before: [before(p, W)], after: [after(p, W)] };
+    });
+    const counts = Object.keys(ST).map(k => ({ l: k + ' · ' + groups.filter(g => g.status === k).length, bg: ST[k][0], fg: ST[k][1] }));
+    return { groups, counts, c };
+  }
+}
+</script>
+</body>
+</html>

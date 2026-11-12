@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0;background:#E8E9ED;color:#1C1E26;font-family:'IBM Plex Sans',sans-serif}a{color:#0A5F67}a:hover{color:#1C1E26}*{box-sizing:border-box}</style>
+</helmet>
+<section id="step2a" data-screen-label="Step 2A Containers" style="padding:56px; display:flex; flex-direction:column; gap:56px; width:2440px">
+  <header style="display:flex; flex-direction:column; gap:10px; max-width:1200px">
+    <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#5B6270; letter-spacing:1px">PANDAPLOT COMPONENTS · STEP 2A · CONTAINERS 1 OF 2</span>
+    <h1 style="margin:0; font-size:44px; font-weight:600; letter-spacing:-0.5px">Card · Collapsible section · Nested group</h1>
+    <p style="margin:0; font-size:18px; line-height:1.5; color:#3F4350; text-wrap:pretty">Each option shows its full state set in light and dark, using the approved tokens. The cards use only what QSS can draw: borders, fills, radius, no shadows. Pick one per component, or mix themes as in Step 1 (e.g. 2a for both).</p>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; padding-top:6px">
+      <sc-for list="{{ picks }}" as="pk" hint-placeholder-count="5"><span style="font-family:'IBM Plex Mono',monospace; font-size:13px; padding:5px 10px; border-radius:5px; background:#FFFFFF; border:1px solid #D5D8DE; white-space:nowrap; flex:none">{{ pk }}</span></sc-for>
+    </div>
+  </header>
+
+  <div style="display:flex; flex-direction:column; gap:18px">
+    <div style="display:flex; flex-direction:column; gap:4px"><h2 style="margin:0; font-size:28px; font-weight:600">Card</h2><span style="font-size:15px; color:#5B6270">Groups related controls such as Range, Ticks and Frame. Replaces <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">card.py</span>. States: rest, hover, selected (e.g. the active series), keyboard focus, disabled.</span></div>
+    <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start">
+      <sc-for list="{{ cardOpts }}" as="opt" hint-placeholder-count="3">
+        <div id="{{ opt.id }}" style="width:760px; background:#FFFFFF; border:1px solid #D5D8DE; border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:14px">
+          <div style="display:flex; gap:12px; align-items:flex-start">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500; background:#1C1E26; color:#FFFFFF; padding:4px 9px; border-radius:6px">{{ opt.id }}</span>
+            <div style="display:flex; flex-direction:column; gap:3px; flex:1; min-width:0">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap"><span style="font-size:18px; font-weight:600">{{ opt.title }}</span><sc-if value="{{ opt.rec }}"><span style="font-size:12px; font-weight:600; color:#1F6B42; background:#E3F4EA; padding:2px 8px; border-radius:4px">Recommended</span></sc-if><sc-if value="{{ opt.bold }}"><span style="font-size:12px; font-weight:600; color:#6A2C91; background:#F2E8F9; padding:2px 8px; border-radius:4px">Bold</span></sc-if></div>
+              <span style="font-size:14px; color:#5B6270; line-height:1.45; text-wrap:pretty">{{ opt.sub }}</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px">
+            <sc-for list="{{ opt.themes }}" as="t" hint-placeholder-count="2">
+              <div style="flex:1 1 0; min-width:0; background:{{ t.canvas }}; color:{{ t.text }}; border:1px solid {{ t.bPanel }}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:10px; font-family:'Segoe UI', system-ui, sans-serif; font-size:{{ t.font }}px">
+                <span style="font-weight:700; font-size:11px; color:{{ t.muted }}; letter-spacing:.5px">{{ t.label }}</span>
+                <sc-for list="{{ t.states }}" as="st" hint-placeholder-count="5">
+                  <div style="display:flex; flex-direction:column; gap:4px">
+                    <span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ st.s }}</span>
+                    <div style="background:{{ st.bg }}; border:1px solid {{ st.border }}; border-top-color:{{ st.borderTop }}; border-radius:{{ st.radius }}px; padding:{{ st.pad }}; display:flex; flex-direction:column; gap:{{ t.gap }}px">
+                      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px"><span style="font-weight:600; color:{{ st.title }}">Range</span><span style="font-size:11px; color:{{ st.meta }}">Auto</span></div>
+                      <sc-for list="{{ t.rows2 }}" as="r">
+                        <div style="display:grid; grid-template-columns:56px minmax(0,1fr); gap:8px; align-items:center">
+                          <span style="color:{{ st.label }}">{{ r.l }}</span>
+                          <div style="height:{{ t.h }}px; border:1px solid {{ st.valBorder }}; border-radius:4px; background:{{ st.valBg }}; color:{{ st.valText }}; display:flex; align-items:center; padding:0 {{ t.px }}px">{{ r.v }}</div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:5px">
+            <sc-for list="{{ opt.notes }}" as="nt"><div style="display:grid; grid-template-columns:14px minmax(0,1fr); gap:6px; font-size:14px; line-height:1.45"><span style="color:{{ nt.col }}; font-weight:700">{{ nt.s }}</span><span style="text-wrap:pretty">{{ nt.t }}</span></div></sc-for>
+          </div>
+          <pre style="margin:0; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.55; background:#F4F5F8; border:1px solid #E5E6EA; border-radius:6px; padding:10px 12px; white-space:pre-wrap; color:#3F4350">{{ opt.qss }}</pre>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:18px">
+    <div style="display:flex; flex-direction:column; gap:4px"><h2 style="margin:0; font-size:28px; font-weight:600">Collapsible section</h2><span style="font-size:15px; color:#5B6270">Top-level grouping in a side panel (LINE, MARKERS, AXES). Replaces <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">SectionHeader</span> plus a manual show/hide. States: expanded, collapsed, hover, keyboard focus, modified (collapsed but has unsaved changes).</span></div>
+    <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start">
+      <sc-for list="{{ secOpts }}" as="opt" hint-placeholder-count="3">
+        <div id="{{ opt.id }}" style="width:760px; background:#FFFFFF; border:1px solid #D5D8DE; border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:14px">
+          <div style="display:flex; gap:12px; align-items:flex-start">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500; background:#1C1E26; color:#FFFFFF; padding:4px 9px; border-radius:6px">{{ opt.id }}</span>
+            <div style="display:flex; flex-direction:column; gap:3px; flex:1; min-width:0">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap"><span style="font-size:18px; font-weight:600">{{ opt.title }}</span><sc-if value="{{ opt.rec }}"><span style="font-size:12px; font-weight:600; color:#1F6B42; background:#E3F4EA; padding:2px 8px; border-radius:4px">Recommended</span></sc-if><sc-if value="{{ opt.bold }}"><span style="font-size:12px; font-weight:600; color:#6A2C91; background:#F2E8F9; padding:2px 8px; border-radius:4px">Bold</span></sc-if></div>
+              <span style="font-size:14px; color:#5B6270; line-height:1.45; text-wrap:pretty">{{ opt.sub }}</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px">
+            <sc-for list="{{ opt.themes }}" as="t" hint-placeholder-count="2">
+              <div style="flex:1 1 0; min-width:0; background:{{ t.canvas }}; color:{{ t.text }}; border:1px solid {{ t.bPanel }}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:10px; font-family:'Segoe UI', system-ui, sans-serif; font-size:{{ t.font }}px">
+                <span style="font-weight:700; font-size:11px; color:{{ t.muted }}; letter-spacing:.5px">{{ t.label }}</span>
+                <sc-for list="{{ t.states }}" as="st" hint-placeholder-count="5">
+                  <div style="display:flex; flex-direction:column; gap:4px">
+                    <span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ st.s }}</span>
+                    <div style="background:{{ t.surface }}; border:1px solid {{ t.bSubtle }}; border-radius:6px; padding:6px 10px; display:flex; flex-direction:column; gap:{{ t.gap }}px">
+                      <div style="min-height:{{ t.h }}px; display:flex; align-items:center; gap:6px; padding:{{ st.hPad }}; background:{{ st.hBg }}; border:1px solid {{ st.hBorder }}; border-radius:4px">
+                        <sc-if value="{{ st.chevL }}"><span style="width:10px; font-size:9px; color:{{ st.chevCol }}">{{ st.chevL }}</span></sc-if>
+                        <span style="font-size:{{ st.tSize }}px; font-weight:{{ st.tWeight }}; letter-spacing:{{ st.tLs }}px; color:{{ st.tCol }}">{{ st.title }}</span>
+                        <sc-if value="{{ st.dot }}"><span style="width:6px; height:6px; border-radius:3px; background:{{ t.accent }}"></span></sc-if>
+                        <span style="flex:1"></span>
+                        <sc-if value="{{ st.summary }}"><span style="font-size:11px; color:{{ t.muted }}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0">{{ st.summary }}</span></sc-if>
+                        <sc-if value="{{ st.action }}"><span style="font-size:11px; color:{{ t.selText }}; font-weight:600">Reset</span></sc-if>
+                        <sc-if value="{{ st.chevR }}"><span style="width:10px; font-size:9px; color:{{ st.chevCol }}; text-align:right">{{ st.chevR }}</span></sc-if>
+                      </div>
+                      <sc-if value="{{ st.open }}">
+                        <div style="display:flex; flex-direction:column; gap:{{ t.gap }}px; padding:{{ st.bodyPad }}">
+                          <sc-for list="{{ t.rows3 }}" as="r">
+                            <div style="display:grid; grid-template-columns:56px minmax(0,1fr); gap:8px; align-items:center">
+                              <span style="color:{{ t.text2 }}">{{ r.l }}</span>
+                              <div style="height:{{ t.h }}px; border:1px solid {{ t.bControl }}; border-radius:4px; background:{{ t.surface }}; display:flex; align-items:center; padding:0 {{ t.px }}px">{{ r.v }}</div>
+                            </div>
+                          </sc-for>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:5px">
+            <sc-for list="{{ opt.notes }}" as="nt"><div style="display:grid; grid-template-columns:14px minmax(0,1fr); gap:6px; font-size:14px; line-height:1.45"><span style="color:{{ nt.col }}; font-weight:700">{{ nt.s }}</span><span style="text-wrap:pretty">{{ nt.t }}</span></div></sc-for>
+          </div>
+          <pre style="margin:0; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.55; background:#F4F5F8; border:1px solid #E5E6EA; border-radius:6px; padding:10px 12px; white-space:pre-wrap; color:#3F4350">{{ opt.qss }}</pre>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:18px">
+    <div style="display:flex; flex-direction:column; gap:4px"><h2 style="margin:0; font-size:28px; font-weight:600">Nested group</h2><span style="font-size:15px; color:#5B6270">A sub-section inside a section, e.g. LINE → Markers or AXES → X axis → Ticks. New component. States: one level, two levels, and parent off/disabled.</span></div>
+    <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start">
+      <sc-for list="{{ nestOpts }}" as="opt" hint-placeholder-count="3">
+        <div id="{{ opt.id }}" style="width:760px; background:#FFFFFF; border:1px solid #D5D8DE; border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:14px">
+          <div style="display:flex; gap:12px; align-items:flex-start">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500; background:#1C1E26; color:#FFFFFF; padding:4px 9px; border-radius:6px">{{ opt.id }}</span>
+            <div style="display:flex; flex-direction:column; gap:3px; flex:1; min-width:0">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap"><span style="font-size:18px; font-weight:600">{{ opt.title }}</span><sc-if value="{{ opt.rec }}"><span style="font-size:12px; font-weight:600; color:#1F6B42; background:#E3F4EA; padding:2px 8px; border-radius:4px">Recommended</span></sc-if><sc-if value="{{ opt.bold }}"><span style="font-size:12px; font-weight:600; color:#6A2C91; background:#F2E8F9; padding:2px 8px; border-radius:4px">Bold</span></sc-if></div>
+              <span style="font-size:14px; color:#5B6270; line-height:1.45; text-wrap:pretty">{{ opt.sub }}</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px">
+            <sc-for list="{{ opt.themes }}" as="t" hint-placeholder-count="2">
+              <div style="flex:1 1 0; min-width:0; background:{{ t.canvas }}; color:{{ t.text }}; border:1px solid {{ t.bPanel }}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:10px; font-family:'Segoe UI', system-ui, sans-serif; font-size:{{ t.font }}px">
+                <span style="font-weight:700; font-size:11px; color:{{ t.muted }}; letter-spacing:.5px">{{ t.label }}</span>
+                <sc-for list="{{ t.states }}" as="st" hint-placeholder-count="3">
+                  <div style="display:flex; flex-direction:column; gap:4px">
+                    <span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ st.s }}</span>
+                    <div style="background:{{ t.surface }}; border:1px solid {{ t.bSubtle }}; border-radius:6px; padding:8px 10px; display:flex; flex-direction:column; gap:{{ t.gap }}px">
+                      <span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ t.muted }}">▾  LINE</span>
+                      <div style="display:grid; grid-template-columns:56px minmax(0,1fr); gap:8px; align-items:center"><span style="color:{{ t.text2 }}">Width</span><div style="height:{{ t.h }}px; border:1px solid {{ t.bControl }}; border-radius:4px; display:flex; align-items:center; padding:0 {{ t.px }}px">1.5 px</div></div>
+                      <sc-for list="{{ st.groups }}" as="g">
+                        <div style="display:flex; flex-direction:column; gap:{{ t.gap }}px; margin-left:{{ g.indent }}px; padding-left:{{ g.padL }}px; border-left:1px solid {{ g.guide }}; background:{{ g.bg }}; border-radius:{{ g.radius }}px; padding-top:{{ g.padY }}px; padding-bottom:{{ g.padY }}px; padding-right:{{ g.padR }}px">
+                          <div style="display:flex; align-items:center; gap:8px; min-height:{{ g.hdrH }}px">
+                            <span style="font-size:11.5px; font-weight:600; color:{{ g.titleCol }}; white-space:nowrap">{{ g.title }}</span>
+                            <sc-if value="{{ g.rule }}"><span style="flex:1; height:1px; background:{{ t.bSubtle }}"></span></sc-if>
+                            <sc-if value="{{ g.noRule }}"><span style="flex:1"></span></sc-if>
+                            <sc-if value="{{ g.toggle }}"><div style="width:26px; height:15px; border-radius:8px; background:{{ g.tgBg }}; position:relative; flex:none"><div style="position:absolute; top:2px; left:{{ g.tgX }}px; width:11px; height:11px; border-radius:6px; background:{{ g.tgKnob }}"></div></div></sc-if>
+                          </div>
+                          <sc-for list="{{ g.rows }}" as="r">
+                            <div style="display:grid; grid-template-columns:{{ g.labelW }}px minmax(0,1fr); gap:8px; align-items:center"><span style="color:{{ g.lblCol }}">{{ r.l }}</span><div style="height:{{ t.h }}px; border:1px solid {{ g.valBorder }}; color:{{ g.valCol }}; border-radius:4px; display:flex; align-items:center; padding:0 {{ t.px }}px">{{ r.v }}</div></div>
+                          </sc-for>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:5px">
+            <sc-for list="{{ opt.notes }}" as="nt"><div style="display:grid; grid-template-columns:14px minmax(0,1fr); gap:6px; font-size:14px; line-height:1.45"><span style="color:{{ nt.col }}; font-weight:700">{{ nt.s }}</span><span style="text-wrap:pretty">{{ nt.t }}</span></div></sc-for>
+          </div>
+          <pre style="margin:0; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.55; background:#F4F5F8; border:1px solid #E5E6EA; border-radius:6px; padding:10px 12px; white-space:pre-wrap; color:#3F4350">{{ opt.qss }}</pre>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:10px; max-width:1500px; padding:20px; background:#1C1E26; color:#FFFFFF; border-radius:12px">
+    <span style="font-size:18px; font-weight:600">Next</span>
+    <span style="font-size:15px; line-height:1.6; color:#D5D8DE">Reply with picks (e.g. "2a, 2d, 2i"). I'll add them to the handoff (PySide6 class, QSS and Storybook story with the state matrix), then do <b style="color:#FFFFFF">Step 2B: tab container, side panel shell, dialog</b>.</span>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Compact&quot;,&quot;Default&quot;,&quot;Comfortable&quot;],&quot;default&quot;:&quot;Default&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;themes&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Both&quot;,&quot;Light&quot;,&quot;Dark&quot;],&quot;default&quot;:&quot;Both&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const mix = (a, b, t) => { const p = s => [1, 3, 5].map(i => parseInt(s.substr(i, 2), 16)); const A = p(a), B = p(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+    const DEN = { Compact: { h: 22, px: 6, gap: 4, font: 12 }, Default: { h: 26, px: 8, gap: 6, font: 12 }, Comfortable: { h: 30, px: 10, gap: 8, font: 13 } };
+    const dn = DEN[this.props.density ?? 'Default'] || DEN.Default;
+    const view = this.props.themes ?? 'Both';
+    const T = {
+      light: { label: 'LIGHT', canvas: '#FBFBFC', surface: '#FFFFFF', inset: '#F4F5F8', bPanel: '#E5E6EA', bControl: '#C9CDD5', bSubtle: '#ECEEF2', text: '#1C1E26', text2: '#3F4350', muted: '#6B7280', disabled: '#AEB2BC', toggleOff: '#C9CDD5', knob: '#FFFFFF', accent: '#0E7C86', hover: '#0B6C75', selBg: '#E3F4F5', selText: '#0A5F67', focus: '#0E7C86' },
+      dark: { label: 'DARK', canvas: '#1F2123', surface: '#2A2C2E', inset: '#242628', bPanel: '#3A3D40', bControl: '#5A5E64', bSubtle: '#33363A', text: '#E2E2E2', text2: '#C7CAD1', muted: '#A3A9B3', disabled: '#5B6270', toggleOff: '#4A4D52', knob: '#E8E9EB', accent: '#11808A', hover: '#14909B', selBg: '#163A3E', selText: '#8FDDE3', focus: '#3FB6C1' }
+    };
+    const keys = view === 'Light' ? ['light'] : view === 'Dark' ? ['dark'] : ['light', 'dark'];
+    const rows2 = [{ l: 'Min', v: '0' }, { l: 'Max', v: '100' }];
+    const rows3 = [{ l: 'Width', v: '1.5 px' }, { l: 'Style', v: 'Dashed' }, { l: 'Opacity', v: '62 %' }];
+    const base = t => ({ ...t, ...dn, rows2, rows3 });
+    const N = (s, t) => ({ s, t, col: s === '+' ? '#1F7A45' : s === '–' ? '#C0283A' : '#5B6270' });
+    const themesFor = fn => keys.map(k => { const t = base(T[k]); return { ...t, states: fn(T[k]) }; });
+
+    // CARD
+    const cs = (t, o) => ({ title: t.text, meta: t.muted, label: t.text2, valBorder: t.bControl, valBg: t.surface, valText: t.text, ...o });
+    const cardOpt = (id, title, sub, rec, bold, look, notes, qss) => ({ id, title, sub, rec, bold, notes, qss, themes: themesFor(t => {
+      const L = look(t);
+      return [
+        cs(t, { s: 'rest', ...L.rest }),
+        cs(t, { s: 'hover', ...L.rest, ...L.hover }),
+        cs(t, { s: 'selected', ...L.rest, ...L.sel, title: t.selText }),
+        cs(t, { s: 'focus (keyboard)', ...L.rest, border: t.focus, borderTop: t.focus }),
+        cs(t, { s: 'disabled', ...L.rest, ...L.dis, title: t.disabled, meta: t.disabled, label: t.disabled, valBorder: t.bSubtle, valText: t.disabled })
+      ];
+    }) });
+    const cardOpts = [
+      cardOpt('2a', 'Bordered surface', 'Today\'s card, tidied: 1px panel border, radius 6, padding 12, and a title row with a trailing meta/action slot. Selected changes border colour only, so nothing shifts.', true, false,
+        t => ({ rest: { bg: t.surface, border: t.bPanel, borderTop: t.bPanel, radius: 6, pad: '12px' }, hover: { border: t.bControl, borderTop: t.bControl }, sel: { border: t.accent, borderTop: t.accent }, dis: { border: t.bSubtle, borderTop: t.bSubtle } }),
+        [N('+', 'Closest to what ships, so migration is just margins 9 → 12 and the 1→2px jump removed'), N('+', 'Clear grouping on both canvases'), N('–', 'Lots of nested boxes when cards sit inside sections')],
+        'QFrame[card="true"] { background: bg_surface; border: 1px solid border_panel;\n  border-radius: 6px; }\nQFrame[card="true"][selected="true"] { border-color: accent; }\nQFrame[card="true"]:focus { border-color: focus; }   /* setFocusPolicy(StrongFocus) */'),
+      cardOpt('2b', 'Inset fill', 'No visible border at rest: the card is a bg_inset tile. A transparent 1px border is reserved so selected and focus can colour it without a layout shift.', false, false,
+        t => ({ rest: { bg: t.inset, border: t.inset, borderTop: t.inset, radius: 6, pad: '12px' }, hover: { bg: mix(t.inset, t.bPanel, .45) }, sel: { bg: t.selBg, border: t.accent, borderTop: t.accent }, dis: { bg: t.inset } }),
+        [N('+', 'Calmer than 2a; fewer lines when nested inside sections'), N('+', 'Selected tint reads well for a list of series cards'), N('–', 'In light, inset vs canvas is subtle (#F4F5F8 vs #FBFBFC); grouping relies on spacing')],
+        'QFrame[card="true"] { background: bg_inset; border: 1px solid bg_inset;\n  border-radius: 6px; }\nQFrame[card="true"][selected="true"] { background: accent_sel_bg; border-color: accent; }'),
+      cardOpt('2c', 'Divider sheet', 'No box at all. Groups are separated by a top hairline and spacing, with full-width rows, like an inspector in pro tools. Selected and hover tint the whole row band.', false, true,
+        t => ({ rest: { bg: 'transparent', border: 'transparent', borderTop: t.bSubtle, radius: 0, pad: '10px 2px' }, hover: { bg: t.inset }, sel: { bg: t.selBg }, dis: {} }),
+        [N('+', 'Most room for content in a 260px panel (no 2×13px of frame)'), N('+', 'Visually quiet, so chart previews stand out'), N('–', 'Focus ring on a borderless band looks unusual; it needs the full outline'), N('–', 'Bigger departure: every panel has to adopt it at once')],
+        'QFrame[card="true"] { background: transparent; border: none;\n  border-top: 1px solid border_subtle; border-radius: 0; }\nQFrame[card="true"]:hover { background: bg_inset; }')
+    ];
+
+    // SECTION
+    const ss = (t, o) => ({ hPad: '0', hBg: 'transparent', hBorder: 'transparent', chevCol: t.muted, bodyPad: '0', action: false, dot: false, summary: '', ...o });
+    const secOpt = (id, title, sub, rec, bold, look, notes, qss) => ({ id, title, sub, rec, bold, notes, qss, themes: themesFor(t => {
+      const L = look(t);
+      return [
+        ss(t, { s: 'expanded', ...L.base, ...L.open, open: true }),
+        ss(t, { s: 'collapsed', ...L.base, ...L.closed, open: false, summary: L.summary || '' }),
+        ss(t, { s: 'hover', ...L.base, ...L.closed, ...L.hover, open: false, summary: L.summary || '', action: L.hoverAction }),
+        ss(t, { s: 'focus (keyboard)', ...L.base, ...L.closed, open: false, summary: L.summary || '', hBorder: t.focus }),
+        ss(t, { s: 'modified · collapsed', ...L.base, ...L.closed, open: false, summary: L.summary || '', dot: true, action: true })
+      ];
+    }) });
+    const secOpts = [
+      secOpt('2d', 'Caps label + left chevron', 'Keeps the current uppercase 10.5px label and adds a left chevron. "Reset" appears on hover or when the section has changes.', true, false,
+        t => ({ base: { title: 'LINE', tSize: 10.5, tWeight: 700, tLs: 1, tCol: t.muted, hPad: '0 4px' }, open: { chevL: '▾' }, closed: { chevL: '▸' }, hover: { tCol: t.text, chevCol: t.text }, hoverAction: true }),
+        [N('+', 'Matches existing panels; SectionHeader just gains a toggle'), N('+', 'Very compact (≈20px header)'), N('–', 'The click target is small and only the label row')],
+        'QToolButton[section="true"] { border: 1px solid transparent; border-radius: 4px;\n  color: text_muted; font: 700 10.5px; letter-spacing: 1px; }\nQToolButton[section="true"]:hover { color: text_primary; }\nQToolButton[section="true"]:focus { border-color: focus; }'),
+      secOpt('2e', 'Header bar', 'A full-width bg_inset bar at control height, sentence-case 12px semibold title, chevron on the right. The bar is the button.', false, false,
+        t => ({ base: { title: 'Line', tSize: 12, tWeight: 600, tLs: 0, tCol: t.text, hPad: '0 8px', hBg: t.inset, bodyPad: '2px 0 0' }, open: { chevR: '▾' }, closed: { chevR: '▸' }, hover: { hBg: mix(t.inset, t.bPanel, .5) }, hoverAction: false }),
+        [N('+', 'Large, obvious hit area that suits mouse and touchpad'), N('+', 'Easy to scan a long panel by its bars'), N('–', 'Heavier: 6+ bars stack up in Chart Properties'), N('–', 'Sentence case changes the look of every panel')],
+        'QToolButton[section="true"] { background: bg_inset; border: 1px solid transparent;\n  border-radius: 4px; min-height: 24px; padding: 0 8px; font: 600 12px; text-align: left; }\nQToolButton[section="true"]:hover { background: mix(bg_inset, border_panel, .5); }'),
+      secOpt('2f', 'Summary accordion', 'Collapsed sections show their current values inline ("1.5 px · Dashed · 62 %"), so you can read the panel without opening anything.', false, true,
+        t => ({ base: { title: 'LINE', tSize: 10.5, tWeight: 700, tLs: 1, tCol: t.muted, hPad: '0 4px' }, open: { chevL: '▾' }, closed: { chevL: '▸' }, summary: '1.5 px · Dashed · 62 %', hover: { tCol: t.text, chevCol: t.text }, hoverAction: false }),
+        [N('+', 'Panels can default to collapsed; much shorter scroll'), N('+', 'The modified dot plus summary shows what changed'), N('–', 'Every section needs a summary() method'), N('–', 'Summary truncates at 260px panel width')],
+        'class CollapsibleSection(QWidget):\n    summary_provider: Callable[[], str] | None   # shown when collapsed\n    toggled = Signal(bool)'),
+    ];
+
+    // NESTED
+    const nestOpt = (id, title, sub, rec, bold, look, notes, qss) => ({ id, title, sub, rec, bold, notes, qss, themes: themesFor(t => look(t)) });
+    const mk = (t, o) => ({ indent: 0, padL: 0, padR: 0, padY: 0, guide: 'transparent', bg: 'transparent', radius: 0, hdrH: 18, titleCol: t.text2, rule: false, noRule: true, toggle: false, labelW: 56, lblCol: t.text2, valBorder: t.bControl, valCol: t.text, ...o });
+    const mRows = [{ l: 'Shape', v: 'Circle' }, { l: 'Size', v: '6 px' }];
+    const tRows = [{ l: 'Every', v: '5' }];
+    const nestOpts = [
+      nestOpt('2g', 'Indent + guide line', 'Children indent 12px behind a 1px border_subtle guide. Depth is read from the guides, as in a tree.', false, false,
+        t => [
+          { s: 'one level', groups: [mk(t, { title: 'Markers', indent: 2, padL: 10, guide: t.bSubtle, rows: mRows, labelW: 46 })] },
+          { s: 'two levels', groups: [mk(t, { title: 'Markers', indent: 2, padL: 10, guide: t.bSubtle, rows: mRows, labelW: 46 }), mk(t, { title: 'Ticks', indent: 14, padL: 10, guide: t.bSubtle, rows: tRows, labelW: 34 })] },
+          { s: 'parent disabled', groups: [mk(t, { title: 'Markers', indent: 2, padL: 10, guide: t.bSubtle, rows: mRows, labelW: 46, titleCol: t.disabled, lblCol: t.disabled, valBorder: t.bSubtle, valCol: t.disabled })] }
+        ],
+        [N('+', 'Depth is unambiguous at any level'), N('–', 'Label column shrinks 12px per level; at 260px two levels are the limit')],
+        'QFrame[group="true"] { border: none; border-left: 1px solid border_subtle;\n  margin-left: 2px; padding-left: 10px; }'),
+      nestOpt('2h', 'Sub-label + hairline', 'No indent. A sentence-case 11.5px semibold label followed by a hairline marks the sub-group. The label column stays aligned with the parent.', true, false,
+        t => [
+          { s: 'one level', groups: [mk(t, { title: 'Markers', rule: true, noRule: false, rows: mRows, padY: 2 })] },
+          { s: 'two levels', groups: [mk(t, { title: 'Markers', rule: true, noRule: false, rows: mRows, padY: 2 }), mk(t, { title: 'Markers › Edge', rule: true, noRule: false, titleCol: t.muted, rows: tRows, padY: 2 })] },
+          { s: 'parent disabled', groups: [mk(t, { title: 'Markers', rule: true, noRule: false, rows: mRows, padY: 2, titleCol: t.disabled, lblCol: t.disabled, valBorder: t.bSubtle, valCol: t.disabled })] }
+        ],
+        [N('+', 'Full width for controls; label column aligned through the whole panel'), N('+', 'Distinct from the caps section header, with no third style'), N('–', 'Level 2 relies on a breadcrumb title instead of position')],
+        'QLabel[subgroup="true"] { color: text_secondary; font: 600 11.5px; }\n/* followed by QFrame HLine in border_subtle, stretch 1 */'),
+      nestOpt('2i', 'Toggle group', 'The sub-group header carries the switch that enables it (Markers on/off, Grid on/off). Off collapses its children, and disabled children fade.', false, true,
+        t => [
+          { s: 'on', groups: [mk(t, { title: 'Markers', toggle: true, tgBg: t.accent, tgX: 13, tgKnob: '#FFFFFF', bg: t.inset, radius: 4, padL: 8, padR: 8, padY: 6, hdrH: 20, rows: mRows, labelW: 48 })] },
+          { s: 'off (children hidden)', groups: [mk(t, { title: 'Markers', toggle: true, tgBg: t.toggleOff, tgX: 2, tgKnob: t.knob, bg: t.inset, radius: 4, padL: 8, padR: 8, padY: 6, hdrH: 20, titleCol: t.muted, rows: [], labelW: 48 })] },
+          { s: 'parent disabled', groups: [mk(t, { title: 'Markers', toggle: true, tgBg: mix(t.accent, t.surface, .55), tgX: 13, tgKnob: t.surface, bg: t.inset, radius: 4, padL: 8, padR: 8, padY: 6, hdrH: 20, titleCol: t.disabled, lblCol: t.disabled, valBorder: t.bSubtle, valCol: t.disabled, rows: mRows, labelW: 48 })] }
+        ],
+        [N('+', 'Removes the separate "Show markers" row and the dead controls under it'), N('+', 'The inset tile groups children without a guide or indent'), N('–', 'Only fits groups that have an on/off meaning; others still need 2h')],
+        'class ToggleGroup(QFrame):   # property group="toggle"\n    header: ToggleSwitch + QLabel\n    body.setVisible(switch.isChecked())')
+    ];
+
+    const picks = ['Base 1bL / 1bD', 'Accent teal 1eL / 1eD', 'Radius 4 / 6 / 4 (1hL / 1hD)', 'Density 26px', 'Tokens → design_handoff_components/01_tokens'];
+    return { cardOpts, secOpts, nestOpts, picks };
+  }
+}
+</script>
+</body>
+</html>

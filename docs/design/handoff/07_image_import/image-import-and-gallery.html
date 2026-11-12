@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image Import and Gallery</title>
+</head>
+<body>
+<style>
+body{margin:0;background:#f0eee9;font-family:"Segoe UI",system-ui,sans-serif}
+a{color:#2a78d6}a:hover{color:#1b5eae}
+</style>
+
+<section style="padding:40px 44px 34px;scroll-margin-top:16px">
+  <div style="display:flex;align-items:baseline;gap:10px;margin:0 0 8px">
+    <a href="#t1" style="font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none">1</a>
+    <span style="font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a">Image import + gallery — merged import, 2 gallery options</span>
+  </div>
+  <p style="font:12px/1.55 system-ui,sans-serif;color:rgba(0,0,0,.55);max-width:820px;margin:0 0 26px;text-wrap:pretty">Import is one merged option, <a href="#1e">1e</a>: two source tabs (files / URL), a drop zone plus Browse / Add folder in the files tab, a queue with per-item ✕, download progress and blocked-item reasons, a footer status line, and copy-into-project as a checkbox with its consequence spelled out. Gallery: <a href="#1c">1c</a> keeps one primary action and swaps the six-button bar for a selection toolbar; <a href="#1d">1d</a> drops the toolbar entirely — context menu plus an inspector for the selection.</p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:38px;align-items:flex-start">
+
+    <div id="1e" style="flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)"><a href="#1e" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none">1e</a>Import — merged: source tabs, drop zone, per-item status</div>
+      <div style="border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18);overflow:hidden">
+        <div style="width:440px;background:#232326;color:#e6e6e8;font-family:'Segoe UI',system-ui,sans-serif;font-size:12px;border:1px solid #3a3a41;border-radius:8px;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-bottom:1px solid #34343a">
+            <div style="width:14px;height:14px;border-radius:50%;background:#5b6ee0"></div>
+            <span style="font-weight:600;flex:1">Import Images</span>
+            <span style="color:#9a9aa2;font-size:14px">✕</span>
+          </div>
+          <div style="display:flex;gap:18px;padding:0 14px;border-bottom:1px solid #34343a;font-size:11.5px">
+            <div style="padding:9px 0;font-weight:600;border-bottom:2px solid #5b6ee0;color:#fff">From files</div>
+            <div style="padding:9px 0;color:#9a9aa2">From URL</div>
+          </div>
+          <div style="padding:14px;display:flex;flex-direction:column;gap:11px">
+            <div style="border:1.5px dashed #4b4e63;border-radius:8px;background:#1d1d20;padding:16px;display:flex;flex-direction:column;align-items:center;gap:8px">
+              <div style="width:24px;height:24px;border:1.5px solid #6b6ee0;border-radius:6px"></div>
+              <div style="font-size:12.5px;color:#d8d8dc">Drop images or folders here</div>
+              <div style="display:flex;gap:8px;margin-top:2px">
+                <div style="border:1px solid #4a4a52;border-radius:5px;padding:5px 13px;background:#2c2c31">Browse…</div>
+                <div style="border:1px solid #4a4a52;border-radius:5px;padding:5px 13px;background:#2c2c31">Add folder…</div>
+              </div>
+            </div>
+            <div style="border:1px solid #34343a;border-radius:6px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#1f1f22;border-bottom:1px solid #34343a;font-size:11px;color:#9a9aa2">
+                <span style="flex:1">4 in queue · 1 problem</span><span style="color:#8f9cf0">Remove problems</span><span style="color:#8f9cf0">Clear all</span>
+              </div>
+              <div style="display:flex;flex-direction:column;background:#1d1d20">
+                <div style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-bottom:1px solid #26262b">
+                  <div style="width:30px;height:30px;border-radius:4px;background:linear-gradient(135deg,#3c4a7a,#5b6ee0)"></div>
+                  <div style="flex:1;min-width:0">
+                    <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">5938185628…_IYPT.jpg</div>
+                    <div style="font-size:10.5px;color:#8b8b93">1.4 MB · 3024×4032</div>
+                  </div>
+                  <span style="color:#7a7a83;font-size:12px">✕</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-bottom:1px solid #26262b">
+                  <div style="width:30px;height:30px;border-radius:4px;background:#2c2c31;display:flex;align-items:center;justify-content:center;color:#8b8b93;font-size:9px">URL</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">example.com/…/plot-overlay.png</div>
+                    <div style="display:flex;align-items:center;gap:6px;margin-top:3px">
+                      <div style="flex:1;height:3px;border-radius:2px;background:#2f2f36;position:relative">
+                        <div style="position:absolute;inset:0 38% 0 0;background:#e0a45b;border-radius:2px"></div>
+                      </div>
+                      <span style="font-size:10.5px;color:#e0a45b">Downloading 62%</span>
+                    </div>
+                  </div>
+                  <span style="color:#7a7a83;font-size:12px">✕</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-bottom:1px solid #26262b">
+                  <div style="width:30px;height:30px;border-radius:4px;background:linear-gradient(135deg,#5a4a3a,#c08f5b)"></div>
+                  <div style="flex:1;min-width:0">
+                    <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">GruppenFoto.png</div>
+                    <div style="font-size:10.5px;color:#e0a45b">Already in this gallery — will be skipped</div>
+                  </div>
+                  <span style="color:#7a7a83;font-size:12px">✕</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:9px;padding:7px 10px">
+                  <div style="width:30px;height:30px;border-radius:4px;background:#3a2c2c;display:flex;align-items:center;justify-content:center;color:#e07b7b;font-size:12px">!</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">notes.pdf</div>
+                    <div style="font-size:10.5px;color:#e07b7b">Unsupported format</div>
+                  </div>
+                  <span style="color:#7a7a83;font-size:12px">✕</span>
+                </div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:78px 1fr;gap:8px;align-items:center;font-size:11.5px">
+              <span style="color:#9a9aa2">Import into</span>
+              <div style="display:flex;align-items:center;gap:6px;border:1px solid #3f3f47;border-radius:5px;padding:5px 8px;background:#1d1d20">
+                <span style="flex:1">New Image Gallery 1</span><span style="font-size:8px;color:#8b8b93">▾</span>
+              </div>
+            </div>
+            <label style="display:flex;gap:8px;align-items:flex-start;background:#1d1d20;border:1px solid #34343a;border-radius:6px;padding:9px 10px">
+              <span style="color:#8f9cf0">✓</span>
+              <span>
+                <span style="display:block">Copy files into project</span>
+                <span style="display:block;font-size:10.5px;color:#8b8b93;margin-top:2px;text-wrap:pretty">Off: images stay linked and break if the originals move.</span>
+              </span>
+            </label>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-top:1px solid #34343a;background:#1f1f22">
+            <span style="flex:1;font-size:10.5px;color:#8b8b93">2 will import, 1 skipped, 1 downloading</span>
+            <div style="border:1px solid #4a4a52;border-radius:5px;padding:6px 16px;color:#d8d8dc">Cancel</div>
+            <div style="border-radius:5px;padding:6px 16px;background:#5b6ee0;color:#fff;font-weight:600">Import 2 images</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1c" style="flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)"><a href="#1c" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none">1c</a>Gallery — one primary action + selection toolbar, uniform tiles</div>
+      <div style="border:1px solid rgba(0,0,0,.1);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.14);overflow:hidden">
+        <div style="width:900px;height:520px;background:#1e1e20;color:#e6e6e8;font-family:'Segoe UI',system-ui,sans-serif;font-size:12px;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #2e2e33">
+            <span style="font-size:11.5px;color:#9a9aa2">Funtions / Logarithm /</span>
+            <span style="font-weight:600;font-size:13px">New Image Gallery 1</span>
+            <span style="font-size:11px;color:#8b8b93">8 images</span>
+            <div style="flex:1"></div>
+            <div style="display:flex;align-items:center;gap:7px;border:1px solid #3a3a41;border-radius:5px;padding:5px 9px;background:#26262a;width:190px;color:#8b8b93">
+              <div style="width:10px;height:10px;border:1.5px solid #8b8b93;border-radius:50%"></div>Search images
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;border:1px solid #3a3a41;border-radius:5px;padding:5px 9px;background:#26262a">Name ↑<span style="font-size:8px;color:#8b8b93">▾</span></div>
+            <div style="display:flex;border:1px solid #3a3a41;border-radius:5px;overflow:hidden">
+              <div style="padding:5px 10px;background:#4b4ecf;color:#fff">Grid</div>
+              <div style="padding:5px 10px;background:#26262a;color:#b8b8bf">List</div>
+            </div>
+            <div style="border-radius:5px;padding:6px 13px;background:#5b6ee0;color:#fff;font-weight:600">Import Images…</div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:9px;padding:8px 14px;background:#262a3c;border-bottom:1px solid #343a55">
+            <span style="font-weight:600">2 selected</span>
+            <span style="color:#8f9cf0;font-size:11px">Select all · Clear</span>
+            <div style="width:1px;height:16px;background:#3d4362"></div>
+            <div style="display:flex;gap:6px">
+              <div style="border:1px solid #4a4f70;border-radius:5px;padding:5px 11px;background:#2f3450">Rename</div>
+              <div style="border:1px solid #4a4f70;border-radius:5px;padding:5px 11px;background:#2f3450">Group into Album</div>
+              <div style="border:1px solid #4a4f70;border-radius:5px;padding:5px 11px;background:#2f3450">Move…</div>
+              <div style="border:1px solid #4a4f70;border-radius:5px;padding:5px 11px;background:#2f3450">Copy to…</div>
+              <div style="border:1px solid #6b3d3d;border-radius:5px;padding:5px 11px;background:#3a2a2a;color:#e79a9a">Delete</div>
+            </div>
+            <div style="flex:1"></div>
+            <span style="font-size:11px;color:#9a9aa2">Size</span>
+            <div style="width:90px;height:3px;background:#3d4362;border-radius:2px;position:relative">
+              <div style="position:absolute;left:0;top:0;bottom:0;width:56px;background:#8f9cf0;border-radius:2px"></div>
+              <div style="position:absolute;left:50px;top:-4px;width:11px;height:11px;border-radius:50%;background:#c9cef7"></div>
+            </div>
+          </div>
+
+          <div style="flex:1;padding:16px;display:grid;grid-template-columns:repeat(6,1fr);gap:16px;align-content:start;overflow:hidden">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="aspect-ratio:1;border-radius:6px;background:linear-gradient(135deg,#3c4a7a,#5b6ee0);outline:2px solid #6b7ff0;outline-offset:2px;position:relative">
+                <div style="position:absolute;top:6px;left:6px;width:15px;height:15px;border-radius:3px;background:#5b6ee0;color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center">✓</div>
+              </div>
+              <div style="font-size:11px;color:#d8d8dc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">59381856…IYPT.jpg</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="aspect-ratio:1;border-radius:6px;background:linear-gradient(135deg,#3a5a45,#6bc08f);outline:2px solid #6b7ff0;outline-offset:2px;position:relative">
+                <div style="position:absolute;top:6px;left:6px;width:15px;height:15px;border-radius:3px;background:#5b6ee0;color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center">✓</div>
+              </div>
+              <div style="font-size:11px;color:#d8d8dc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">59425799…selfie.jpg</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="aspect-ratio:1;border-radius:6px;background:linear-gradient(135deg,#5a4a3a,#c08f5b)"></div>
+              <div style="font-size:11px;color:#b8b8bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">59562144…team.jpg</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="aspect-ratio:1;border-radius:6px;background:linear-gradient(135deg,#4a4a5a,#9a9ab0)"></div>
+              <div style="font-size:11px;color:#b8b8bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">GruppenFoto.png</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="aspect-ratio:1;border-radius:6px;background:linear-gradient(135deg,#7a3a4a,#c05b7a)"></div>
+              <div style="font-size:11px;color:#b8b8bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">IYPT_DAY2_-41.jpg</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="aspect-ratio:1;border-radius:6px;background:linear-gradient(135deg,#3a4a5a,#5b8fc0)"></div>
+              <div style="font-size:11px;color:#b8b8bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">IYPT_DAY2_4.jpg</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="aspect-ratio:1;border-radius:6px;background:linear-gradient(135deg,#2c2c33,#4a4a55);display:flex;align-items:center;justify-content:center;color:#8b8b93;font-size:10px">webinar</div>
+              <div style="font-size:11px;color:#b8b8bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Webinar_Lead…ship.png</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="aspect-ratio:1;border-radius:6px;background:linear-gradient(135deg,#5a5a3a,#c0b05b)"></div>
+              <div style="font-size:11px;color:#b8b8bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">WhatsApp_Im…04.jpg</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="aspect-ratio:1;border:1.5px dashed #45454e;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#8b8b93;font-size:10.5px;text-align:center">
+                <div style="font-size:16px;color:#6b6ee0">+</div>Drop images
+              </div>
+              <div style="font-size:11px;color:transparent">.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1d" style="flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)"><a href="#1d" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none">1d</a>Gallery — no toolbar: albums rail, context menu, inspector</div>
+      <div style="border:1px solid rgba(0,0,0,.1);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.14);overflow:hidden">
+        <div style="width:900px;height:520px;background:#1e1e20;color:#e6e6e8;font-family:'Segoe UI',system-ui,sans-serif;font-size:12px;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #2e2e33">
+            <span style="font-weight:600;font-size:13px">New Image Gallery 1</span>
+            <span style="font-size:11px;color:#8b8b93">8 images · 2 selected</span>
+            <div style="flex:1"></div>
+            <div style="display:flex;align-items:center;gap:7px;border:1px solid #3a3a41;border-radius:5px;padding:5px 9px;background:#26262a;width:170px;color:#8b8b93">
+              <div style="width:10px;height:10px;border:1.5px solid #8b8b93;border-radius:50%"></div>Search
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;border:1px solid #3a3a41;border-radius:5px;padding:5px 9px;background:#26262a">Date added ↓<span style="font-size:8px;color:#8b8b93">▾</span></div>
+            <div style="border-radius:5px;padding:6px 13px;background:#5b6ee0;color:#fff;font-weight:600">Import…</div>
+          </div>
+          <div style="flex:1;display:flex;min-height:0">
+            <div style="width:150px;border-right:1px solid #2e2e33;padding:12px 10px;display:flex;flex-direction:column;gap:3px;font-size:11.5px">
+              <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#7a7a83;margin-bottom:4px">Albums</div>
+              <div style="padding:5px 8px;border-radius:4px;background:#33375a;color:#fff">All images <span style="float:right;color:#a9b0e6">8</span></div>
+              <div style="padding:5px 8px;border-radius:4px;color:#b8b8bf">Conference <span style="float:right;color:#7a7a83">5</span></div>
+              <div style="padding:5px 8px;border-radius:4px;color:#b8b8bf">Plots <span style="float:right;color:#7a7a83">2</span></div>
+              <div style="padding:5px 8px;border-radius:4px;color:#b8b8bf">Ungrouped <span style="float:right;color:#7a7a83">1</span></div>
+              <div style="margin-top:6px;padding:5px 8px;border-radius:4px;border:1px dashed #45454e;color:#8b8b93">+ New album</div>
+            </div>
+
+            <div style="flex:1;padding:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-content:start;position:relative;min-width:0">
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="aspect-ratio:4/3;border-radius:6px;background:linear-gradient(135deg,#3c4a7a,#5b6ee0);outline:2px solid #6b7ff0;outline-offset:2px"></div>
+                <div style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">59381856…IYPT.jpg</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="aspect-ratio:4/3;border-radius:6px;background:linear-gradient(135deg,#3a5a45,#6bc08f);outline:2px solid #6b7ff0;outline-offset:2px"></div>
+                <div style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">59425799…selfie.jpg</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="aspect-ratio:4/3;border-radius:6px;background:linear-gradient(135deg,#5a4a3a,#c08f5b)"></div>
+                <div style="font-size:11px;color:#b8b8bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">59562144…team.jpg</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="aspect-ratio:4/3;border-radius:6px;background:linear-gradient(135deg,#4a4a5a,#9a9ab0)"></div>
+                <div style="font-size:11px;color:#b8b8bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">GruppenFoto.png</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="aspect-ratio:4/3;border-radius:6px;background:linear-gradient(135deg,#7a3a4a,#c05b7a)"></div>
+                <div style="font-size:11px;color:#b8b8bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">IYPT_DAY2_-41.jpg</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="aspect-ratio:4/3;border-radius:6px;background:linear-gradient(135deg,#3a4a5a,#5b8fc0)"></div>
+                <div style="font-size:11px;color:#b8b8bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">IYPT_DAY2_4.jpg</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="aspect-ratio:4/3;border-radius:6px;background:linear-gradient(135deg,#2c2c33,#4a4a55);display:flex;align-items:center;justify-content:center;color:#8b8b93;font-size:10px">webinar</div>
+                <div style="font-size:11px;color:#b8b8bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Webinar_Lead…png</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="aspect-ratio:4/3;border-radius:6px;background:linear-gradient(135deg,#5a5a3a,#c0b05b)"></div>
+                <div style="font-size:11px;color:#b8b8bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">WhatsApp_Im…jpg</div>
+              </div>
+
+              <div style="position:absolute;left:112px;top:118px;width:184px;background:#2a2a2f;border:1px solid #3d3d45;border-radius:6px;box-shadow:0 10px 24px rgba(0,0,0,.45);padding:4px;display:flex;flex-direction:column;font-size:11.5px">
+                <div style="padding:5px 9px;border-radius:4px;background:#33375a">Open in viewer <span style="float:right;color:#8b8b93">Enter</span></div>
+                <div style="padding:5px 9px;color:#d8d8dc">Rename… <span style="float:right;color:#7a7a83">F2</span></div>
+                <div style="padding:5px 9px;color:#d8d8dc">Group into Album…</div>
+                <div style="padding:5px 9px;color:#d8d8dc">Move to ▸</div>
+                <div style="padding:5px 9px;color:#d8d8dc">Copy to…</div>
+                <div style="padding:5px 9px;color:#d8d8dc">Insert into chart</div>
+                <div style="height:1px;background:#3d3d45;margin:4px 0"></div>
+                <div style="padding:5px 9px;color:#e79a9a">Delete 2 images <span style="float:right;color:#7a7a83">Del</span></div>
+              </div>
+            </div>
+
+            <div style="width:210px;border-left:1px solid #2e2e33;padding:14px;display:flex;flex-direction:column;gap:11px">
+              <div style="aspect-ratio:4/3;border-radius:6px;background:linear-gradient(135deg,#3c4a7a,#5b6ee0)"></div>
+              <div style="font-weight:600;font-size:12px;word-break:break-all">59381856288…_IYPT.jpg</div>
+              <div style="display:flex;flex-direction:column;gap:6px;font-size:11px">
+                <div style="display:flex;justify-content:space-between"><span style="color:#8b8b93">Size</span><span>1.8 MB</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:#8b8b93">Pixels</span><span>3024 × 4032</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:#8b8b93">Added</span><span>12 Aug 2026</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:#8b8b93">Storage</span><span style="color:#8f9cf0">In project</span></div>
+              </div>
+              <div style="height:1px;background:#2e2e33"></div>
+              <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#7a7a83">Also selected</div>
+              <div style="display:flex;gap:6px">
+                <div style="width:38px;height:30px;border-radius:4px;background:linear-gradient(135deg,#3a5a45,#6bc08f)"></div>
+                <div style="width:38px;height:30px;border-radius:4px;background:#2c2c31;display:flex;align-items:center;justify-content:center;font-size:10px;color:#8b8b93">+1</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+</body>
+</html>
