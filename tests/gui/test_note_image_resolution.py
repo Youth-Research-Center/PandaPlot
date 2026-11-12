@@ -2068,6 +2068,76 @@ def test_insert_chart_snapshot_commits_the_reference_with_the_image_in_one_undo_
     assert project.find_item(image.id).get_bytes() is not None
 
 
+def _editor_with_pending_snapshot_render(content: str):
+    """A note editor whose chart render is held until the test delivers it."""
+    chart = Chart(name="Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    note = Note(name="Note 1", content=content)
+    project.add_item(note)
+    app_context = _app_context_with_executing_command_executor(project)
+    pending = []
+    app_context.get_task_scheduler.return_value.run_task.side_effect = (
+        lambda task, task_arguments=None, on_result=None, on_error=None, **_kw: pending.append(on_result))
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    return editor, chart, project, pending
+
+
+def test_insert_chart_snapshot_leaves_a_moved_caret_and_selection_where_the_user_put_them(qapp):
+    """The reference lands where Insert was clicked, but the user's caret and
+    selection, moved while the render ran, stay where the user left them (#526)."""
+    editor, chart, project, pending = _editor_with_pending_snapshot_render("abc def")
+    editor.text_edit.moveCursor(QTextCursor.MoveOperation.End)
+    editor._insert_chart_snapshot(chart)
+
+    cursor = editor.text_edit.textCursor()
+    cursor.setPosition(1)
+    cursor.setPosition(3, QTextCursor.MoveMode.KeepAnchor)
+    editor.text_edit.setTextCursor(cursor)
+    pending[0](_rendered_snapshot(8, 8))
+
+    image = next(item for item in project.get_all_items() if isinstance(item, Image))
+    assert editor.text_edit.toPlainText() == f"abc def![Plot]({image.id} =500x)"
+    user_cursor = editor.text_edit.textCursor()
+    assert (user_cursor.anchor(), user_cursor.position()) == (1, 3)
+    assert user_cursor.selectedText() == "bc"
+
+
+def test_insert_chart_snapshot_shifts_a_caret_after_the_insert_point_with_the_text(qapp):
+    """A caret the user moved past the insert point keeps its place in the
+    text, so it moves right by the length of the inserted reference."""
+    editor, chart, project, pending = _editor_with_pending_snapshot_render("abc def")
+    cursor = editor.text_edit.textCursor()
+    cursor.setPosition(3)
+    editor.text_edit.setTextCursor(cursor)
+    editor._insert_chart_snapshot(chart)
+
+    cursor.setPosition(5)  # between "d" and "ef"
+    editor.text_edit.setTextCursor(cursor)
+    pending[0](_rendered_snapshot(8, 8))
+
+    image = next(item for item in project.get_all_items() if isinstance(item, Image))
+    reference = f"![Plot]({image.id} =500x)"
+    assert editor.text_edit.toPlainText() == f"abc{reference} def"
+    user_cursor = editor.text_edit.textCursor()
+    assert not user_cursor.hasSelection()
+    assert user_cursor.position() == 5 + len(reference)
+
+
+def test_insert_chart_snapshot_puts_an_unmoved_caret_after_the_reference(qapp):
+    editor, chart, project, pending = _editor_with_pending_snapshot_render("abc def")
+    cursor = editor.text_edit.textCursor()
+    cursor.setPosition(3)
+    editor.text_edit.setTextCursor(cursor)
+    editor._insert_chart_snapshot(chart)
+    pending[0](_rendered_snapshot(8, 8))
+
+    image = next(item for item in project.get_all_items() if isinstance(item, Image))
+    reference = f"![Plot]({image.id} =500x)"
+    assert editor.text_edit.toPlainText() == f"abc{reference} def"
+    assert editor.text_edit.textCursor().position() == 3 + len(reference)
+
+
 def test_insert_chart_snapshot_leaves_the_text_alone_when_the_commit_fails(qapp):
     chart = Chart(name="Plot")
     project = Project(name="Test Project")

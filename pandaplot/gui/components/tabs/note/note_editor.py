@@ -1063,7 +1063,10 @@ class NoteEditorWidget(PWidget):
         a live QTextCursor tracks its position through any edits made via
         other cursors in between (e.g. the user continuing to type while
         the render runs), so the reference lands where "Insert" was
-        clicked rather than wherever the caret happens to be later.
+        clicked rather than wherever the caret happens to be later. The
+        editor's own caret and selection are left alone: the document
+        shifts them past the inserted text if they come after it, and a
+        caret still at the insert point ends up after the reference.
         """
         cursor = self.text_edit.textCursor()
         alt_text = chart.name.replace("[", "(").replace("]", ")")
@@ -1102,7 +1105,6 @@ class NoteEditorWidget(PWidget):
             self.is_modified = False
             self.update_status("Saved", success=True)
             QTimer.singleShot(2000, self._reset_status)
-            self.text_edit.setTextCursor(cursor)
             if self.stack.currentIndex() == 1:
                 self.update_preview()
 
