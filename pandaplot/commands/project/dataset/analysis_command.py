@@ -202,9 +202,12 @@ class AnalysisCommand(BackgroundTaskCommand):
         column of the dataset.
         """
         if self.analysis_type is AnalysisType.INTERPOLATION:
+            result_y_column = f"{self.y_column} (interpolated)"
+            if result_y_column == self.x_column:
+                result_y_column = f"{result_y_column} (2)"
             result_table = pd.DataFrame({
                 self.x_column: pd.Series(result.x_data).reset_index(drop=True),
-                f"{self.y_column} (interpolated)": pd.Series(result.result_data).reset_index(drop=True),
+                result_y_column: pd.Series(result.result_data).reset_index(drop=True),
             })
             return ApplyAnalysisDatasetResultCommand(
                 self.app_context,
