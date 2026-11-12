@@ -44,6 +44,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 - Date-typed dataset cells support text entry and calendar selection, with undo/redo and timezone-aware values preserved.
 - Standalone desktop installer packaging via `pyside6-deploy`/Nuitka (`scripts/build_installer.py`, `pysidedeploy.spec`).
 - `Build Release Installer` GitHub Actions workflow: builds installers for Linux, Windows, and macOS, and publishes them to a GitHub Release with SHA256 checksums under a user-supplied version tag.
+- Opening an example from the Welcome tab or **Help → Open Example Project...** opens its start note in a tab, or its first featured chart when it has no start note (#34).
 
 ### Changed
 - In the Examples dialog, the topic and technique tag filters are collapsed behind a **Filters** button (showing how many tags are selected) so the example cards get more room, and the **Cancel** button is now **Close**.

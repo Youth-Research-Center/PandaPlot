@@ -76,9 +76,7 @@ def _find_help_action(menu: MainMenu, text: str) -> QAction:
 class TestMainMenuHelpMenu:
     def test_help_menu_has_open_example_project_action(self, app_context):
         menu = MainMenu(parent=None, app_context=app_context)
-
-        command_executor = Mock()
-        app_context.get_command_executor.return_value = command_executor
+        tab_container = TestMainMenuHelpMenu._route_tab_container(app_context)
         action = _find_help_action(menu, "Open Example Project...")
         assert action.isEnabled()
 
@@ -90,8 +88,7 @@ class TestMainMenuHelpMenu:
             action.trigger()
 
         dialog_cls.assert_called_once()
-        command_executor.execute_command.assert_called_once()
-        assert command_executor.execute_command.call_args[0][0].file_path == "/examples/sample.pplot"
+        tab_container.command_manager.handle_example_project.assert_called_once_with("/examples/sample.pplot")
 
     def test_help_menu_has_welcome_action(self, app_context):
         menu = MainMenu(parent=None, app_context=app_context)
@@ -131,8 +128,23 @@ class TestMainMenuHelpMenu:
 
         tab_container.show_welcome_tab.assert_called_once_with()
 
+    @staticmethod
+    def _route_tab_container(app_context) -> Mock:
+        tab_container = Mock()
+        original_side_effect = app_context.get_manager.side_effect
+
+        def _get_manager(manager_type, *args, **kwargs):
+            from pandaplot.gui.components.tabs.tab_container import TabContainer
+            if manager_type is TabContainer:
+                return tab_container
+            return original_side_effect(manager_type, *args, **kwargs)
+
+        app_context.get_manager.side_effect = _get_manager
+        return tab_container
+
     def test_open_example_project_loads_selected_example(self, app_context):
         menu = MainMenu(parent=None, app_context=app_context)
+        tab_container = self._route_tab_container(app_context)
         command_executor = Mock()
         app_context.get_command_executor.return_value = command_executor
 
@@ -143,14 +155,13 @@ class TestMainMenuHelpMenu:
 
             menu.show_examples_dialog()
 
-        command_executor.execute_command.assert_called_once()
-        executed_command = command_executor.execute_command.call_args[0][0]
-        assert executed_command.file_path == "/examples/sample.pplot"
+        tab_container.command_manager.handle_example_project.assert_called_once_with("/examples/sample.pplot")
+        command_executor.execute_command.assert_not_called()
         dialog.deleteLater.assert_called_once_with()
-        assert executed_command.as_untitled_copy is True
 
     def test_open_example_project_does_nothing_when_dialog_cancelled(self, app_context):
         menu = MainMenu(parent=None, app_context=app_context)
+        tab_container = self._route_tab_container(app_context)
         command_executor = Mock()
         app_context.get_command_executor.return_value = command_executor
 
@@ -161,6 +172,7 @@ class TestMainMenuHelpMenu:
 
             menu.show_examples_dialog()
 
+        tab_container.command_manager.handle_example_project.assert_not_called()
         command_executor.execute_command.assert_not_called()
         dialog.deleteLater.assert_called_once_with()
 
@@ -170,11 +182,13 @@ class TestMainMenuHelpMenu:
         matching -- it didn't check is_modified, or "already open") the
         equivalent guard in OpenProjectCommand. That guard now lives in
         LoadProjectCommand itself (see test_load_project_command.py's
-        TestLoadProjectCommandGuards), so this handler always hands off to
-        it unconditionally, with no inline check of its own -- even when a
-        project is already open."""
+        TestLoadProjectCommandGuards), and is reached through
+        TabContainerCommandManager.handle_example_project, so this handler
+        always hands off to it unconditionally, with no inline check of
+        its own -- even when a project is already open."""
         app_context.get_app_state().has_project = True
         menu = MainMenu(parent=None, app_context=app_context)
+        tab_container = self._route_tab_container(app_context)
         command_executor = Mock()
         app_context.get_command_executor.return_value = command_executor
         ui_controller = Mock()
@@ -188,9 +202,9 @@ class TestMainMenuHelpMenu:
             menu.show_examples_dialog()
 
         ui_controller.show_question.assert_not_called()
-        command_executor.execute_command.assert_called_once()
-        executed_command = command_executor.execute_command.call_args[0][0]
-        assert executed_command.file_path == "/examples/sample.pplot"
+        ui_controller.show_save_as_discard_cancel.assert_not_called()
+        command_executor.execute_command.assert_not_called()
+        tab_container.command_manager.handle_example_project.assert_called_once_with("/examples/sample.pplot")
 
 
 def _help_catalog() -> HelpCatalog:
