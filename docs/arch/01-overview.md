@@ -68,7 +68,8 @@ User selects analysis type (Derivative / Integral / Smoothing / Interpolation)
     ├── TaskScheduler.run_task(AnalysisEngine.calculate_*, params) on QThreadPool
     ├── On task completion:
     │   ├── Result appended as new column to Dataset
-    │   ├── ApplyAnalysisResultCommand created and pushed to undo stack
+    │   │   (Interpolation resamples onto a new X grid: it becomes a new (X, Y) Dataset instead)
+    │   ├── ApplyAnalysisResultCommand (or ApplyAnalysisDatasetResultCommand) created and pushed to undo stack
     │   └── EventBus.emit(AnalysisEvents.ANALYSIS_COMPLETED + DatasetEvents.DATASET_COLUMN_ADDED)
     └── UI panel hides BusySpinner
 ```

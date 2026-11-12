@@ -16,10 +16,11 @@ from typing import Any, override
 
 import pandas as pd
 
-from pandaplot.analysis import AnalysisEngine, AnalysisType
+from pandaplot.analysis import AnalysisEngine, AnalysisResult, AnalysisType
 from pandaplot.commands.background_task_command import BackgroundTaskCommand
-from pandaplot.commands.base_command import CommandResult
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
+from pandaplot.commands.project.dataset.apply_analysis_dataset_result_command import ApplyAnalysisDatasetResultCommand
 from pandaplot.commands.project.dataset.apply_analysis_result_command import ApplyAnalysisResultCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items import Dataset
@@ -179,14 +180,7 @@ class AnalysisCommand(BackgroundTaskCommand):
             if current_dataset is not None and current_dataset.data is not None:
                 self._store_original_state(current_dataset.data)
 
-            apply_command = ApplyAnalysisResultCommand(
-                self.app_context,
-                self.dataset_id,
-                self.new_column_name,
-                outcome["result"].result_data,
-                column_existed_before=self.column_existed_before,
-                original_data=self.original_data,
-            )
+            apply_command = self._build_apply_command(outcome["result"], current_dataset)
             executor = self.app_context.get_command_executor()
             if executor.execute_command(apply_command):
                 self._notify_complete(CommandResult.SUCCESS)
@@ -197,6 +191,38 @@ class AnalysisCommand(BackgroundTaskCommand):
             self.logger.exception("Error applying analysis result")
             self.ui_controller.show_error_message("Analysis Error", "Couldn't add the analysis result to the dataset.", error=e)
             self._notify_complete(CommandResult.FAILURE)
+
+    def _build_apply_command(self, result: AnalysisResult, current_dataset: Dataset | None) -> Command:
+        """The undoable command that stores `result`.
+
+        An interpolation resamples onto a new X grid, so its Y values do not
+        belong on the analyzed dataset's rows: it becomes a new (X, Y)
+        dataset next to the source, named after the Result field. Every
+        other analysis returns one value per source row and is written as a
+        column of the dataset.
+        """
+        if self.analysis_type is AnalysisType.INTERPOLATION:
+            result_y_column = f"{self.y_column} (interpolated)"
+            if result_y_column == self.x_column:
+                result_y_column = f"{result_y_column} (2)"
+            result_table = pd.DataFrame({
+                self.x_column: pd.Series(result.x_data).reset_index(drop=True),
+                result_y_column: pd.Series(result.result_data).reset_index(drop=True),
+            })
+            return ApplyAnalysisDatasetResultCommand(
+                self.app_context,
+                self.new_column_name,
+                result_table,
+                folder_id=current_dataset.parent_id if current_dataset is not None else None,
+            )
+        return ApplyAnalysisResultCommand(
+            self.app_context,
+            self.dataset_id,
+            self.new_column_name,
+            result.result_data,
+            column_existed_before=self.column_existed_before,
+            original_data=self.original_data,
+        )
 
     def _on_analysis_error(self, error_info) -> None:
         """Only reached for a bug in this command's own glue code -- expected
@@ -248,7 +274,13 @@ class AnalysisCommand(BackgroundTaskCommand):
             self.ui_controller.show_error_message("Analysis Error", message)
             return False
 
-        if self.new_column_name in df.columns and not self.replace_existing:
+        # An interpolation is stored as a new dataset, not a column, so its
+        # result name never collides with an existing column.
+        if (
+            self.analysis_type is not AnalysisType.INTERPOLATION
+            and self.new_column_name in df.columns
+            and not self.replace_existing
+        ):
             message = f"Column '{self.new_column_name}' already exists"
             self.logger.error(f"Error: {message}")
             self.ui_controller.show_error_message("Analysis Error", message)

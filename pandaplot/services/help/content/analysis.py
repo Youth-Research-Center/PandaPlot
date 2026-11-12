@@ -265,15 +265,15 @@ def topics() -> list[HelpTopic]:
                 f"Points starts at {INTERPOLATION_POINTS_DATASET.default} in the Analysis Operations panel "
                 f"({INTERPOLATION_POINTS_DATASET.minimum} to {INTERPOLATION_POINTS_DATASET.maximum}) and at {INTERPOLATION_POINTS_CHART.default} "
                 f"in the Chart Analysis panel ({INTERPOLATION_POINTS_CHART.minimum} to {INTERPOLATION_POINTS_CHART.maximum}).\n\n"
-                "The result has its own X positions, which are not the same as your original rows. "
-                "On the chart tab the new dataset contains both the new X values and the interpolated Y values. "
-                "In the Analysis Operations panel only the Y values are stored: they are written into the new column from the first row of the dataset "
-                "downwards, whatever Data Range you chose, and any rows below them stay empty. "
-                "Points must not be larger than the number of rows in the dataset, otherwise Apply fails."
+                "The result has its own X positions, which are not the same as your original rows, so it is stored as a new dataset "
+                "that contains both the new X values and the interpolated Y values. This is the same on the chart tab and in the Analysis Operations panel. "
+                "In the Analysis Operations panel the new dataset is named after the Result Dataset field and is added next to your dataset, "
+                "and only the rows in the Data Range are used.\n\n"
+                "Points can be larger than the number of rows. That is how you add detail between your measured points."
             ),
             parameters=(
                 ("Method", 'How the curve between points is drawn. See "Interpolation methods".'),
-                ("Points", "How many new values to calculate. In the Analysis Operations panel it must not exceed the number of rows in the dataset."),
+                ("Points", "How many new values to calculate. It can be larger than the number of rows in your data."),
             ),
             keywords=("interpolate", "resample", "fill gaps", "upsample", "spline", "estimate between points"),
             related=("analysis.interpolation_methods", *_PANELS),
