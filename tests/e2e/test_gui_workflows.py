@@ -4,6 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+import shiboken6
 from PySide6.QtCore import QPointF, Qt, QTimer
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QInputDialog, QLineEdit
@@ -478,6 +479,93 @@ def test_closing_an_edited_example_offers_save_as_and_clears_the_recovery_copy(
     assert not session_recovery_path().exists()
     reopened = context.get_manager(ProjectManager).load_project(str(saved_path))
     assert any(item.name == "Edit after opening" for item in reopened.get_all_items())
+
+
+def _open_example_start_note(app_window: PandaMainWindow, qtbot: QtBot, stem: str, previous: object) -> tuple[object, str]:
+    """Open the bundled example `stem` and its "Start here" note tab; return the loaded project and the note id."""
+    from pandaplot.models.project.items import Note
+    from pandaplot.utils.examples import discover_example_projects
+
+    example = next(e for e in discover_example_projects() if Path(e.path).stem == stem)
+    state = app_window.app_context.app_state
+    app_window.tab_container.command_manager.handle_example_project(example.path)
+    qtbot.waitUntil(lambda: state.current_project is not None and state.current_project is not previous, timeout=10000)
+    project = state.current_project
+    note = next(i for i in project.get_all_items() if isinstance(i, Note) and i.name == "Start here")
+    app_window.tab_container.open_tab(note.id)
+    return project, note.id
+
+
+def _tab_title(tab_container: TabContainer, item_id: str) -> str:
+    widget = tab_container.tabs[item_id]
+    pane = tab_container._pane_of(widget)
+    return pane.tabText(pane.indexOf(widget))
+
+
+def test_opening_another_example_closes_the_previous_projects_tabs(app_window: PandaMainWindow, qtbot: QtBot) -> None:
+    tab_container = app_window.tab_container
+
+    first, first_note_id = _open_example_start_note(app_window, qtbot, "basic_statistics", previous=None)
+    first_widget = tab_container.tabs[first_note_id]
+
+    _second, second_note_id = _open_example_start_note(app_window, qtbot, "Functions", previous=first)
+
+    assert first_note_id not in tab_container.tabs
+    assert not shiboken6.isValid(first_widget) or tab_container._pane_of(first_widget) is None
+    assert set(tab_container.tabs) == {second_note_id}
+    assert tab_container._active_pane.currentWidget() is tab_container.tabs[second_note_id]
+
+
+def test_reopening_the_same_example_gives_a_note_tab_bound_to_the_live_project(
+    app_window: PandaMainWindow, qtbot: QtBot
+) -> None:
+    from pandaplot.commands.project.item.rename_item_command import RenameItemCommand
+
+    context = app_window.app_context
+    state = context.app_state
+    tab_container = app_window.tab_container
+
+    first, note_id = _open_example_start_note(app_window, qtbot, "basic_statistics", previous=None)
+    old_title = _tab_title(tab_container, note_id)
+    stale_widget = tab_container.tabs[note_id]
+
+    _second, same_note_id = _open_example_start_note(app_window, qtbot, "basic_statistics", previous=first)
+
+    assert same_note_id == note_id
+    tab = tab_container.tabs[note_id]
+    assert tab is not stale_widget
+    assert tab.note is state.current_project.find_item(note_id)
+
+    assert context.get_command_executor().execute_command(RenameItemCommand(context, note_id, "Renamed"))
+
+    assert _tab_title(tab_container, note_id) == "Renamed"
+    assert not any(
+        pane.tabText(i) == old_title for pane in tab_container.panes for i in range(pane.count())
+    )
+
+
+def test_undoing_an_example_load_closes_the_undone_projects_tabs(app_window: PandaMainWindow, qtbot: QtBot) -> None:
+    from pandaplot.commands.project.item.rename_item_command import RenameItemCommand
+
+    context = app_window.app_context
+    state = context.app_state
+    tab_container = app_window.tab_container
+
+    first, note_id = _open_example_start_note(app_window, qtbot, "basic_statistics", previous=None)
+    old_title = _tab_title(tab_container, note_id)
+    second, _ = _open_example_start_note(app_window, qtbot, "basic_statistics", previous=first)
+    assert context.get_command_executor().execute_command(RenameItemCommand(context, note_id, "Renamed"))
+    assert _tab_title(tab_container, note_id) == "Renamed"
+
+    click_menu(qtbot, app_window, "Edit", app_window.main_menu.undo_action.text())
+
+    assert state.current_project is second
+    assert _tab_title(tab_container, note_id) == old_title
+
+    click_menu(qtbot, app_window, "Edit", app_window.main_menu.undo_action.text())
+
+    assert state.current_project is first
+    assert tab_container.tabs == {}
 
 
 def _example_named(name: str) -> ExampleProject:

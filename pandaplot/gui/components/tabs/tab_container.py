@@ -673,7 +673,39 @@ class TabContainer(PWidget):
     def on_project_closed(self):
         """Called when a project is closed - close all project-related tabs and show welcome tab if no tabs are open."""
         self.logger.info("Closing all project-related tabs")
+        self._close_project_tabs()
 
+        # Create welcome tab if no tabs remain
+        if self.panes and self.panes[0].count() == 0:
+            self.create_welcome_tab()
+
+        # Closing tabs can leave the sidebar (chart properties, fit panel) on a closed tab.
+        self._emit_tab_changed_for_active_pane()
+
+    def _on_project_loaded(self, event_data: dict) -> None:
+        """Close the previous project's tabs when another project replaces it.
+
+        Loading or creating a project emits only PROJECT_LOADED, never PROJECT_CLOSED, so tabs
+        of the replaced project would otherwise keep showing its items. The first load (no
+        previous project) and a reload of the same project object (Save As) keep their tabs.
+
+        Args:
+            event_data: PROJECT_LOADED payload with the "project" and "previous_project" keys.
+        """
+        previous = event_data.get("previous_project")
+        if previous is None or previous is event_data.get("project"):
+            return
+
+        self.logger.info("Another project replaced the current one - closing the previous project's tabs")
+        self._close_project_tabs()
+
+        if self.panes and self.panes[0].count() == 0:
+            self.create_welcome_tab()
+
+        self._emit_tab_changed_for_active_pane()
+
+    def _close_project_tabs(self) -> None:
+        """Close all floating windows and item tabs of the project and clear their tracking."""
         # Close any popped-out tabs (their windows aren't inside the panes).
         # Detach content first so it can be unsubscribed synchronously (see
         # _handle_close) before the window's WA_DeleteOnClose defers its
@@ -718,15 +750,12 @@ class TabContainer(PWidget):
         # Clear tracking dictionaries since project is closed
         self.tabs.clear()
 
-        # Create welcome tab if no tabs remain
-        if self.panes and self.panes[0].count() == 0:
-            self.create_welcome_tab()
-
     def setup_event_subscriptions(self):
         """Setup event subscriptions for this component."""
         self.subscribe_to_multiple_events([
             # Keep existing project events
             (ProjectEvents.PROJECT_CLOSED, lambda _: self.on_project_closed()),
+            (ProjectEvents.PROJECT_LOADED, self._on_project_loaded),
 
             # Subscribe to dataset events
             (AnalysisEvents.ANALYSIS_COMPLETED, self.on_analysis_completed),
