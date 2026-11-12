@@ -175,6 +175,9 @@ class SaveProjectCommand(Command):
             dict: {'success': bool, 'error': str or None, 'path': str or None, 'project': Project or None}
         """
         self.logger.debug("Starting project save task")
+        # project.json records the path, so it is set before writing; a failed
+        # write restores it so the next Save does not target the failed location.
+        original_file_path = project.project_file_path
         try:
             if progress_callback:
                 progress_callback(0.1)  # Starting save
@@ -204,6 +207,7 @@ class SaveProjectCommand(Command):
             return {"success": True, "error": None, "path": save_path, "project": project}
 
         except Exception as e:
+            project.project_file_path = original_file_path
             error_msg = f"Error during project save: {e!s}"
             self.logger.exception(error_msg)
             return {"success": False, "error": error_msg, "error_description": describe_error(e), "path": None, "project": None}
@@ -370,4 +374,4 @@ class SaveProjectAsCommand(SaveProjectCommand):
         except Exception as e:
             self.logger.exception("Failed to save project as")
             self.ui_controller.show_error_message("Save Project As Error", "Couldn't save the project.", error=e)
-            raise
+            return CommandResult.FAILURE
