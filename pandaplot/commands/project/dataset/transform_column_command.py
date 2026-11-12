@@ -96,7 +96,8 @@ class TransformColumnCommand(Command):
             self.logger.info("Executing TransformColumnCommand")
             # Get dataset from app context
             self.dataset = self._get_dataset()
-            if not self.dataset:
+            # Not truthiness: an empty folder has len() == 0.
+            if self.dataset is None:
                 self.error_message = f"Dataset {self.dataset_id} not found"
                 self.logger.warning(self.error_message)
                 return CommandResult.FAILURE

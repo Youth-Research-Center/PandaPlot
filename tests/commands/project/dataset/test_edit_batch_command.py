@@ -13,6 +13,7 @@ import pytest
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.edit_batch_command import EditBatchCommand
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.models.state.app_context import AppContext
@@ -325,3 +326,115 @@ def test_a_batch_on_the_source_column_is_allowed(mock_app_context, sample_projec
 
     assert command.execute() is CommandResult.SUCCESS
     assert dataset.data["a"].tolist() == [10.0, 20.0, 3.0]
+
+
+@pytest.fixture
+def project_with_dataset(mock_app_context, sample_project):
+    """A 2x2 dataset reachable through the current project."""
+    mock_app_context.app_state.has_project = True
+    mock_app_context.app_state.current_project = sample_project
+    dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1.0, 2.0], "b": [3.0, 4.0]}))
+    sample_project.find_item.return_value = dataset
+    return dataset
+
+
+def _data_changed_payloads(app_context):
+    return [c.args[1] for c in app_context.event_bus.emit.call_args_list if c.args[0] == DatasetEvents.DATASET_DATA_CHANGED]
+
+
+class TestBatchEditExpansion:
+    """A paste that overruns the dataset grows it first; undo and redo replay both steps."""
+
+    def test_paste_past_the_edges_grows_the_dataset_and_undo_redo_replay_it(self, mock_app_context, project_with_dataset):
+        dataset = project_with_dataset
+        before = dataset.data.copy()
+        command = EditBatchCommand(mock_app_context, "ds-1", 1, 1, [[10.0, 11.0], [12.0, 13.0]])
+
+        assert command.execute() is CommandResult.SUCCESS
+
+        assert dataset.data.shape == (3, 3)
+        assert dataset.data.iloc[1:3, 1:3].values.tolist() == [[10.0, 11.0], [12.0, 13.0]]
+        assert dataset.data.iloc[0, 0] == 1.0
+        after = dataset.data.copy()
+
+        assert command.undo() is CommandResult.SUCCESS
+        pd.testing.assert_frame_equal(dataset.data, before)
+
+        assert command.redo() is CommandResult.SUCCESS
+        pd.testing.assert_frame_equal(dataset.data, after)
+        # execute, undo and redo all tell subscribers which dataset changed.
+        assert [p["dataset_id"] for p in _data_changed_payloads(mock_app_context)] == ["ds-1", "ds-1", "ds-1"]
+
+    @pytest.mark.xfail(strict=True, reason="#667: AddColumnsCommand.redo() re-runs execute() and mints new column IDs")
+    def test_redo_keeps_the_ids_of_columns_the_paste_added(self, mock_app_context, project_with_dataset):
+        dataset = project_with_dataset
+        command = EditBatchCommand(mock_app_context, "ds-1", 0, 1, [[10.0, 11.0]])
+        assert command.execute() is CommandResult.SUCCESS
+        column_ids_after = dict(dataset.column_ids)
+
+        assert command.undo() is CommandResult.SUCCESS
+        assert command.redo() is CommandResult.SUCCESS
+
+        assert dict(dataset.column_ids) == column_ids_after
+
+    def test_failed_column_expansion_rolls_back_the_rows_it_added(self, mock_app_context, project_with_dataset, monkeypatch):
+        """A paste that cannot add its columns must not leave behind the rows it
+        added first: execute() returns FAILURE, so nothing could undo them."""
+        dataset = project_with_dataset
+        before = dataset.data.copy()
+        monkeypatch.setattr(
+            "pandaplot.commands.project.dataset.edit_batch_command.AddColumnsCommand.execute",
+            lambda self: CommandResult.FAILURE,
+        )
+        command = EditBatchCommand(mock_app_context, "ds-1", 1, 1, [[10.0, 11.0], [12.0, 13.0]])
+
+        assert command.execute() is CommandResult.FAILURE
+
+        pd.testing.assert_frame_equal(dataset.data, before)
+        assert command.executed_commands == []
+        assert "Failed to add 1 columns" in mock_app_context.get_ui_controller().show_error_message.call_args.args[1]
+
+    def test_a_cell_that_cannot_be_written_rolls_back_the_whole_paste(self, mock_app_context, project_with_dataset):
+        dataset = project_with_dataset
+        before = dataset.data.copy()
+        # The third row needs a new row; its second cell cannot be stored in a float column.
+        command = EditBatchCommand(mock_app_context, "ds-1", 0, 0, [[10.0, 11.0], [12.0, 13.0], [14.0, [1, 2]]])
+
+        assert command.execute() is CommandResult.FAILURE
+
+        pd.testing.assert_frame_equal(dataset.data, before)
+        assert command.executed_commands == []
+        mock_app_context.event_bus.emit.assert_not_called()
+        assert mock_app_context.get_ui_controller().show_error_message.call_args.args[0] == "Batch Edit Error"
+
+    def test_a_cell_that_cannot_be_written_restores_the_cells_already_written(self, mock_app_context, project_with_dataset):
+        dataset = project_with_dataset
+        before = dataset.data.copy()
+        command = EditBatchCommand(mock_app_context, "ds-1", 0, 0, [[10.0], [[1, 2]]])
+
+        assert command.execute() is CommandResult.FAILURE
+
+        pd.testing.assert_frame_equal(dataset.data, before)
+        assert command.old_data is None
+        assert command.undo() is CommandResult.FAILURE
+
+    def test_dataset_with_columns_but_no_rows_cannot_grow(self, mock_app_context, project_with_dataset):
+        dataset = project_with_dataset
+        dataset.set_data(pd.DataFrame({"a": pd.Series([], dtype=float)}))
+        command = EditBatchCommand(mock_app_context, "ds-1", 0, 0, [[1.0]])
+
+        assert command.execute() is CommandResult.FAILURE
+
+        assert dataset.data.empty
+        assert command.dataset is None
+        assert command.redo() is CommandResult.FAILURE
+
+    def test_dataset_with_rows_but_no_columns_cannot_grow(self, mock_app_context, project_with_dataset):
+        dataset = project_with_dataset
+        dataset.set_data(pd.DataFrame(index=[0, 1]))
+        command = EditBatchCommand(mock_app_context, "ds-1", 0, 0, [[1.0]])
+
+        assert command.execute() is CommandResult.FAILURE
+
+        assert dataset.data.shape == (2, 0)
+        assert command.dataset is None
