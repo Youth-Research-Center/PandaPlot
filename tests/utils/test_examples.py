@@ -14,7 +14,7 @@ from pandaplot.storage.dataset_data_manager import DatasetDataManager
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 from pandaplot.storage.note_data_manager import NoteDataManager
 from pandaplot.storage.project_data_manager import ProjectDataManager
-from pandaplot.utils.examples import ExampleProject, discover_example_projects, get_examples_dir
+from pandaplot.utils.examples import ExampleProject, discover_example_projects, example_start_item, get_examples_dir
 
 
 def _png_bytes() -> bytes:
@@ -227,12 +227,42 @@ class TestDiscoverExampleProjects:
 
         assert names == ["Aardvark", "banana", "zebra", "Cherry", "Apple"]
 
-    def test_bundled_examples_directory_discovers_five_projects(self):
+    def test_bundled_examples_directory_discovers_six_projects(self):
         examples = discover_example_projects(get_examples_dir())
 
-        assert len(examples) == 5
+        assert len(examples) == 6
         assert all(e.name and e.path for e in examples)
         assert [e.section for e in examples] == sorted((e.section for e in examples), key=list(ExampleSection).index)
+
+
+class TestExampleStartItem:
+    def test_returns_the_start_note(self):
+        project = _project("P", info=ExampleInfo(is_example=True, start_note_id="n0", featured_chart_ids=("c0",)), charts=1, notes=1)
+
+        assert example_start_item(project) is project.find_item("n0")
+
+    def test_stale_start_note_falls_back_to_the_first_existing_featured_chart(self):
+        info = ExampleInfo(is_example=True, start_note_id="gone", featured_chart_ids=("missing", "c1", "c0"))
+        project = _project("P", info=info, charts=2)
+
+        assert example_start_item(project) is project.find_item("c1")
+
+    def test_start_id_pointing_at_a_non_note_falls_back(self):
+        info = ExampleInfo(is_example=True, start_note_id="d0", featured_chart_ids=("d0", "c0"))
+        project = _project("P", info=info, charts=1, datasets=1)
+
+        assert example_start_item(project) is project.find_item("c0")
+
+    def test_no_start_note_and_no_featured_charts_returns_none(self):
+        project = _project("P", info=ExampleInfo(is_example=True), charts=1, notes=1)
+
+        assert example_start_item(project) is None
+
+    def test_non_example_project_returns_none_even_with_ids_set(self):
+        info = ExampleInfo(is_example=False, start_note_id="n0", featured_chart_ids=("c0",))
+        project = _project("P", info=info, charts=1, notes=1)
+
+        assert example_start_item(project) is None
 
 
 @pytest.mark.parametrize("attr", ["name", "path"])

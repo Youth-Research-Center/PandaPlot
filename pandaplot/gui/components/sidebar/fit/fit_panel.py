@@ -293,7 +293,7 @@ class FitPanel(SidebarPanel):
             on_click=lambda: self.menu.exec_(self.function_button.mapToGlobal(self.function_button.rect().bottomLeft()))
         )
         custom_layout.addWidget(self.function_button, 0, 2)
-        self.menu = QMenu()
+        self.menu = QMenu(self)
         self.function_names = list(CUSTOM_FUNCTION_NAMES)
         self._apply_menu_styling()
 

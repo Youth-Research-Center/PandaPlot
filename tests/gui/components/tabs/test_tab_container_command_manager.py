@@ -3,6 +3,11 @@
 from unittest.mock import Mock, patch
 
 from pandaplot.gui.components.tabs.tab_container_command_manager import TabContainerCommandManager
+from pandaplot.models.events.event_bus import EventBus
+from pandaplot.models.events.event_types import UIEvents
+from pandaplot.models.project.example_info import ExampleInfo
+from pandaplot.models.project.items.note import Note
+from pandaplot.models.project.project import Project
 
 
 def _manager(app_context):
@@ -55,7 +60,9 @@ def test_handle_example_project_executes_load_project_command_with_the_path(mock
 
     manager.handle_example_project("/examples/demo.pplot")
 
-    mock_command_cls.assert_called_once_with(app_context, "/examples/demo.pplot", as_untitled_copy=True)
+    mock_command_cls.assert_called_once_with(
+        app_context, "/examples/demo.pplot", as_untitled_copy=True, on_loaded=manager._open_example_start_item
+    )
     app_context.get_command_executor.return_value.execute_command.assert_called_once_with(
         mock_command_cls.return_value
     )
@@ -180,3 +187,30 @@ def test_create_chart_from_dataset_warns_and_returns_when_dataset_not_found():
     manager.create_chart_from_dataset("missing-ds")
 
     app_context.get_command_executor.return_value.execute_command.assert_not_called()
+
+
+def _example_project(*, is_example: bool) -> Project:
+    project = Project(name="Example")
+    project.add_item(Note(id="n1", name="Start here"))
+    project.example_info = ExampleInfo(is_example=is_example, start_note_id="n1")
+    return project
+
+
+def _start_item_requests(project: Project) -> list[tuple[str, str]]:
+    app_context = Mock()
+    bus = EventBus()
+    app_context.get_event_bus.return_value = bus
+    received: list[dict] = []
+    bus.subscribe(UIEvents.TAB_OPEN_REQUESTED, received.append)
+
+    _manager(app_context)._open_example_start_item(project)
+
+    return [(payload["item_id"], payload["item_name"]) for payload in received]
+
+
+def test_open_example_start_item_requests_a_tab_for_the_start_note():
+    assert _start_item_requests(_example_project(is_example=True)) == [("n1", "Start here")]
+
+
+def test_open_example_start_item_requests_nothing_for_a_non_example_project():
+    assert _start_item_requests(_example_project(is_example=False)) == []

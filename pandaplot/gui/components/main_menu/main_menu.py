@@ -472,12 +472,10 @@ class MainMenu(PMenuBar):
         if not accepted or not selected_path:
             return
 
-        # LoadProjectCommand itself confirms before replacing a modified
-        # project, so that check is not duplicated here. The example opens as
-        # an untitled copy, so it is never skipped as "already open".
-        self.app_context.get_command_executor().execute_command(
-            LoadProjectCommand(self.app_context, selected_path, as_untitled_copy=True)
-        )
+        # Shares the Welcome tab's handler: LoadProjectCommand confirms before replacing a modified project, so
+        # that check is not duplicated here, and the example opens as an untitled copy on its start item.
+        from pandaplot.gui.components.tabs.tab_container import TabContainer
+        self.app_context.get_manager(TabContainer).command_manager.handle_example_project(selected_path)
 
     def show_about_dialog(self):
         """Show the about dialog."""

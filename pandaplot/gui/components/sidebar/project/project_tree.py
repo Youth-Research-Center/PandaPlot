@@ -1,7 +1,8 @@
 import logging
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QModelIndex, Qt
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QTreeWidget,
 )
 
@@ -33,6 +34,22 @@ class ProjectTreeWidget(QTreeWidget):
 
         # Track drag state to prevent unwanted rename operations
         self._is_dragging = False
+
+    def edit(
+        self,
+        index: QModelIndex,
+        trigger: QAbstractItemView.EditTrigger | None = None,
+        event: QEvent | None = None,
+    ) -> bool | None:  # ty: ignore[invalid-method-override]  # the stubs type the one-argument slot as None and the virtual as bool
+        """Start editing the item name, whichever cell of the row was current.
+
+        Only column 0 holds editable text. The actions column holds a widget, so editing a cell there edits the name instead.
+        """
+        if index.isValid() and index.column() != 0:
+            index = index.siblingAtColumn(0)
+        if trigger is None:
+            return super().edit(index)
+        return super().edit(index, trigger, event or QEvent(QEvent.Type.None_))
 
     def startDrag(self, supportedActions):
         """Override to track drag start."""
@@ -254,8 +271,7 @@ class ProjectTreeWidget(QTreeWidget):
                 return
 
             # Store original background
-            original_bg = item.background(0)
-            self.original_backgrounds[item] = original_bg
+            self.original_backgrounds[item] = [item.background(column) for column in range(self.columnCount())]
 
             # Determine highlight color based on item type
             target_data = item.data(0, Qt.ItemDataRole.UserRole)
@@ -274,7 +290,8 @@ class ProjectTreeWidget(QTreeWidget):
                 highlight_color = QColor(255, 255, 224, 120)  # Light yellow
 
             # Set background directly with QColor (PySide6 accepts this)
-            item.setBackground(0, highlight_color)
+            for column in range(self.columnCount()):
+                item.setBackground(column, highlight_color)
             self.highlighted_item = item
 
         except RuntimeError:
@@ -287,8 +304,8 @@ class ProjectTreeWidget(QTreeWidget):
             try:
                 # Restore original background
                 if self.highlighted_item in self.original_backgrounds:
-                    self.highlighted_item.setBackground(
-                        0, self.original_backgrounds[self.highlighted_item])
+                    for column, background in enumerate(self.original_backgrounds[self.highlighted_item]):
+                        self.highlighted_item.setBackground(column, background)
                     del self.original_backgrounds[self.highlighted_item]
             except RuntimeError:
                 # Item has been deleted by Qt, just remove it from our tracking

@@ -77,7 +77,7 @@ PandaPlot features a modern, intuitive PySide6 desktop interface divided into th
 - **Data**: Import data and images, add a dataset, add rows or columns, and create new notes and sketches.
 - **Chart**: **Create New** opens the Chart Creation Wizard.
 - **Settings**: **Preferences...** opens the settings dialog, including the theme.
-- **Help**: Open Help Topics (`F1`), the Welcome tab, the examples browser, and About information. In the examples browser (**Open Example Project**), examples appear as cards grouped in sections; search or pick topic and technique tags to narrow the list, **See details** shows the full description and live previews of the example's charts, and **Open example** opens it.
+- **Help**: Open Help Topics (`F1`), the Welcome tab, the examples browser, and About information. In the examples browser (**Open Example Project**), examples appear as cards grouped in sections; the search box is always visible, and **Filters** shows or hides the topic and technique tags (the button shows how many tags are selected); **Clear filters** resets both; **See details** shows the full description and live previews of the example's charts, and **Open example** opens it as an untitled copy, showing its start note (or first featured chart); **Close** leaves the browser.
 
 ### Collapsible Sidebar
 Located on the left, the sidebar uses icon tabs to switch contextual control panels:
@@ -117,11 +117,11 @@ A `.pplot` file is a ZIP archive containing a project index and files for its it
 - **Deleting Items**: Right-click an item and select **Delete**. All item deletions are fully undoable (`Ctrl+Z`).
 
 ### Project Details
-Choose **File → Project Details...** (or right-click the project at the top of the Project View) to edit:
+Choose **File → Project Details...**, click the info button on the project's row at the top of the Project View, or right-click that row, to edit:
 - **Name**: the project name. It cannot be empty.
 - **About this project**: your notes about the project, such as background and findings, written in Markdown. **Preview** shows how they will look.
 - **Cover image**: **Choose image...** picks a picture (under 25 MB) that is shrunk to at most 800 pixels and stored in the project; **Remove** clears it.
-- **Use this project as an example**: tick it to set the example's short description, section, level, tags, up to three featured charts, a "start here" note and a data source or credit. Unticking hides these settings but keeps them. Charts and notes that were deleted are dropped when you press **OK**.
+- **Use this project as an example**: tick it to set the example's short description, section, level, tags, up to three featured charts, a "start here" note (opened first when the example is opened from the browser) and a data source or credit. Unticking hides these settings but keeps them. Charts and notes that were deleted are dropped when you press **OK**.
 
 All changes are applied together and can be undone with `Ctrl+Z`.
 

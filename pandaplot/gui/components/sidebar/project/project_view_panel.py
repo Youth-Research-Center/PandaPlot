@@ -1,6 +1,7 @@
 from typing import override
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QGroupBox,
@@ -15,7 +16,7 @@ from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.project.project_command_manager import ProjectPanelCommandManager
 from pandaplot.gui.components.sidebar.project.project_context_manager import ProjectViewPanelContextManager
 from pandaplot.gui.components.sidebar.project.project_tree import ProjectTreeWidget
-from pandaplot.gui.components.sidebar.project.project_tree_manager import ProjectTreeManager
+from pandaplot.gui.components.sidebar.project.project_tree_manager import ACTIONS_COLUMN, ProjectTreeManager
 from pandaplot.gui.resources.item_icons import SELECTED_ROW_FOREGROUND
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
@@ -46,7 +47,7 @@ class ProjectViewPanel(SidebarPanel):
                                                           )
 
         self._initialize()
-    
+
     @override
     def setup_event_subscriptions(self):
         """Subscribe to relevant app state events."""
@@ -84,7 +85,10 @@ class ProjectViewPanel(SidebarPanel):
 
         # Create treeview
         self.tree = ProjectTreeWidget(self)
-        self.tree.setHeaderLabel("Project Structure")
+        self.tree.setColumnCount(2)
+        self.tree.setHeaderLabels(["Project Structure", ""])
+        self.tree.header().setSectionsMovable(False)
+        self.tree.headerItem().setData(ACTIONS_COLUMN, Qt.ItemDataRole.AccessibleTextRole, "Actions")
 
         # Enable context menu and interactions
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -108,7 +112,9 @@ class ProjectViewPanel(SidebarPanel):
         self.main_layout.addWidget(self.tree)
 
         self.project_tree_manager = ProjectTreeManager(
-            self.app_context, self.tree, self.on_item_name_changed)
+            self.app_context, self.tree, self.on_item_name_changed,
+            # The command opens the current project's details; the row's project is ignored until several projects can be open.
+            on_project_details=lambda _project: self.command_manager.edit_project_details())
 
         # Initially show placeholder content
         self.project_tree_manager.show_no_project_content()
@@ -220,7 +226,7 @@ class ProjectViewPanel(SidebarPanel):
         card_border = palette.get("card_border", "#DCDCDC")
         accent = palette.get("accent", "#0078d4")
         card_hover = palette.get("card_hover", "#e5f3ff")
-        
+
         # Apply theme to main widget (like other panels)
         self.setStyleSheet(f"""
             ProjectViewPanel {{
@@ -244,10 +250,10 @@ class ProjectViewPanel(SidebarPanel):
                 background-color: {card_bg};
             }}
         """)
-        
+
         # Style panel title (like other panels)
         self._apply_title_theme(base_fg, card_border)
-        
+
         # Apply theme to project title and file labels
         self.project_title_label.setStyleSheet(f"""
             QLabel {{
@@ -258,7 +264,7 @@ class ProjectViewPanel(SidebarPanel):
                 background-color: transparent;
             }}
         """)
-        
+
         self.project_file_label.setStyleSheet(f"""
             QLabel {{
                 font-size: 8pt;
@@ -266,10 +272,16 @@ class ProjectViewPanel(SidebarPanel):
                 background-color: transparent;
             }}
         """)
-        
+
+        # Hover on the Project Details button: a plain hover colour on a normal row; on the accent row a translucent
+        # overlay that darkens a light icon (or lightens a dark one), so the icon keeps its contrast.
+        icon_on_accent = QColor(tokens["text_on_accent"])
+        selected_hover_overlay = "rgba(0, 0, 0, 80)" if icon_on_accent.lightness() > 128 else "rgba(255, 255, 255, 80)"
+        hover_overlay = card_hover
+
         # Apply theme to tree widget
         self.tree.setStyleSheet(f"""
-            QTreeWidget {{ 
+            QTreeWidget {{
                 color: {base_fg};
                 background-color: {card_bg};
                 selection-background-color: {accent};
@@ -289,6 +301,24 @@ class ProjectViewPanel(SidebarPanel):
                 background-color: {accent};
                 color: {SELECTED_ROW_FOREGROUND};
             }}
+            QTreeWidget QToolButton {{
+                background-color: transparent;
+                border: 1px solid transparent;
+                border-radius: 3px;
+                padding: 0;
+            }}
+            QTreeWidget QToolButton:hover {{
+                background-color: {hover_overlay};
+            }}
+            QTreeWidget QToolButton:focus {{
+                border-color: {base_fg};
+            }}
+            QTreeWidget QToolButton[onSelectedRow="true"]:hover {{
+                background-color: {selected_hover_overlay};
+            }}
+            QTreeWidget QToolButton[onSelectedRow="true"]:focus {{
+                border-color: {SELECTED_ROW_FOREGROUND};
+            }}
             QHeaderView::section {{
                 background-color: {card_bg};
                 color: {base_fg};
@@ -297,7 +327,7 @@ class ProjectViewPanel(SidebarPanel):
                 padding: 2px 4px;
             }}
         """)
-        
+
         # _apply_theme also runs from _initialize(), before the tree manager exists.
         project_tree_manager = getattr(self, "project_tree_manager", None)
         if project_tree_manager is not None:

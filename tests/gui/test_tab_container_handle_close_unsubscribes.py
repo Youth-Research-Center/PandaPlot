@@ -17,6 +17,7 @@ def _container_stub():
     container.tabs = {}
     container.publish_event = Mock()
     container._maybe_collapse_pane = Mock()
+    container._emit_tab_changed_for_active_pane = Mock()
     container._persist_tab_session = Mock()
     container.logger = Mock()
     container.panes = []
@@ -157,6 +158,7 @@ def test_on_project_closed_unsubscribes_floating_window_content():
     window.close_without_redock.assert_called_once()
     assert container.floating_windows == {}
     assert container.tabs == {}
+    container._emit_tab_changed_for_active_pane.assert_called_once()
 
 
 def test_handle_close_checks_hook_before_removing_widget():

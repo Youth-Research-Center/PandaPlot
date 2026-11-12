@@ -181,6 +181,10 @@ class ChartCanvas(FigureCanvas):
         # Enable matplotlib's built-in navigation toolbar functionality
         # This provides zoom, pan, and reset functionality
         self.toolbar = ChartNavigationToolbar(self, self.parent())
+        # Until a layout adopts the toolbar (ChartEditor does and then shows it; wizard previews never do) the canvas owns it,
+        # hidden, so Qt deletes it and its tool-button menus with the canvas instead of leaving parentless widgets alive.
+        self.toolbar.setParent(self)
+        self.toolbar.hide()
 
         # Home/Back/Forward rely on matplotlib's own navigation stack, which
         # goes stale every time update_chart() clears and rebuilds the axes.

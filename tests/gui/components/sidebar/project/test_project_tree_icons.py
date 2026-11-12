@@ -249,6 +249,8 @@ def test_rebuilding_a_large_tree_renders_each_icon_state_once(qtbot, monkeypatch
     panel.project_tree_manager.update_project_tree(project)
     panel.project_tree_manager.update_project_tree(project)
 
-    # The project root plus the dataset, chart and note kinds, each as normal, disabled and selected (three colours).
-    assert len(renders) == 4 * 3
+    # The dataset, chart and note kinds, each as normal, disabled and selected (three colours). The project root row is kept
+    # by a same-project rebuild, so its icon is not drawn again; the Project Details button's info icon is drawn once as
+    # normal and disabled (two colours, no selected colour) and then comes from the cache.
+    assert len(renders) == 3 * 3 + 2
     icon_library.clear_icon_cache()

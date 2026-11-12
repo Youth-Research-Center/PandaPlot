@@ -27,6 +27,7 @@ from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events.event_types import ConfigEvents, ThemeEvents
 from pandaplot.models.state.config import ApplicationConfig, Theme
 from pandaplot.services.theme.caret_icon import caret_icon_path
+from pandaplot.utils.garbage_collection import paused_garbage_collection
 
 logger = logging.getLogger(__name__)
 
@@ -462,9 +463,18 @@ class ThemeManager:
         """ + shared_widget_rules
 
     def _apply_to_qapp(self, ctx: ThemeContext) -> None:
-        """Apply palette & global QSS to the QApplication."""
+        """Apply palette & global QSS to the QApplication.
+
+        The automatic cyclic GC is paused meanwhile: these calls re-polish every live widget and run Python
+        ``changeEvent`` overrides, and a GC pass that frees a stale parentless widget in the middle leaves Qt with a
+        dangling pointer (rare segmentation fault in ``QApplication.setStyleSheet``, issue #648).
+        """
         if not self._app:
             return
+        with paused_garbage_collection():
+            self._apply_theme_to_paused_qapp(ctx)
+
+    def _apply_theme_to_paused_qapp(self, ctx: ThemeContext) -> None:
         palette = self._app.palette() if self._app else QPalette()
         if ctx.theme == Theme.DARK:
             bg = QColor(30, 30, 30)
