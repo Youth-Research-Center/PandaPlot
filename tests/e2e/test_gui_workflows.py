@@ -12,17 +12,20 @@ from pytestqt.qtbot import QtBot
 
 from pandaplot.commands.project.dataset.create_empty_dataset_command import CreateEmptyDatasetCommand
 from pandaplot.gui.components.sidebar.project.project_view_panel import ProjectViewPanel
+from pandaplot.gui.components.tabs.note.note_tab import NoteTab
 from pandaplot.gui.components.tabs.sketch.sketch_tab import SketchTab
 from pandaplot.gui.components.tabs.sketch.tools.tool_manager import ToolMode
 from pandaplot.gui.components.tabs.tab_container import TabContainer
 from pandaplot.gui.dialogs.chart.add_series_dialog import AddSeriesDialog
 from pandaplot.gui.dialogs.chart.chart_wizard import ChartWizard
+from pandaplot.gui.dialogs.examples_dialog import ExamplesDialog
 from pandaplot.gui.dialogs.import_wizard_dialog import ImportWizardDialog
 from pandaplot.gui.dialogs.sketch.export_sketch_dialog import ExportSketchDialog
 from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.models.project.items import Chart, Dataset, Sketch
 from pandaplot.models.project.items.sketch import RectangleElement
 from pandaplot.services.data_managers.project_manager import ProjectManager
+from pandaplot.utils.examples import ExampleProject, discover_example_projects
 
 
 def click_menu(qtbot: QtBot, window: PandaMainWindow, menu_name: str, action_name: str) -> None:
@@ -563,3 +566,79 @@ def test_undoing_an_example_load_closes_the_undone_projects_tabs(app_window: Pan
 
     assert state.current_project is first
     assert tab_container.tabs == {}
+
+
+def _example_named(name: str) -> ExampleProject:
+    return next(example for example in discover_example_projects() if example.name == name)
+
+
+def _assert_start_note_open(app_window: PandaMainWindow, qtbot: QtBot, example: ExampleProject) -> None:
+    state = app_window.app_context.app_state
+    tabs = app_window.tab_container
+    note_id = example.start_note_id
+    assert note_id is not None
+
+    qtbot.waitUntil(lambda: isinstance(tabs.get_tab_widget(note_id), NoteTab), timeout=10000)
+
+    tab = tabs.get_tab_widget(note_id)
+    assert isinstance(tab, NoteTab)
+    assert len(tabs.panes) == 1
+    assert tabs.panes[0].currentWidget() is tab
+    assert state.current_project is not None
+    assert tab.note is state.current_project.find_item(note_id)
+    assert not state.is_modified
+
+
+def test_opening_an_example_from_the_welcome_tab_shows_its_start_note(app_window: PandaMainWindow, qtbot: QtBot) -> None:
+    example = _example_named("Basic Statistics")
+
+    app_window.tab_container.command_manager.handle_example_project(example.path)
+
+    _assert_start_note_open(app_window, qtbot, example)
+    assert example.start_note_id is not None
+    tab = app_window.tab_container.get_tab_widget(example.start_note_id)
+    assert isinstance(tab, NoteTab)
+    assert tab.note.name == "Start here"
+
+
+def test_opening_an_example_from_the_help_menu_shows_its_start_note(app_window: PandaMainWindow, qtbot: QtBot) -> None:
+    example = _example_named("Curve Fitting Examples")
+
+    def pick(dialog: QDialog) -> None:
+        assert isinstance(dialog, ExamplesDialog)
+        card = next(card for card in dialog.cards if card.example.path == example.path)
+        qtbot.mouseClick(card.open_button, Qt.MouseButton.LeftButton)
+
+    timer, errors = drive_modal(qtbot, ExamplesDialog, pick)
+    click_menu(qtbot, app_window, "Help", "Open Example Project...")
+    timer.stop()
+
+    assert not errors
+    _assert_start_note_open(app_window, qtbot, example)
+
+
+def test_declining_to_replace_a_modified_project_opens_no_example_tab(
+    app_window: PandaMainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    example = _example_named("Basic Statistics")
+    context = app_window.app_context
+    state = context.app_state
+    tabs = app_window.tab_container
+    new_project(qtbot, app_window)
+    assert context.get_command_executor().execute_command(CreateEmptyDatasetCommand(context, dataset_name="Edit"))
+    assert state.is_modified
+    before = state.current_project
+    tabs_before = set(tabs.tabs)
+    prompts: list[str] = []
+
+    def cancel(title: str, message: str) -> str:
+        prompts.append(title)
+        return "cancel"
+
+    monkeypatch.setattr(context.ui_controller, "show_save_as_discard_cancel", cancel)
+
+    tabs.command_manager.handle_example_project(example.path)
+
+    assert prompts == ["Open Project"]
+    assert state.current_project is before
+    assert set(tabs.tabs) == tabs_before
