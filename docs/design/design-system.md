@@ -88,6 +88,9 @@ New semantic tokens (the handoff only defines `danger`; the 1e mock, `StatusMess
 - Teal uses the handoff's hand-tuned table for both themes (`accent`, `accent_hover`, `accent_pressed`,
   `accent_sel_bg`, `accent_sel_text`, `focus`, `on_accent`). The config stores one colour, `#0E7C86`, which means
   "use the teal table" in both themes.
+- One fix to that table: the dark `accent_hover` `#14909B` gives white `on_accent` text only 3.82:1, so a hovered
+  primary button label fails AA. It becomes `#0F7780` (5.29:1), between `accent` `#11808A` (4.69:1) and
+  `accent_pressed` `#0C6E77` (5.98:1), so dark hover darkens the button as light hover already does.
 - Any other stored accent derives the same tokens plus `accent_disabled` (mix with `bg_surface` at 0.55) and a
   separate, lighter dark-theme `focus`, adjusting each in steps (as `_accent_icon_color` does) until it passes the
   pairs in section 5.2. The Settings accent picker stays.
@@ -200,8 +203,9 @@ Neutral and accent values: handoff README "Design tokens (final)" with the chang
 Tested in both themes, for teal and three sample custom accents, against `bg_surface` **and** `bg_inset` (and
 `bg_canvas` for text):
 
-- ≥ 4.5: text, muted, danger, warning, success, y2_accent (also on `y2_accent_bg`), on_accent/accent,
-  sel_text/sel_bg.
+- ≥ 4.5: text, muted, danger, warning, success, y2_accent (also on `y2_accent_bg`), sel_text/sel_bg, and
+  `on_accent` on each enabled accent fill: `accent`, `accent_hover` and `accent_pressed` (rest, hover and pressed
+  primary buttons and checked chips).
 - ≥ 3: border_control, toggle_off, focus.
 
 The tests live in `tests/services/theme/` using the DS-03 helpers. The Storybook-local overrides in

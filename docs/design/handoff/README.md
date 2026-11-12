@@ -98,6 +98,7 @@ One story per component with a **state matrix** (not single instance) and a Ligh
 
 ### Task 9 — Side panels (one PR per panel)
 Source: `06_panel_layout/`. Reference: `Step 6 - Panels Before After` (AFTER column; Tweaks switch theme and 260/360 width).
+Opened directly in a browser, the file has no Tweaks panel and shows the defaults (Dark, 260 px). To see another variant, run this in the browser's developer console: `__dcSetProps(__dcRootName(), {theme: "Light", width: "360"})` (`theme`: `"Dark"` or `"Light"`; `width`: `"260"` or `"360"`).
 - Structure: `PanelShell` → (`PTabWidget`) → `CollapsibleSection` → `Card` → `PanelForm`.
 - Row rules: label above + control indented 10px; toggles & key/value inline; paired fields share one line; help text muted 11px aligned to control; sub-groups via `SubGroup`; lists/outputs full-width.
 - Lists: has "Select all" → `CheckList`; single-select → `SingleList` (highlighted row, no checkbox).
