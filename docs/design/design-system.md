@@ -47,6 +47,10 @@ Where this spec and the handoff disagree, this spec wins. The differences are in
 - **One concern per PR**, one PR per issue. Do not start an issue before its dependencies merge.
 - **Every new component** lands with a Storybook state-matrix story (states × light/dark × density) and pytest-qt
   tests for its states, keyboard behaviour and accessible names.
+- **Every PR that changes how the app looks** (tokens, stylesheet, palette, components, containers, stories, panels,
+  dialogs, chrome) attaches screenshots to its PR description, light and dark: before and after for anything that
+  already existed, the Storybook state matrix for a new component. Until the DS-12 screenshot script lands, take them
+  offscreen with `QWidget.grab()`. A tests-only or docs-only PR says that it has no screenshot instead.
 - **Every migration PR**:
   - removes the widget-local `setStyleSheet` calls and hex colour literals of the code it touches (chart data colours
     are content and stay);
