@@ -1,7 +1,7 @@
 label | "Descriptive Statistics" |
 button | "?" |
 group | "Columns" |
-list | "" | items=["time", "signal", "reference"]
+list | "" | items=["time", "signal", "reference"] selected=["time", "signal", "reference"]
 label | "Select one or more numeric columns (Ctrl/Shift-click)." |
 button | "Select all" |
 group | "Options" |

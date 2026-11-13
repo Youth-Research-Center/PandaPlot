@@ -9,7 +9,8 @@ role | "label or accessible name" | value=... items=[...] range=a..b decimals=n 
 
 Roles describe what a control does, not its class: `button`, `checkable`, `combo`, `choice` (segmented control),
 `number`, `slider`, `text`, `list`, `color`, `tabs`, `group` and `label`. A label that names a form field is not listed
-on its own; it appears as that field's label. `hidden` and `disabled` are relative to the panel, so a control inside
+on its own; it appears as that field's label. Lists also record their `selected` and `checked` items, and numbers
+are written without rounding. `hidden` and `disabled` are relative to the panel, so a control inside
 a collapsed or inactive section is still recorded. Scroll bars, and the Chart Properties tab selector combo that
 replaces the tab bar only when the tabs do not fit, depend on the window size and are left out.
 

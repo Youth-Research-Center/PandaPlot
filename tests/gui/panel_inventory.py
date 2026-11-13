@@ -70,7 +70,10 @@ def _quote_list(texts: Iterable[str]) -> str:
 
 
 def _number(value: float) -> str:
-    return format(value, ".10g")
+    """Lossless text for a value: whole numbers without a decimal point, other floats as their shortest round trip."""
+    if isinstance(value, float) and value.is_integer() and abs(value) < 2**53:
+        return str(int(value))
+    return repr(value)
 
 
 def _font_family_labels() -> list[str]:
@@ -94,15 +97,34 @@ def _field_label(widget: QWidget) -> str:
     return ""
 
 
-def _model_texts(model: QAbstractItemModel, parent: QModelIndex, prefix: str = "") -> list[str]:
-    texts = []
+def _model_rows(model: QAbstractItemModel, parent: QModelIndex, prefix: str = "") -> list[tuple[str, QModelIndex]]:
+    """Return (path text, index) for every row in column 0, depth first; a child's text is prefixed with its parents'."""
+    rows = []
     for row in range(model.rowCount(parent)):
         index = model.index(row, 0, parent)
         text = prefix + str(index.data(Qt.ItemDataRole.DisplayRole) or "")
-        texts.append(text)
+        rows.append((text, index))
         if model.rowCount(index) > 0:
-            texts.extend(_model_texts(model, index, prefix=text + "/"))
-    return texts
+            rows.extend(_model_rows(model, index, prefix=text + "/"))
+    return rows
+
+
+def _list_attributes(view: QAbstractItemView, model: QAbstractItemModel) -> list[str]:
+    """Items, plus the selected and the checked ones when there are any (a changed default selection is content)."""
+    rows = _model_rows(model, QModelIndex())
+    attributes = [f"items={_quote_list(text for text, _index in rows)}"]
+    selection = view.selectionModel()
+    selected = [text for text, index in rows if selection is not None and selection.isSelected(index)]
+    if selected:
+        attributes.append(f"selected={_quote_list(selected)}")
+    states = [(text, index.data(Qt.ItemDataRole.CheckStateRole)) for text, index in rows]
+    if any(state is not None for _text, state in states):
+        checked = [text for text, state in states if state is not None and Qt.CheckState(state) == Qt.CheckState.Checked]
+        attributes.append(f"checked={_quote_list(checked)}")
+        partial = [text for text, state in states if state is not None and Qt.CheckState(state) == Qt.CheckState.PartiallyChecked]
+        if partial:
+            attributes.append(f"partial={_quote_list(partial)}")
+    return attributes
 
 
 def _describe(widget: QWidget) -> tuple[str, str, list[str]] | None:
@@ -164,7 +186,7 @@ def _describe(widget: QWidget) -> tuple[str, str, list[str]] | None:
         headers = [str(model.headerData(c, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole)) for c in range(model.columnCount())]
         return "list", _field_label(widget), [f"columns={_quote_list(headers)}", f"rows={model.rowCount()}"]
     if isinstance(widget, QAbstractItemView) and widget.model() is not None:
-        return "list", _field_label(widget), [f"items={_quote_list(_model_texts(widget.model(), QModelIndex()))}"]
+        return "list", _field_label(widget), _list_attributes(widget, widget.model())
     if isinstance(widget, QTabWidget):
         tabs = [widget.tabText(i) for i in range(widget.count())]
         return "tabs", widget.accessibleName(), [f"value={_quote(widget.tabText(widget.currentIndex()))}", f"items={_quote_list(tabs)}"]

@@ -6,7 +6,7 @@ label | "100 rows, 3 columns" |
 group | "Transform Type" |
 combo | "Type:" | value="Custom Function" items=["Custom Function", "Math Operations", "String Operations", "Date/Time Operations", "Statistical Operations"]
 group | "Column Selection" |
-list | "Source Columns:" | items=["time  →  x", "signal", "reference"]
+list | "Source Columns:" | items=["time  →  x", "signal", "reference"] selected=["time  →  x"]
 text | "New Column:" | value="time_transformed" placeholder="new_column"
 checkable | "Replace existing column" | checked=false
 checkable | "Save as formula column" | checked=false

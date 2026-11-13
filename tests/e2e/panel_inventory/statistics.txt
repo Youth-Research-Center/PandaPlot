@@ -14,6 +14,6 @@ text | "" | value="" placeholder="Run a test to see results here..." read-only
 button | "Add to Project" | disabled
 button | "Clear" |
 number | "Significance (α):" | value=0.05 range=0.0001..0.5 decimals=4
-number | "Expected mean (μ₀):" | value=0 range=-1e+12..1e+12 decimals=6
+number | "Expected mean (μ₀):" | value=0 range=-1000000000000..1000000000000 decimals=6
 combo | "Alternative:" | value="two-sided" items=["two-sided", "less", "greater"]
 combo | "Sample column:" | value="time" items=["time", "signal", "reference"]

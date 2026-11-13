@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -12,6 +13,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QPushButton,
     QSlider,
     QSpinBox,
@@ -129,6 +131,44 @@ def test_inventory_lists_tab_names_and_can_skip_pages(qtbot: QtBot) -> None:
     layout.addWidget(tabs)
 
     assert panel_inventory(panel, exclude=[page]) == ['tabs | "" | value="Data" items=["Data", "Style"]']
+
+
+def test_inventory_keeps_every_digit_of_a_number(qtbot: QtBot) -> None:
+    panel = QWidget()
+    qtbot.addWidget(panel)
+    mean = QDoubleSpinBox(panel)
+    mean.setRange(-1e12, 1e12)
+    mean.setDecimals(6)
+    mean.setValue(1000000000.001)
+    mean.setAccessibleName("Expected mean")
+    QVBoxLayout(panel).addWidget(mean)
+
+    assert panel_inventory(panel) == ['number | "Expected mean" | value=1000000000.001 range=-1000000000000..1000000000000 decimals=6']
+
+
+def test_inventory_records_selected_and_checked_list_items(qtbot: QtBot) -> None:
+    panel = QWidget()
+    qtbot.addWidget(panel)
+    layout = QVBoxLayout(panel)
+    selected = QListWidget(panel)
+    selected.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+    selected.addItems(["time", "signal", "reference"])
+    selected.item(0).setSelected(True)
+    selected.item(2).setSelected(True)
+    selected.setAccessibleName("Columns")
+    layout.addWidget(selected)
+    checked = QListWidget(panel)
+    for text, state in (("mean", Qt.CheckState.Checked), ("median", Qt.CheckState.Unchecked)):
+        item = QListWidgetItem(text, checked)
+        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+        item.setCheckState(state)
+    checked.setAccessibleName("Statistics")
+    layout.addWidget(checked)
+
+    assert panel_inventory(panel) == [
+        'list | "Columns" | items=["time", "signal", "reference"] selected=["time", "reference"]',
+        'list | "Statistics" | items=["mean", "median"] checked=["mean"]',
+    ]
 
 
 def test_matching_ignores_label_case_only(tmp_path: Path) -> None:
