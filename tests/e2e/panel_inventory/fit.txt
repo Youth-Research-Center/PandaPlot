@@ -1,0 +1,46 @@
+label | "Curve Fitting" |
+button | "?" |
+group | "Data Source" |
+label | "Chart Series:" |
+combo | "" | value="Signal" items=["Signal", "Custom..."]
+label | "Dataset:" | hidden
+combo | "" | value="" items=[] hidden
+label | "X Column:" | hidden
+combo | "" | value="" items=[] hidden
+label | "Y Column:" | hidden
+combo | "" | value="" items=[] hidden
+label | "Data Points:" |
+label | "100 points" |
+group | "Fit Configuration" |
+label | "Category:" |
+combo | "" | value="Polynomial" items=["Polynomial", "Exponential", "Sigmoid", "Peak", "Periodic", "Power & Logarithmic", "Custom"]
+label | "Model:" |
+combo | "" | value="Linear (y = ax + b)" items=["Linear (y = ax + b)", "Quadratic (y = ax² + bx + c)", "Cubic (polynomial, degree 3)", "Quartic (polynomial, degree 4)", "Quintic (polynomial, degree 5)"]
+group | "Custom Function" | hidden
+label | "Function:" | hidden
+text | "" | value="" placeholder="e.g., a*x**2 + b*x + c" hidden
+button | "Functions" | hidden
+label | "Parameters:" | hidden
+text | "" | value="" placeholder="e.g., a, b, c" hidden
+label | "Define parameters values:" | hidden
+text | "" | value="" placeholder="e.g. b=2.1, c=1" hidden
+label | "Fit Points:" |
+number | "" | value=500 range=50..5000 decimals=0
+checkable | "Show Confidence Bands" | checked=false
+checkable | "Calculate R²" | checked=true
+label | "Fit Range:" |
+checkable | "Auto" | checked=true
+label | "Min:" |
+number | "" | value=0 range=-1000000000..1000000000 decimals=6 hidden
+label | "0" |
+label | "Max:" |
+number | "" | value=1 range=-1000000000..1000000000 decimals=6 hidden
+label | "9.9" |
+label | "Max must be greater than Min." | hidden
+group | "Fit Results" |
+text | "" | value="" placeholder="Fit results will appear here..." read-only
+label | "Equation:" |
+label | "No fit performed" |
+button | "Perform Fit" |
+button | "Apply" | disabled
+button | "Clear Results" |

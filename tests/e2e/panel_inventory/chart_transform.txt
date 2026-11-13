@@ -1,0 +1,20 @@
+label | "Chart Transform" |
+button | "?" |
+group | "Series" |
+combo | "Transform:" | value="Signal" items=["Signal"]
+label | "Data series and fitted curves of this chart." |
+group | "Target" |
+combo | "Replace:" | value="Y" items=["Y", "X"]
+label | "The expression's result becomes the series' new Y values -- x stays as-is. Write the expression in terms of x and/or y." |
+group | "Transform Expression" |
+button | "Insert function" |
+button | "?" |
+text | "" | value="" placeholder="x and y are the series' current axes -- e.g.\n  y * 2                (double the plotted values)\n  np.sqrt(y)           (square root)\n  (x - x.min()) / (x.max() - x.min())   (normalize x to 0-1)"
+label | "<b>Variables</b>: <code>x</code> and <code>y</code> are the series' full current axes -- both are always available, whichever one is the Target.<br><b>Math</b>: <code>np.sqrt</code>, <code>np.log</code>, <code>np.log10</code>, <code>np.exp</code>, <code>np.abs</code>, <code>np.sin/cos/tan</code>, <code>np.sign</code>.<br><b>Stats</b>: <code>x.mean()</code>, <code>x.std()</code>, <code>x.rolling(n).mean()</code>, <code>x.shift(1)</code>." | hidden
+group | "Result" |
+text | "Dataset name:" | value="" placeholder="Signal (Y transformed)"
+group | "Preview" |
+button | "Preview" |
+text | "" | value="" placeholder="Preview results will appear here..." read-only
+button | "Apply" |
+button | "Clear" |

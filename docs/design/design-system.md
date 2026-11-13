@@ -291,8 +291,9 @@ first-open fit runs after the sidebar width has been restored.
 ## 8. Testing and verification
 
 - **Content baseline (DS-02)**: `panel_inventory(widget)` walks a panel in a populated state (dataset or chart loaded)
-  and records, in tab order: label or accessible name, role (button, combo, checkable, number, text, list, slider —
-  not the class, which changes by design), enabled, visible, value, combo items, number ranges, decimals and suffixes.
+  and records, in tab order: label or accessible name, role (button, combo, checkable, number, text, list, slider,
+  plus choice, color, tabs, group and label — not the class, which changes by design), enabled, visible, value,
+  combo items, number ranges, decimals and suffixes. How to regenerate: `tests/e2e/panel_inventory/README.md`.
   Goldens for the 13 panels and 5 Chart Properties tabs are committed **before** any token change. Each panel PR
   regenerates its golden and the diff may only show the changes in 7.4 and the tab-order exception in section 3.
 - **Width**: at 240 px the panel's content widget fits without a horizontal scrollbar (asserted on the content, not

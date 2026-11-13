@@ -1,0 +1,24 @@
+label | "Analysis Operations" |
+button | "?" |
+group | "Analysis Type" |
+combo | "Type:" | value="Derivative" items=["Derivative", "Integral", "Arc Length", "Smoothing", "Interpolation"]
+group | "Column Selection" |
+combo | "X Column:" | value="time" items=["time", "signal", "reference"]
+combo | "Y Column:" | value="signal" items=["time", "signal", "reference"]
+group | "Parameters" |
+combo | "Method:" | value="Central Difference" items=["Central Difference", "Forward Difference", "Backward Difference"]
+group | "Data Range" |
+label | "Start Row:" |
+number | "" | value=1 range=1..100 decimals=0
+label | "x=0, y=0" |
+label | "End Row:" |
+number | "" | value=100 range=1..100 decimals=0
+label | "x=9.9, y=-0.4575" |
+group | "Result Configuration" |
+text | "Result Column:" | value="signal_derivative" placeholder="Enter column name..."
+checkable | "Replace if exists" | checked=false
+group | "Preview" |
+button | "Preview" |
+text | "" | value="" placeholder="Preview results will appear here..." read-only
+button | "Apply" |
+button | "Clear" |

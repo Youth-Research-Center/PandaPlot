@@ -1,0 +1,305 @@
+combo | "" | value="Signal" items=["Chart", "Axes", "Signal"]
+label | "FONT SIZE" | hidden
+label | "Title" | hidden
+number | "" | value=14 range=8..32 decimals=0 hidden
+checkable | "Bold" | checked=true hidden
+checkable | "Italic" | checked=false hidden
+label | "Title font" | hidden
+combo | "" | value="DejaVu Sans" items=<installed font families> hidden
+label | "Subtitle" | hidden
+number | "" | value=12 range=8..32 decimals=0 hidden
+checkable | "Bold" | checked=false hidden
+checkable | "Italic" | checked=false hidden
+label | "Subtitle font" | hidden
+combo | "" | value="DejaVu Sans" items=<installed font families> hidden
+label | "Title color:" | hidden
+color | "" | value="#000000" hidden
+label | "Subtitle color:" | hidden
+color | "" | value="#000000" hidden
+label | "Match title:" | hidden
+checkable | "" | checked=true hidden
+label | "PADDING" | hidden
+label | "Figure" | hidden
+number | "" | value=2 range=0..10 decimals=2 hidden
+label | "Width" | hidden
+number | "" | value=2 range=0..10 decimals=2 hidden
+label | "Height" | hidden
+number | "" | value=2 range=0..10 decimals=2 hidden
+label | "Title" | hidden
+number | "" | value=10 range=0..100 decimals=2 hidden
+label | "Subtitle" | hidden
+number | "" | value=6 range=0..50 decimals=2 hidden
+label | "Top margin" | hidden
+number | "" | value=1 range=0.5..1 decimals=2 hidden
+label | "SIZE" | hidden
+label | "Size" | hidden
+combo | "" | value="Use app default" items=["15.0 × 8.0 cm", "20.0 × 15.0 cm", "Custom", "Use app default"] hidden
+label | "Width" | hidden
+number | "" | value=2 range=2..100 decimals=1 suffix=" cm" hidden
+label | "Height" | hidden
+number | "" | value=2 range=2..100 decimals=1 suffix=" cm" hidden
+label | "Size affects export & default fonts" | hidden
+label | "DPI" | hidden
+label | "DPI" | hidden
+combo | "" | value="Use app default" items=["100 dpi", "150 dpi", "300 dpi", "Custom", "Use app default"] hidden
+label | "DPI" | hidden
+number | "" | value=50 range=50..600 decimals=0 hidden
+label | "BACKGROUND" | hidden
+label | "Figure:" | hidden
+color | "" | value="#ffffff" hidden
+label | "Transparent:" | hidden
+checkable | "" | checked=false hidden
+label | "Plot area:" | hidden
+color | "" | value="#ffffff" hidden
+label | "Transparent:" | hidden
+checkable | "" | checked=false hidden
+label | "LINE" |
+label | "Color:" |
+color | "" | value="#1f77b4"
+label | "Style:" |
+combo | "" | value="Solid" items=["Solid", "Dashed", "Dotted", "Dash-Dot", "None"]
+label | "Width:" |
+slider | "" | value=2 range=0.1..10 decimals=1
+label | "Opacity:" |
+slider | "" | value=1 range=0..1 decimals=2
+label | "CONFIDENCE BAND" | hidden
+checkable | "" | checked=false hidden
+label | "Color:" | hidden
+color | "" | value="#1f77b4" hidden
+label | "Match line:" | hidden
+checkable | "" | checked=true hidden
+label | "Opacity:" | hidden
+slider | "" | value=0 range=0..1 decimals=2 hidden
+label | "FILL" | disabled
+checkable | "" | checked=false
+label | "Horizontal:" | hidden
+checkable | "" | checked=false hidden
+label | "Fill to:" | hidden
+combo | "" | value="Baseline" items=["Baseline"] hidden
+label | "Y baseline:" | hidden
+number | "" | value=0 range=-1000000000..1000000000 decimals=3 hidden
+label | "Color:" | hidden
+color | "" | value="#1f77b4" hidden
+label | "Match line:" | hidden
+checkable | "" | checked=true hidden
+label | "Opacity:" | hidden
+slider | "" | value=0.3 range=0..1 decimals=2 hidden
+label | "Limit range:" | hidden
+checkable | "" | checked=false hidden
+label | "Sections:" | hidden
+button | "Add section" | hidden
+label | "DENSITY" | hidden
+label | "Bandwidth:" | hidden
+number | "" | value=0 range=0..5 decimals=2 special="Auto" hidden
+label | "Fill under curve:" | hidden
+checkable | "Fill under curve" | checked=false hidden
+label | "Fill opacity:" | hidden
+slider | "" | value=0.3 range=0..1 decimals=2 hidden
+label | "MARKERS" |
+checkable | "" | checked=true
+label | "Shape:" |
+combo | "" | value="Circle" items=["Circle", "Square", "Triangle", "Diamond", "Star", "Plus", "Cross"]
+label | "Size:" |
+slider | "" | value=2 range=1..20 decimals=1
+label | "Edge width:" |
+slider | "" | value=1 range=0..5 decimals=1
+label | "Color:" |
+color | "" | value="#1f77b4"
+label | "Match line:" |
+checkable | "" | checked=true
+label | "Edge color:" | hidden
+color | "" | value="#1f77b4" hidden
+label | "ERROR BARS" | hidden
+label | "Direction:" | hidden
+combo | "" | value="Both" items=["Both", "Above (+)", "Below (-)"] hidden
+label | "Color:" | hidden
+color | "" | value="#1f77b4" hidden
+label | "Match line:" | hidden
+checkable | "" | checked=true hidden
+label | "Cap Size:" | hidden
+slider | "" | value=3 range=0..20 decimals=1 hidden
+label | "TWIN Y COLUMN" | hidden
+label | "Color:" | hidden
+color | "" | value="#ff7f0e" hidden
+label | "VALUE LABELS" |
+checkable | "" | checked=false
+label | "Show:" | hidden
+combo | "" | value="Y" items=["X", "Y", "X, Y"] hidden
+label | "Arrow:" | hidden
+checkable | "" | checked=false hidden
+label | "Arrow style:" | hidden
+combo | "" | value="Line" items=["Line", "Arrow", "Filled arrow"] hidden
+label | "Match text color:" | hidden
+checkable | "" | checked=false hidden
+label | "Arrow color:" | hidden
+color | "" | value="#000000" hidden
+label | "Arrow width:" | hidden
+slider | "" | value=1 range=0.1..5 decimals=1 hidden
+label | "Arrow line style:" | hidden
+combo | "" | value="Solid" items=["Solid", "Dashed", "Dotted"] hidden
+label | "Offset X:" | hidden
+number | "" | value=0 range=-100..100 decimals=1 hidden
+label | "Offset Y:" | hidden
+number | "" | value=6 range=-100..100 decimals=1 hidden
+label | "Match series color:" | hidden
+checkable | "" | checked=true hidden
+label | "Text color:" | hidden
+color | "" | value="#1f77b4" hidden
+label | "Background:" | hidden
+checkable | "" | checked=false hidden
+label | "Background color:" | hidden
+color | "" | value="#1f77b4" hidden
+label | "Background alpha:" | hidden
+slider | "" | value=1 range=0..1 decimals=2 hidden
+label | "Label points:" | hidden
+combo | "" | value="All points" items=["All points", "Min and max", "Only min", "Only max", "Local min and max"] hidden
+label | "VECTOR" | hidden
+label | "Color:" | hidden
+color | "" | value="#1f77b4" hidden
+label | "Color by magnitude:" | hidden
+combo | "" | value="Solid color" items=["Solid color", "Viridis", "Plasma", "Cool", "Autumn", "Jet"] hidden
+label | "Scale:" | hidden
+slider | "" | value=0 range=0..50 decimals=2 hidden
+label | "Width:" | hidden
+slider | "" | value=0.005 range=0.0005..0.05 decimals=4 hidden
+label | "Head width:" | hidden
+slider | "" | value=3 range=0..20 decimals=1 hidden
+label | "Head length:" | hidden
+slider | "" | value=5 range=0..20 decimals=1 hidden
+label | "Head axis length:" | hidden
+slider | "" | value=4.5 range=0..20 decimals=1 hidden
+label | "VECTOR" | hidden
+label | "Color:" | hidden
+color | "" | value="#1f77b4" hidden
+label | "Color by magnitude:" | hidden
+combo | "" | value="Solid color" items=["Solid color", "Viridis", "Plasma", "Cool", "Autumn", "Jet"] hidden
+label | "Arrowhead ratio:" | hidden
+slider | "" | value=0.3 range=0..1 decimals=2 hidden
+label | "Normalize (uniform length):" | hidden
+checkable | "" | checked=false hidden
+label | "BOX" | hidden
+label | "Show outliers:" | hidden
+checkable | "" | checked=true hidden
+label | "Notched:" | hidden
+checkable | "" | checked=false hidden
+label | "Width:" | hidden
+slider | "" | value=0.5 range=0.05..1 decimals=2 hidden
+label | "PIE" | hidden
+label | "Start angle:" | hidden
+slider | "" | value=90 range=0..360 decimals=0 hidden
+label | "Show percentages:" | hidden
+checkable | "" | checked=true hidden
+label | "Donut hole:" | hidden
+slider | "" | value=0 range=0..0.9 decimals=2 hidden
+label | "HEATMAP RENDERING" | hidden
+label | "Render as:" | hidden
+combo | "" | value="Mesh" items=["Mesh", "Contour lines", "Filled contour", "Filled contour + lines"] hidden
+label | "Gridding:" | hidden
+combo | "" | value="Exact grid" items=["Exact grid", "Binned (mean)", "Interpolated", "Triangulated (scattered)"] hidden
+label | "Resolution:" | hidden
+number | "" | value=50 range=2..500 decimals=0 hidden
+label | "Contour levels:" | hidden
+number | "" | value=10 range=2..100 decimals=0 hidden
+label | "Line labels:" | hidden
+checkable | "" | checked=false hidden
+label | "Line width:" | hidden
+slider | "" | value=1.5 range=0.5..10 decimals=1 hidden
+combo | "" | value="X" items=["X", "Y₁"] hidden
+label | "This chart type has no axes to style." | hidden
+label | "AXIS TITLE" | hidden
+label | "Font size:" | hidden
+number | "" | value=12 range=6..32 decimals=0 hidden
+label | "Font family:" | hidden
+combo | "" | value="DejaVu Sans" items=<installed font families> hidden
+checkable | "Bold" | checked=false hidden
+checkable | "Italic" | checked=false hidden
+label | "Color:" | hidden
+color | "" | value="#000000" hidden
+label | "Rotation:" | hidden
+number | "" | value=0 range=-90..90 decimals=0 suffix="°" hidden
+label | "TICK VALUES" | hidden
+label | "Font size:" | hidden
+number | "" | value=10 range=6..32 decimals=0 hidden
+label | "Font family:" | hidden
+combo | "" | value="DejaVu Sans" items=<installed font families> hidden
+checkable | "Bold" | checked=false hidden
+checkable | "Italic" | checked=false hidden
+label | "Color:" | hidden
+color | "" | value="#000000" hidden
+label | "Rotation:" | hidden
+number | "" | value=0 range=-90..90 decimals=0 suffix="°" hidden
+label | "COLORS" | hidden
+label | "Spine:" | hidden
+color | "" | value="#000000" hidden
+label | "Major ticks:" | hidden
+color | "" | value="#000000" hidden
+label | "Minor ticks:" | hidden
+color | "" | value="#000000" hidden
+label | "AXIS TITLE" | hidden
+label | "Font size:" | hidden
+number | "" | value=12 range=6..32 decimals=0 hidden
+label | "Font family:" | hidden
+combo | "" | value="DejaVu Sans" items=<installed font families> hidden
+checkable | "Bold" | checked=false hidden
+checkable | "Italic" | checked=false hidden
+label | "Color:" | hidden
+color | "" | value="#000000" hidden
+label | "Match X:" | hidden
+checkable | "" | checked=true hidden
+label | "Rotation:" | hidden
+number | "" | value=90 range=-90..90 decimals=0 suffix="°" hidden
+label | "TICK VALUES" | hidden
+label | "Font size:" | hidden
+number | "" | value=10 range=6..32 decimals=0 hidden
+label | "Font family:" | hidden
+combo | "" | value="DejaVu Sans" items=<installed font families> hidden
+checkable | "Bold" | checked=false hidden
+checkable | "Italic" | checked=false hidden
+label | "Color:" | hidden
+color | "" | value="#000000" hidden
+label | "Rotation:" | hidden
+number | "" | value=0 range=-90..90 decimals=0 suffix="°" hidden
+label | "COLORS" | hidden
+label | "Spine:" | hidden
+color | "" | value="#000000" hidden
+label | "Major ticks:" | hidden
+color | "" | value="#000000" hidden
+label | "Minor ticks:" | hidden
+color | "" | value="#000000" hidden
+label | "Match X:" | hidden
+checkable | "" | checked=true hidden
+button | "Copy style to Y axis" | hidden
+label | "AXIS TITLE" | hidden
+label | "Font size:" | hidden
+number | "" | value=12 range=6..32 decimals=0 hidden
+label | "Font family:" | hidden
+combo | "" | value="DejaVu Sans" items=<installed font families> hidden
+checkable | "Bold" | checked=false hidden
+checkable | "Italic" | checked=false hidden
+label | "Color:" | hidden
+color | "" | value="#000000" hidden
+label | "Match X:" | hidden
+checkable | "" | checked=true hidden
+label | "Rotation:" | hidden
+number | "" | value=90 range=-90..90 decimals=0 suffix="°" hidden
+label | "TICK VALUES" | hidden
+label | "Font size:" | hidden
+number | "" | value=10 range=6..32 decimals=0 hidden
+label | "Font family:" | hidden
+combo | "" | value="DejaVu Sans" items=<installed font families> hidden
+checkable | "Bold" | checked=false hidden
+checkable | "Italic" | checked=false hidden
+label | "Color:" | hidden
+color | "" | value="#000000" hidden
+label | "Rotation:" | hidden
+number | "" | value=0 range=-90..90 decimals=0 suffix="°" hidden
+label | "COLORS" | hidden
+label | "Spine:" | hidden
+color | "" | value="#000000" hidden
+label | "Major ticks:" | hidden
+color | "" | value="#000000" hidden
+label | "Minor ticks:" | hidden
+color | "" | value="#000000" hidden
+label | "Match X:" | hidden
+checkable | "" | checked=true hidden
+button | "Copy style to Y axis" | hidden
