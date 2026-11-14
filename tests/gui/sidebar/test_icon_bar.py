@@ -11,13 +11,14 @@ from unittest.mock import Mock
 
 import pytest
 import shiboken6
-from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QSize
-from PySide6.QtGui import QColor, QContextMenuEvent
+from PySide6.QtCore import QCoreApplication, QEvent, QPoint
+from PySide6.QtGui import QContextMenuEvent
 from PySide6.QtWidgets import QApplication, QMenu, QWidget
 
 from pandaplot.gui.components.sidebar.icon_bar import IconBar
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.config import Theme
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
 from tests.gui.theme_testing import design_tokens, surface_palette
 
 
@@ -162,18 +163,8 @@ def test_settings_button_uses_a_bundled_icon(icon_bar):
     assert icon_bar.settings_button.accessibleName() == "Settings"
 
 
-def _strongest_color(button) -> QColor:
-    image = button.icon().pixmap(QSize(20, 20)).toImage()
-    pixels = (image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height()))
-    return max(pixels, key=lambda pixel: pixel.alpha())
-
-
 def _assert_tinted(button, expected_hex: str) -> None:
-    expected = QColor(expected_hex)
-    actual = _strongest_color(button)
-    assert abs(actual.red() - expected.red()) < 12
-    assert abs(actual.green() - expected.green()) < 12
-    assert abs(actual.blue() - expected.blue()) < 12
+    assert_tinted(strongest_pixel(button.icon(), size=20), expected_hex)
 
 
 def test_settings_button_gear_is_tinted_with_the_muted_text_colour(icon_bar):

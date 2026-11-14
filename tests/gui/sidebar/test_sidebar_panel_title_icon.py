@@ -10,6 +10,7 @@ from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.config import Theme
+from tests.gui.icon_testing import strongest_pixel
 from tests.gui.theme_testing import design_tokens
 
 
@@ -44,12 +45,6 @@ class _IconPanel(SidebarPanel):
 
 class _NoIconPanel(_IconPanel):
     ICON_NAME = None
-
-
-def _strongest(label: IconLabel) -> QColor:
-    image = label.pixmap().toImage()
-    pixels = (image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height()))
-    return max(pixels, key=lambda pixel: pixel.alpha())
 
 
 def _row_widgets(panel: SidebarPanel) -> list:
@@ -88,7 +83,7 @@ def test_theme_change_retints_the_title_icon(app_context):
     panel._on_theme_changed({})
 
     wanted = QColor(dark["text_primary"])
-    actual = _strongest(panel.title_icon)
+    actual = strongest_pixel(panel.title_icon.pixmap())
     assert abs(actual.red() - wanted.red()) < 12
     assert abs(actual.green() - wanted.green()) < 12
     assert abs(actual.blue() - wanted.blue()) < 12
