@@ -7,13 +7,13 @@ button | "About this test" |
 label | "Tests whether the mean of a single sample differs from a known/expected value." |
 label | "Assumptions: Sample is approximately normally distributed; observations are independent." |
 group | "Data Selection" |
+combo | "Sample column:" | value="time" items=["time", "signal", "reference"]
 group | "Parameters" |
+number | "Significance (α):" | value=0.05 range=0.0001..0.5 decimals=4
+number | "Expected mean (μ₀):" | value=0 range=-1000000000000..1000000000000 decimals=6
+combo | "Alternative:" | value="two-sided" items=["two-sided", "less", "greater"]
 group | "Results" |
 button | "Run" |
 text | "" | value="" placeholder="Run a test to see results here..." read-only
 button | "Add to Project" | disabled
 button | "Clear" |
-number | "Significance (α):" | value=0.05 range=0.0001..0.5 decimals=4
-number | "Expected mean (μ₀):" | value=0 range=-1000000000000..1000000000000 decimals=6
-combo | "Alternative:" | value="two-sided" items=["two-sided", "less", "greater"]
-combo | "Sample column:" | value="time" items=["time", "signal", "reference"]

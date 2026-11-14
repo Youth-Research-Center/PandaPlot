@@ -433,6 +433,8 @@ class AnalysisPanel(SidebarPanel):
             self.apply_info_label_theme(info_label)
             self.parameters_layout.addRow("", info_label)
 
+        self._restore_form_tab_order(self.parameters_group, self.parameters_layout)
+
     def update_smoothing_params(self):
         """Update smoothing parameters based on method."""
         method = self.smooth_method_combo.currentText()
@@ -459,6 +461,7 @@ class AnalysisPanel(SidebarPanel):
             self.parameters_layout.addRow("Window Size:", self.window_spin)
 
         # LOWESS doesn't need additional parameters in the UI
+        self._restore_form_tab_order(self.parameters_group, self.parameters_layout)
 
     def auto_generate_result_name(self):
         """Auto-generate result column name."""

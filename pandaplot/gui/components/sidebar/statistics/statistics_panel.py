@@ -231,6 +231,8 @@ class StatisticsPanel(SidebarPanel):
             self.input_layout.addRow("Groups:", self.group_list)
             self.input_layout.addRow("", hint)
 
+        self._restore_form_tab_order(self.input_group, self.input_layout)
+
     def _build_parameter_widgets(self, info):
         self._clear_layout(self.parameters_layout)
 
@@ -261,6 +263,8 @@ class StatisticsPanel(SidebarPanel):
             self.equal_var_check = QCheckBox("Assume equal variance (uncheck for Welch)")
             self.equal_var_check.setChecked(True)
             self.parameters_layout.addRow("", self.equal_var_check)
+
+        self._restore_form_tab_order(self.parameters_group, self.parameters_layout)
 
     # ------------------------------------------------------------------
     # Actions
@@ -449,10 +453,8 @@ class StatisticsPanel(SidebarPanel):
 
     @staticmethod
     def _clear_layout(layout: QFormLayout):
-        while layout.count():
-            child = layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+        while layout.rowCount():
+            layout.removeRow(0)
 
     def _apply_hint_label_theme(self, label: QLabel):
         theme_manager = self.app_context.get_manager(ThemeManager)

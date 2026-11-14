@@ -130,6 +130,7 @@ class NumberInput(QFrame):
         self._edit.editingFinished.connect(self._commit_text)
         self._edit.textEdited.connect(self._on_text_edited)
         self.setFocusProxy(self._edit)
+        self.setFocusPolicy(self._edit.focusPolicy())
 
         self._suffix_label = QLabel(self)
         self._suffix_label.setObjectName("numberInputSuffix")

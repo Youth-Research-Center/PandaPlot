@@ -2,11 +2,23 @@
 content area that is either scrollable or added directly.
 """
 
+from itertools import pairwise
 from typing import override
 
 import shiboken6
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPlainTextEdit, QScrollArea, QTextEdit, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLayoutItem,
+    QPlainTextEdit,
+    QScrollArea,
+    QTextEdit,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from pandaplot.gui.components.common.help_button import build_help_button, help_button_stylesheet
 from pandaplot.gui.components.common.icon_label import IconLabel
@@ -37,6 +49,7 @@ class SidebarPanel(PWidget):
         self.help_button: QToolButton | None = None
         self.help_topic: str | None = None
         self._title_row: QWidget | None = None
+        self._scroll_area: QScrollArea | None = None
 
     def _init_panel_layout(self) -> QVBoxLayout:
         """Create `self.main_layout` with the shared panel margins/spacing."""
@@ -135,8 +148,84 @@ class SidebarPanel(PWidget):
             scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             scroll_area.setWidget(widget)
             self.main_layout.addWidget(scroll_area)
+            # Retain the Python wrapper while the panel lives: in PySide6 6.11,
+            # calling viewport.focusProxy() after a local QScrollArea wrapper has
+            # been collected can destroy the underlying C++ QScrollArea on GC.
+            self._scroll_area = scroll_area
         else:
             self.main_layout.addWidget(widget)
+
+    @staticmethod
+    def _collect_item_widgets(
+        item: QLayoutItem | None, seen: set[int], widgets: list[QWidget]
+    ) -> None:
+        """Append widgets from `item` (recursing into nested layouts and composite containers)."""
+        if item is None:
+            return
+        widget = item.widget()
+        if widget is not None:
+            if id(widget) not in seen:
+                seen.add(id(widget))
+                widgets.append(widget)
+            child_layout = widget.layout()
+            if (
+                child_layout is not None
+                and widget.focusPolicy() == Qt.FocusPolicy.NoFocus
+                and widget.focusProxy() is None
+            ):
+                for index in range(child_layout.count()):
+                    SidebarPanel._collect_item_widgets(child_layout.itemAt(index), seen, widgets)
+            return
+        sublayout = item.layout()
+        if sublayout is not None:
+            for index in range(sublayout.count()):
+                SidebarPanel._collect_item_widgets(sublayout.itemAt(index), seen, widgets)
+
+    @staticmethod
+    def _restore_form_tab_order(anchor: QWidget, form: QFormLayout) -> None:
+        """Splice every row widget of `form` after `anchor` in Qt's focus chain.
+
+        Qt appends newly created widgets to the end of the window's focus chain,
+        so dynamically rebuilt parameter or input rows would otherwise come after
+        the panel's action buttons. Temporarily enabling `TabFocus` on `NoFocus`
+        endpoints (`QGroupBox`, row `QLabel`s, and composite containers) lets
+        `QWidget.setTabOrder` position both interactive controls and descriptive
+        labels in visual row order without leaving non-focusable widgets
+        keyboard-focusable.
+
+        Args:
+            anchor: The section widget (such as the owning `QGroupBox`) immediately
+                preceding `form`'s rows in the focus chain.
+            form: The rebuilt `QFormLayout` whose rows should follow `anchor`.
+        """
+        widgets: list[QWidget] = []
+        seen: set[int] = set()
+        roles = (
+            QFormLayout.ItemRole.LabelRole,
+            QFormLayout.ItemRole.FieldRole,
+            QFormLayout.ItemRole.SpanningRole,
+        )
+        for row in range(form.rowCount()):
+            for role in roles:
+                SidebarPanel._collect_item_widgets(form.itemAt(row, role), seen, widgets)
+
+        if not widgets:
+            return
+
+        chain = [anchor, *widgets]
+        no_focus = [
+            widget
+            for widget in chain
+            if widget.focusPolicy() == Qt.FocusPolicy.NoFocus and widget.focusProxy() is None
+        ]
+        for widget in no_focus:
+            widget.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        try:
+            for first, second in pairwise(chain):
+                QWidget.setTabOrder(first, second)
+        finally:
+            for widget in no_focus:
+                widget.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
     @staticmethod
     def _follow_column_rename(names: list, event_data: dict) -> list[str]:

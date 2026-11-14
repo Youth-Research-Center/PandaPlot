@@ -12,7 +12,7 @@ import pytest
 from PySide6.QtCore import QEvent, QLocale, QPoint, QPointF, Qt
 from PySide6.QtGui import QColor, QKeyEvent, QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QPushButton, QVBoxLayout, QWidget
 
 from pandaplot.gui.components.common.number_input import DecimalInput, IntegerInput, NumberInput
 from pandaplot.models.state.config import Theme
@@ -1060,3 +1060,27 @@ class TestMixed:
 
         assert widget.isMixed()
         assert widget.text() == "Mixed"
+
+
+def test_set_tab_order_moves_number_input_and_its_focus_proxy() -> None:
+    host = QWidget()
+    layout = QVBoxLayout(host)
+    before = QPushButton("Before", host)
+    after = QPushButton("After", host)
+    decimal = DecimalInput(host)
+    integer = IntegerInput(host)
+    for item in (before, after, decimal, integer):
+        layout.addWidget(item)
+
+    QWidget.setTabOrder(before, decimal)
+    QWidget.setTabOrder(decimal, integer)
+
+    chain: list[QWidget] = []
+    widget = host.nextInFocusChain()
+    while widget is not None and widget is not host and widget not in chain:
+        if host.isAncestorOf(widget) and widget.focusProxy() is None and bool(widget.focusPolicy() & Qt.FocusPolicy.TabFocus):
+            chain.append(widget)
+        widget = widget.nextInFocusChain()
+
+    assert chain == [before, decimal._edit, integer._edit, after]
+

@@ -267,10 +267,8 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         self.clear()
 
     def _build_parameter_widgets(self, info):
-        while self.parameters_layout.count():
-            item = self.parameters_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        while self.parameters_layout.rowCount():
+            self.parameters_layout.removeRow(0)
 
         # reset references
         self.sampling_rate = None
@@ -285,6 +283,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         self.threshold_spin = None
 
         widgets = build_signal_parameter_widgets(self.parameters_layout, info)
+        self._restore_form_tab_order(self.parameters_group, self.parameters_layout)
 
         self.sampling_rate = widgets.get("sampling_rate")
         self.nfft_spin = widgets.get("nfft")

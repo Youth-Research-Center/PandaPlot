@@ -6,11 +6,11 @@ label | "Transforms a signal from the time domain into the frequency domain and 
 group | "Input" |
 combo | "Signal column:" | value="time" items=["time", "signal", "reference"]
 group | "Parameters" |
+number | "Sampling rate:" | value=1000 range=0.001..1000000000 decimals=2
+number | "FFT size:" | value=1024 range=16..1000000 decimals=0
+combo | "Window:" | value="hann" items=["hann", "hamming", "blackman", "boxcar"]
 group | "Results" |
 button | "Run" |
 text | "" | value="" placeholder="Run analysis to see results..." read-only
 button | "Add to Project" | disabled
 button | "Clear" |
-number | "Sampling rate:" | value=1000 range=0.001..1000000000 decimals=2
-number | "FFT size:" | value=1024 range=16..1000000 decimals=0
-combo | "Window:" | value="hann" items=["hann", "hamming", "blackman", "boxcar"]
