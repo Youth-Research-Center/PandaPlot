@@ -24,7 +24,8 @@ from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.project import Project
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.theme_testing import design_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -39,7 +40,7 @@ ICON_SIZE = QSize(16, 16)
 @pytest.fixture
 def app_context():
     context = Mock()
-    context.get_manager.return_value.get_design_tokens.return_value = dict(ICON_TOKENS)
+    context.get_manager.return_value.get_design_tokens.return_value = design_tokens()
     return context
 
 
@@ -227,7 +228,7 @@ class TestRetintComboIcons:
         populate_series_fit_sources(series_combo, chart, app_context=app_context)
         target_combo = QComboBox()
         populate_chart_target_combo(target_combo, project_with_charts, app_context=app_context)
-        app_context.get_manager.return_value.get_design_tokens.return_value = {**ICON_TOKENS, "text_primary": "#00AA00"}
+        app_context.get_manager.return_value.get_design_tokens.return_value = design_tokens(text_primary="#00AA00")
 
         retint_combo_icons(series_combo, app_context)
         retint_combo_icons(target_combo, app_context)

@@ -33,7 +33,8 @@ from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.theme_testing import design_tokens
 
 
 def same_pixels(first, second) -> bool:
@@ -69,7 +70,7 @@ def project():
 def app_context(project):
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
+    ctx.get_manager.return_value.get_design_tokens.return_value = design_tokens()
     app_state = Mock(spec=AppState)
     app_state.current_project = project
     ctx.get_app_state.return_value = app_state

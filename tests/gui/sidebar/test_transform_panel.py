@@ -17,7 +17,9 @@ from pandaplot.gui.components.common.status_message import StatusKind
 from pandaplot.gui.components.sidebar.transform.transform_panel import TransformPanel
 from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.state.app_context import AppContext
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+from pandaplot.models.state.config import Theme
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.theme_testing import design_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -30,7 +32,7 @@ def qapp():
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
+    ctx.get_manager.return_value.get_design_tokens.return_value = design_tokens()
     return ctx
 
 
@@ -345,7 +347,7 @@ class TestPreviewStatusMessage:
         transform_panel._set_preview_message("Something broke", is_error=True)
 
         assert "status_danger" not in transform_panel.preview_text.styleSheet()
-        assert "#DC3545" not in transform_panel.preview_text.styleSheet()
+        assert design_tokens()["status_danger"] not in transform_panel.preview_text.styleSheet()
 
     def test_clear_panel_clears_the_status_message(self, transform_panel):
         transform_panel._set_preview_message("Something broke", is_error=True)
@@ -677,9 +679,8 @@ def test_insert_function_button_is_text_with_a_function_icon_and_still_opens_its
 
 
 def test_insert_function_icon_retints_when_the_theme_changes(transform_panel, app_context):
-    tokens = app_context.get_manager.return_value.get_design_tokens.return_value
     before = transform_panel.insert_function_btn.icon().pixmap(QSize(16, 16)).toImage()
-    app_context.get_manager.return_value.get_design_tokens.return_value = {**tokens, "text_primary": "#E2E2E2", "text_disabled": "#5B6270"}
+    app_context.get_manager.return_value.get_design_tokens.return_value = design_tokens(Theme.DARK)
 
     transform_panel._apply_theme()
 

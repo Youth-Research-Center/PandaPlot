@@ -15,7 +15,8 @@ from pandaplot.models.chart.series_style import LineSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart, DataSeries
 from pandaplot.models.state.app_context import AppContext
-from tests.gui.icon_testing import ICON_TOKENS, fresh_icon_tokens
+from pandaplot.models.state.config import Theme
+from tests.gui.theme_testing import design_tokens
 
 ICON_SIZE = QSize(16, 16)
 
@@ -27,8 +28,8 @@ def qapp():
 
 
 @pytest.fixture
-def tokens() -> dict[str, str]:
-    return fresh_icon_tokens()
+def tokens() -> dict:
+    return design_tokens(Theme.LIGHT)
 
 
 @pytest.fixture
@@ -109,14 +110,14 @@ def test_fill_to_selection_round_trips_by_value_not_by_label(app_context):
 def test_fill_to_icons_retint_when_the_theme_changes(app_context, tokens):
     first, second, fit = _line("First"), _line("Second"), _fit("A Fit")
     tab = _tab(app_context, [first, second, fit])
-    tokens.update(text_primary="#E2E2E2", text_disabled="#5B6270")
+    tokens.update(design_tokens(Theme.DARK))
 
     tab.apply_theme(dict(tokens))
 
     combo = tab.fill_to_control
     assert _icon_image(combo.itemIcon(1)) == _icon_image(themed_icon(app_context, SERIES_ICON_NAME))
     assert _icon_image(combo.itemIcon(1)) != _icon_image(
-        themed_icon(Mock(**{"get_manager.return_value.get_design_tokens.return_value": dict(ICON_TOKENS)}), SERIES_ICON_NAME),
+        themed_icon(Mock(**{"get_manager.return_value.get_design_tokens.return_value": design_tokens(Theme.LIGHT)}), SERIES_ICON_NAME),
     )
     assert combo.itemIcon(0).isNull()
 
@@ -124,6 +125,6 @@ def test_fill_to_icons_retint_when_the_theme_changes(app_context, tokens):
 def test_apply_theme_without_an_app_context_does_not_touch_the_fill_to_icons():
     tab = StyleTab(app_context=None)
 
-    tab.apply_theme(fresh_icon_tokens())
+    tab.apply_theme(design_tokens())
 
     assert tab.fill_to_control.itemIcon(0).isNull()

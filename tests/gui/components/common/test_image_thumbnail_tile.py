@@ -4,13 +4,7 @@ from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.components.common.image_thumbnail_tile import build_gallery_tile_icon
-
-_TOKENS = {
-    "accent": "#4A56C6",
-    "surface_white": "#FFFFFF",
-    "text_muted": "#6B7280",
-    "border_subtle": "#ECEEF2",
-}
+from tests.gui.theme_testing import design_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -27,23 +21,23 @@ def _sample_pixmap() -> QPixmap:
 
 class TestBuildGalleryTileIcon:
     def test_image_type_returns_non_null_icon(self):
-        icon = build_gallery_tile_icon(_sample_pixmap(), "image", selected=False, tokens=_TOKENS)
+        icon = build_gallery_tile_icon(_sample_pixmap(), "image", selected=False, tokens=design_tokens())
 
         assert not icon.isNull()
 
     def test_album_type_returns_non_null_icon_without_a_pixmap(self):
-        icon = build_gallery_tile_icon(None, "album", selected=False, tokens=_TOKENS)
+        icon = build_gallery_tile_icon(None, "album", selected=False, tokens=design_tokens())
 
         assert not icon.isNull()
 
     def test_broken_type_returns_non_null_icon_without_a_pixmap(self):
-        icon = build_gallery_tile_icon(None, "broken", selected=False, tokens=_TOKENS)
+        icon = build_gallery_tile_icon(None, "broken", selected=False, tokens=design_tokens())
 
         assert not icon.isNull()
 
     def test_selected_and_unselected_icons_differ(self):
-        unselected = build_gallery_tile_icon(_sample_pixmap(), "image", selected=False, tokens=_TOKENS)
-        selected = build_gallery_tile_icon(_sample_pixmap(), "image", selected=True, tokens=_TOKENS)
+        unselected = build_gallery_tile_icon(_sample_pixmap(), "image", selected=False, tokens=design_tokens())
+        selected = build_gallery_tile_icon(_sample_pixmap(), "image", selected=True, tokens=design_tokens())
 
         unselected_pixmap = unselected.pixmap(QSize(120, 120))
         selected_pixmap = selected.pixmap(QSize(120, 120))
@@ -51,7 +45,7 @@ class TestBuildGalleryTileIcon:
 
     def test_respects_custom_size(self):
         icon = build_gallery_tile_icon(
-            _sample_pixmap(), "image", selected=False, tokens=_TOKENS, size=QSize(64, 64)
+            _sample_pixmap(), "image", selected=False, tokens=design_tokens(), size=QSize(64, 64)
         )
 
         pixmap = icon.pixmap(QSize(64, 64))
@@ -62,10 +56,10 @@ class TestBuildGalleryTileIconCheckmarkPosition:
     def test_checkmark_badge_is_in_top_left_not_bottom_right(self):
         size = QSize(120, 120)
         unselected = build_gallery_tile_icon(
-            _sample_pixmap(), "image", selected=False, tokens=_TOKENS, size=size
+            _sample_pixmap(), "image", selected=False, tokens=design_tokens(), size=size
         )
         selected = build_gallery_tile_icon(
-            _sample_pixmap(), "image", selected=True, tokens=_TOKENS, size=size
+            _sample_pixmap(), "image", selected=True, tokens=design_tokens(), size=size
         )
 
         unselected_image = unselected.pixmap(size).toImage()

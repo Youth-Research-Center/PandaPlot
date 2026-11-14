@@ -8,15 +8,14 @@ from PySide6.QtGui import QColor
 from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.resources.themed_icons import IconRole
 from pandaplot.models.state.app_context import AppContext
-
-LIGHT = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
-DARK = {"text_primary": "#E2E2E2", "text_muted": "#9AA0AB", "accent_icon_active": "#8995FF", "text_disabled": "#5B6270"}
+from pandaplot.models.state.config import Theme
+from tests.gui.theme_testing import design_tokens
 
 
 @pytest.fixture
 def app_context():
     ctx = Mock(spec=AppContext)
-    ctx.get_manager.return_value.get_design_tokens.return_value = LIGHT
+    ctx.get_manager.return_value.get_design_tokens.return_value = design_tokens(Theme.LIGHT)
     return ctx
 
 
@@ -38,22 +37,22 @@ def test_icon_label_shows_the_icon_in_the_role_colour(qapp, app_context):
 
     assert label.icon_name == "folder"
     assert not label.pixmap().isNull()
-    _assert_close(_strongest(label), LIGHT["text_primary"])
+    _assert_close(_strongest(label), design_tokens(Theme.LIGHT)["text_primary"])
 
 
 def test_icon_label_uses_the_requested_role(qapp, app_context):
     label = IconLabel(app_context, "folder", size=32, role=IconRole.MUTED)
 
-    _assert_close(_strongest(label), LIGHT["text_muted"])
+    _assert_close(_strongest(label), design_tokens(Theme.LIGHT)["text_muted"])
 
 
 def test_icon_label_retint_follows_the_new_tokens(qapp, app_context):
     label = IconLabel(app_context, "folder", size=32)
-    app_context.get_manager.return_value.get_design_tokens.return_value = DARK
+    app_context.get_manager.return_value.get_design_tokens.return_value = design_tokens(Theme.DARK)
 
     label.retint()
 
-    _assert_close(_strongest(label), DARK["text_primary"])
+    _assert_close(_strongest(label), design_tokens(Theme.DARK)["text_primary"])
 
 
 def test_icon_label_is_fixed_size_and_unknown_icons_fail_loudly(qapp, app_context):

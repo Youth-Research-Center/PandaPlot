@@ -1,4 +1,5 @@
 """Tests for ImageGalleryTab."""
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -17,8 +18,9 @@ from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events.event_types import ThemeEvents
 from pandaplot.models.project.items import Image, ImageGallery
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.models.state.config import Theme
 from pandaplot.services.theme.theme_manager import ThemeManager
-from tests.gui.icon_testing import fresh_icon_tokens
+from tests.gui.theme_testing import design_tokens
 
 
 def _project_stub(*items):
@@ -70,20 +72,13 @@ def _bordered_png_bytes(size: int = 120, border: int = 20) -> bytes:
     return bytes(buffer.data())
 
 
-_EXTRA_TOKENS = {
-    "border_subtle": "#ECEEF2",
-    "surface_white": "#FFFFFF",
-    "accent_selected_bg": "#EEF0FB",
-}
-
-
 @pytest.fixture
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
     ctx.get_app_state.return_value = Mock()
 
-    ctx.theme_tokens = {**fresh_icon_tokens(), **_EXTRA_TOKENS}
+    ctx.theme_tokens = design_tokens(Theme.LIGHT)
     theme_manager = Mock()
     theme_manager.get_design_tokens.side_effect = lambda: dict(ctx.theme_tokens)
 
@@ -1658,7 +1653,7 @@ def _icon_image(icon) -> QImage:
     return icon.pixmap(_ICON_SIZE, _ICON_SIZE).toImage()
 
 
-def _expected_icon_image(name: str, tokens: dict[str, str], role: IconRole = IconRole.TEXT) -> QImage:
+def _expected_icon_image(name: str, tokens: dict[str, Any], role: IconRole = IconRole.TEXT) -> QImage:
     icon = build_icon(name, tokens[role.value], size=_ICON_SIZE, disabled_color=tokens["text_disabled"])
     return _icon_image(icon)
 
@@ -1688,7 +1683,8 @@ class TestImageGalleryTabIcons:
     def test_delete_button_hover_icon_retints_when_the_theme_changes(self, app_context):
         tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
         tab.delete_button.setEnabled(True)
-        app_context.theme_tokens.update(status_danger="#C24141", text_on_danger="#F0F0F0")
+        # text_on_danger is the same in both real themes, so a sentinel proves the hover icon is re-tinted too.
+        app_context.theme_tokens.update(design_tokens(Theme.DARK, text_on_danger="#F0F0F0"))
 
         tab._apply_theme()
 
@@ -1751,7 +1747,7 @@ class TestImageGalleryTabIcons:
     def test_icons_retint_when_the_theme_changes(self, app_context):
         tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
         before = _icon_image(tab.import_button.icon())
-        app_context.theme_tokens.update(text_primary="#E2E2E2", text_disabled="#5B6270")
+        app_context.theme_tokens.update(design_tokens(Theme.DARK))
 
         tab._apply_theme()
 
@@ -1766,7 +1762,7 @@ class TestImageGalleryTabIcons:
         tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
         tab.sort_direction_button.click()
         assert tab._sort_ascending is False
-        app_context.theme_tokens.update(text_primary="#E2E2E2", text_disabled="#5B6270")
+        app_context.theme_tokens.update(design_tokens(Theme.DARK))
 
         tab._apply_theme()
 

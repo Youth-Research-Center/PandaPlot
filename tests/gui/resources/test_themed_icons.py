@@ -1,5 +1,6 @@
 """Tests for the theme-token icon helpers used by toolbars and buttons."""
 
+from types import MappingProxyType
 from unittest.mock import Mock
 
 import pytest
@@ -10,16 +11,18 @@ from PySide6.QtWidgets import QApplication, QPushButton
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.resources.themed_icons import ActionIcons, IconRole, themed_icon
 from pandaplot.models.state.app_context import AppContext
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, fresh_icon_tokens, strongest_pixel
+from pandaplot.models.state.config import Theme
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.theme_testing import design_tokens
 
-LIGHT = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
-DARK = {"text_primary": "#E2E2E2", "text_muted": "#9AA0AB", "accent_icon_active": "#8995FF", "text_disabled": "#5B6270"}
+LIGHT = MappingProxyType(design_tokens(Theme.LIGHT))
+DARK = MappingProxyType(design_tokens(Theme.DARK))
 
 
 @pytest.fixture
 def app_context():
     ctx = Mock(spec=AppContext)
-    ctx.get_manager.return_value.get_design_tokens.return_value = LIGHT
+    ctx.get_manager.return_value.get_design_tokens.return_value = dict(LIGHT)
     return ctx
 
 
@@ -56,10 +59,10 @@ def test_themed_icon_roles_map_to_their_tokens(qapp, app_context, role, token):
 )
 def test_status_roles_map_to_their_tokens(qapp, role, value):
     ctx = Mock(spec=AppContext)
-    ctx.get_manager.return_value.get_design_tokens.return_value = fresh_icon_tokens()
+    ctx.get_manager.return_value.get_design_tokens.return_value = dict(LIGHT)
 
     assert role.value == value
-    assert_tinted(strongest_pixel(themed_icon(ctx, "folder", role=role, size=32)), ICON_TOKENS[value])
+    assert_tinted(strongest_pixel(themed_icon(ctx, "folder", role=role, size=32)), LIGHT[value])
 
 
 def test_themed_icon_has_a_distinct_disabled_colour(qapp, app_context):
@@ -92,7 +95,7 @@ def test_action_icons_retint_follows_the_new_theme_tokens(qapp, app_context):
     icons.bind(action, "folder-simple")
     icons.bind(button, "folder-simple")
 
-    app_context.get_manager.return_value.get_design_tokens.return_value = DARK
+    app_context.get_manager.return_value.get_design_tokens.return_value = dict(DARK)
     icons.retint()
 
     _assert_close(_strongest(action.icon()), DARK["text_primary"])
@@ -115,9 +118,7 @@ def test_action_icons_retint_skips_deleted_targets(qapp, app_context):
 
 
 def test_on_accent_role_maps_to_the_on_accent_token(qapp, app_context):
-    app_context.get_manager.return_value.get_design_tokens.return_value = {**LIGHT, "text_on_accent": "#FFFFFF"}
-
-    _assert_close(_strongest(themed_icon(app_context, "folder", role=IconRole.ON_ACCENT, size=32)), "#FFFFFF")
+    _assert_close(_strongest(themed_icon(app_context, "folder", role=IconRole.ON_ACCENT, size=32)), LIGHT["text_on_accent"])
 
 
 def test_on_danger_role_maps_to_the_on_danger_token():
@@ -126,7 +127,7 @@ def test_on_danger_role_maps_to_the_on_danger_token():
 
 def test_action_icons_bind_role_overrides_the_registry_role(qapp):
     ctx = Mock(spec=AppContext)
-    ctx.get_manager.return_value.get_design_tokens.return_value = fresh_icon_tokens()
+    ctx.get_manager.return_value.get_design_tokens.return_value = dict(LIGHT)
     icons = ActionIcons(ctx, size=32)
     plain = QPushButton("Plain")
     danger = QPushButton("Danger")
@@ -134,37 +135,38 @@ def test_action_icons_bind_role_overrides_the_registry_role(qapp):
     icons.bind(plain, "trash")
     icons.bind(danger, "trash", role=IconRole.ERROR)
 
-    assert_tinted(strongest_pixel(plain.icon()), ICON_TOKENS["text_primary"])
-    assert_tinted(strongest_pixel(danger.icon()), ICON_TOKENS["status_danger"])
+    assert_tinted(strongest_pixel(plain.icon()), LIGHT["text_primary"])
+    assert_tinted(strongest_pixel(danger.icon()), LIGHT["status_danger"])
 
 
 def test_action_icons_hover_role_swaps_the_icon_on_enter_and_leave(qapp):
     ctx = Mock(spec=AppContext)
-    ctx.get_manager.return_value.get_design_tokens.return_value = fresh_icon_tokens()
+    ctx.get_manager.return_value.get_design_tokens.return_value = dict(LIGHT)
     icons = ActionIcons(ctx, size=32)
     button = PButton("Delete", role="destructive")
 
     icons.bind(button, "trash", role=IconRole.ERROR, hover_role=IconRole.ON_DANGER)
 
-    assert_tinted(strongest_pixel(button.icon()), ICON_TOKENS["status_danger"])
+    assert_tinted(strongest_pixel(button.icon()), LIGHT["status_danger"])
     QApplication.sendEvent(button, QEvent(QEvent.Type.Enter))
-    assert_tinted(strongest_pixel(button.icon()), ICON_TOKENS["text_on_danger"])
+    assert_tinted(strongest_pixel(button.icon()), LIGHT["text_on_danger"])
     QApplication.sendEvent(button, QEvent(QEvent.Type.Leave))
-    assert_tinted(strongest_pixel(button.icon()), ICON_TOKENS["status_danger"])
+    assert_tinted(strongest_pixel(button.icon()), LIGHT["status_danger"])
 
 
 def test_action_icons_retint_renders_the_normal_and_hover_icons_from_the_new_tokens(qapp):
-    tokens = fresh_icon_tokens()
+    tokens = dict(LIGHT)
     ctx = Mock(spec=AppContext)
     ctx.get_manager.return_value.get_design_tokens.side_effect = lambda: dict(tokens)
     icons = ActionIcons(ctx, size=32)
     button = PButton("Delete", role="destructive")
     icons.bind(button, "trash", role=IconRole.ERROR, hover_role=IconRole.ON_DANGER)
 
-    tokens.update(status_danger="#C24141", text_on_danger="#102030")
+    # Sentinels unlike any theme colour, so only a re-render from the new tokens can produce them.
+    tokens.update(status_danger="#00AA00", text_on_danger="#102030")
     icons.retint()
 
-    assert_tinted(strongest_pixel(button.icon()), "#C24141")
+    assert_tinted(strongest_pixel(button.icon()), "#00AA00")
     QApplication.sendEvent(button, QEvent(QEvent.Type.Enter))
     assert_tinted(strongest_pixel(button.icon()), "#102030")
 

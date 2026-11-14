@@ -10,7 +10,9 @@ from pandaplot.gui.components.tabs.sketch.sketch_tab import SketchTab
 from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.project import Project
 from pandaplot.models.project.items.sketch import RectangleElement, Sketch, SketchLayer
+from pandaplot.models.state.config import Theme
 from pandaplot.services.theme.theme_manager import ThemeManager
+from tests.gui.theme_testing import design_tokens
 
 
 @pytest.fixture
@@ -323,7 +325,7 @@ def test_layer_buttons_show_icons_instead_of_glyph_text(app_context, panel):
 
 def test_layer_button_icons_retint_when_the_theme_changes(app_context, panel, monkeypatch):
     manager = app_context.get_manager(ThemeManager)
-    dark_tokens = {**manager.get_design_tokens(), "text_primary": "#E2E2E2", "text_disabled": "#5B6270"}
+    dark_tokens = design_tokens(Theme.DARK)
     monkeypatch.setattr(manager, "get_design_tokens", lambda: dict(dark_tokens))
 
     panel._apply_theme()

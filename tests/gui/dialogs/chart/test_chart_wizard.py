@@ -8,6 +8,7 @@ from pandaplot.gui.dialogs.chart.chart_wizard import ChartWizard
 from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.services.theme.theme_manager import ThemeManager
+from tests.gui.theme_testing import design_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -16,6 +17,7 @@ def qapp():
     yield app
 
 
+# Distinct sentinel values, so a test can tell the surface palette apart from the design tokens.
 _FAKE_PALETTE = {
     "card_bg": "#111111",
     "card_hover": "#222222",
@@ -33,21 +35,7 @@ def _fake_app_context():
 
     theme_manager = Mock()
     theme_manager.get_surface_palette.return_value = dict(_FAKE_PALETTE)
-    theme_manager.get_design_tokens.return_value = {
-        "text_primary": "#1C1E26", "text_secondary": "#3F4350",
-        "text_muted": "#6B7280", "text_hint": "#9AA0AB",
-        "border_panel": "#E5E6EA", "border_control": "#DCDEE4",
-        "border_subtle": "#ECEEF2",
-        "surface_white": "#FFFFFF", "surface_chrome": "#FBFBFC",
-        "surface_inset": "#F4F5F8",
-        "accent": "#4A56C6", "accent_active_text": "#4A56C6",
-        "accent_selected_bg": "#EEF0FB", "accent_disabled": "#AAB1E3",
-        "status_modified_dot": "#E09A1F", "status_modified_text": "#B06A00",
-        "status_success": "#3FA46A",
-        "y2_accent": "#8A4BB8", "y2_accent_bg": "#F5EEFB",
-        "series_palette": ["#A01818", "#4A56C6", "#2B7A8C", "#3FA46A", "#E09A1F"],
-        "radius_swatch": 4, "radius_control": 5, "radius_card": 6, "radius_chip": 12,
-    }
+    theme_manager.get_design_tokens.return_value = design_tokens()
 
     def _get_manager(manager_type, *args, **kwargs):
         if manager_type is ThemeManager:

@@ -12,34 +12,16 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication, QWidget
 
 from pandaplot.gui.components.main_menu.main_menu import MainMenu
+from pandaplot.models.state.config import Theme
+from tests.gui.theme_testing import design_tokens, surface_palette
 
-# These mirror the real get_surface_palette() output (ThemeManager,
-# pandaplot/services/theme/theme_manager.py) for the LIGHT/DARK themes --
-# card_hover/card_pressed are surface_white darkened via
-# QColor.darker(110)/darker(115) respectively (see get_surface_palette()
-# docstring for why they're derived rather than reusing surface_inset/
-# surface_chrome). `accent` is this fixture's own value, not the app's
-# actual default (#4A56C6) -- it isn't exercised by the assertions below,
-# which only check card_pressed/card_hover/base_fg contrast.
-LIGHT_PALETTE = {
-    "card_bg": "#ffffff",
-    "card_hover": "#e8e8e8",
-    "card_pressed": "#dedede",
-    "card_border": "#dcdee4",
-    "base_fg": "#1c1e26",
-    "secondary_fg": "#3f4350",
-    "accent": "#3B82F6",
-}
-
-DARK_PALETTE = {
-    "card_bg": "#2a2c2e",
-    "card_hover": "#26282a",
-    "card_pressed": "#252628",
-    "card_border": "#4a4d52",
-    "base_fg": "#e2e2e2",
-    "secondary_fg": "#c7cad1",
-    "accent": "#3B82F6",
-}
+# The menu is styled from the real get_surface_palette() and design tokens of each
+# theme, with the configured default accent (DEFAULT_ACCENT): card_hover/card_pressed
+# are surface_white darkened via QColor.darker(110)/darker(115) respectively (see the
+# get_surface_palette() docstring for why they're derived rather than reusing
+# surface_inset/surface_chrome).
+THEMES = [Theme.LIGHT, Theme.DARK]
+THEME_IDS = ["light", "dark"]
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -48,14 +30,10 @@ def qapp():
     yield app
 
 
-LIGHT_TOKENS = {"text_disabled": "#AEB2BC"}
-DARK_TOKENS = {"text_disabled": "#5B6270"}
-
-
-def _menu_with_palette(palette, tokens=None):
+def _menu_with_palette(palette: dict, tokens: dict) -> tuple[MainMenu, QWidget]:
     theme_manager = Mock()
     theme_manager.get_surface_palette.return_value = palette
-    theme_manager.get_design_tokens.return_value = tokens or {}
+    theme_manager.get_design_tokens.return_value = tokens
 
     project = Mock()
     project.get_all_items.return_value = []
@@ -105,10 +83,11 @@ def _rule(stylesheet: str, selector: str) -> dict:
     }
 
 
-@pytest.mark.parametrize("palette", [LIGHT_PALETTE, DARK_PALETTE], ids=["light", "dark"])
+@pytest.mark.parametrize("theme", THEMES, ids=THEME_IDS)
 @pytest.mark.parametrize("selector", ["QMenuBar::item:pressed", "QMenu::item:pressed"])
-def test_pressed_menu_items_are_readable(palette, selector):
-    menu, _parent = _menu_with_palette(palette)
+def test_pressed_menu_items_are_readable(theme, selector):
+    palette = surface_palette(theme)
+    menu, _parent = _menu_with_palette(palette, design_tokens(theme))
 
     rule = _rule(menu.styleSheet(), selector)
 
@@ -117,13 +96,12 @@ def test_pressed_menu_items_are_readable(palette, selector):
     assert _contrast_ratio(rule["color"], rule["background-color"]) >= 4.5
 
 
-@pytest.mark.parametrize(
-    "palette,tokens", [(LIGHT_PALETTE, LIGHT_TOKENS), (DARK_PALETTE, DARK_TOKENS)],
-    ids=["light", "dark"],
-)
-def test_disabled_menu_items_are_visibly_muted_without_hovering(palette, tokens):
+@pytest.mark.parametrize("theme", THEMES, ids=THEME_IDS)
+def test_disabled_menu_items_are_visibly_muted_without_hovering(theme):
     """Issue #255: a disabled Undo/Redo action must look different from an
     enabled one at rest, not only once hovered/selected."""
+    palette = surface_palette(theme)
+    tokens = design_tokens(theme)
     menu, _parent = _menu_with_palette(palette, tokens)
 
     disabled_rule = _rule(menu.styleSheet(), "QMenu::item:disabled")

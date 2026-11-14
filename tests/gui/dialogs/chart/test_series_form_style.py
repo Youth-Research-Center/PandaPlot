@@ -1,15 +1,28 @@
 """Tests for the stylesheet shared by the chart wizard and the Add Series dialog."""
+from unittest.mock import Mock
+
 import pytest
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.dialogs.chart.chart_wizard import ChartWizard
 from pandaplot.gui.dialogs.chart.series_form_style import series_form_stylesheet
-from tests.gui.dialogs.chart.test_wizard_help import _fake_app_context
+from pandaplot.services.theme.theme_manager import ThemeManager
+from tests.gui.theme_testing import design_tokens
 
+# Distinct sentinel colours, so the expected stylesheet below shows which palette key each rule reads.
 _PALETTE = {
-    "card_bg": "#111111", "card_hover": "#222222", "card_border": "#444444",
+    "card_bg": "#111111", "card_hover": "#222222", "card_pressed": "#333333", "card_border": "#444444",
     "base_fg": "#eeeeee", "secondary_fg": "#aaaaaa", "accent": "#ff00ff",
 }
+
+
+def _fake_app_context() -> Mock:
+    theme_manager = Mock()
+    theme_manager.get_surface_palette.return_value = dict(_PALETTE)
+    theme_manager.get_design_tokens.return_value = design_tokens()
+    app_context = Mock()
+    app_context.get_manager.side_effect = lambda manager_type, *args, **kwargs: theme_manager if manager_type is ThemeManager else Mock()
+    return app_context
 
 # The wizard's stylesheet exactly as it was written before the shared rules were extracted.
 _PRE_EXTRACTION_WIZARD_STYLESHEET = """

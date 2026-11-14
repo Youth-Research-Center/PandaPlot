@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget
 
 from pandaplot.gui.components.common.number_input import DecimalInput, IntegerInput, NumberInput
 from pandaplot.models.state.config import Theme
-from pandaplot.services.theme.theme_manager import ThemeContext, ThemeManager
+from tests.gui.theme_testing import theme_manager_for
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -722,8 +722,7 @@ def themed_app(qapp):
     original_palette = qapp.palette()
 
     def apply(theme: Theme) -> dict:
-        manager = ThemeManager.__new__(ThemeManager)
-        manager._current = ThemeContext(theme=theme, accent="#4A56C6", interface_font_size=10)
+        manager = theme_manager_for(theme)
         qapp.setStyleSheet(manager.build_stylesheet(manager._current))
         return manager.get_design_tokens()
 
