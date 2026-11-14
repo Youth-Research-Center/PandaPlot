@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.dialogs.chart import wizard_step_rail
 from pandaplot.gui.dialogs.chart.wizard_step_rail import WizardStepRail
+from tests.gui.theme_testing import design_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -92,10 +93,11 @@ def test_disabled_current_step_circle_still_shows_the_real_accent_color():
     Normal-only QIcon's Disabled-mode rendering. Since the current step's
     button is disabled (to preserve click-gating), its circle must still
     render with the real painted accent color -- not Qt's auto-greyed
-    version -- or the mockup's "you are here" indigo circle disappears."""
+    version -- or the mockup's "you are here" accent circle disappears."""
     rail = WizardStepRail(["Type", "Data", "Labels"])
     rail.set_state(current_index=1, summaries={})
-    rail.set_tokens({"accent": "#4A56C6"})
+    tokens = design_tokens()
+    rail.set_tokens(tokens)
 
     current_button = rail._step_widgets[1]
     assert current_button.isEnabled() is False
@@ -107,13 +109,13 @@ def test_disabled_current_step_circle_still_shows_the_real_accent_color():
     assert normal_pixmap.toImage() == disabled_pixmap.toImage()
 
     # Sample a pixel inside the filled circle but above the centered
-    # digit glyph (wider fonts on Linux cover the circle's corners), and confirm it's still the indigo accent, not grey.
+    # digit glyph (wider fonts on Linux cover the circle's corners), and confirm it's still the accent colour, not grey.
     color = disabled_pixmap.toImage().pixelColor(8, 3)
-    accent = QColor("#4A56C6")
+    accent = QColor(tokens["accent"])
     assert abs(color.red() - accent.red()) < 25
     assert abs(color.green() - accent.green()) < 25
     assert abs(color.blue() - accent.blue()) < 25
-    # A grey desaturation would have near-equal R/G/B; indigo doesn't.
+    # A grey desaturation would have near-equal R/G/B; the accent doesn't.
     channel_spread = max(color.red(), color.green(), color.blue()) - min(
         color.red(), color.green(), color.blue()
     )
@@ -125,7 +127,8 @@ def test_set_tokens_regenerates_the_circle_icons():
     rail.set_state(current_index=1, summaries={})
     before = rail._step_widgets[1].icon().pixmap(17, 17).toImage()
 
-    rail.set_tokens({"accent": "#00FF00"})
+    # Tokens for an accent unlike the default, so the current circle must change colour.
+    rail.set_tokens(design_tokens(accent="#00FF00"))
 
     after = rail._step_widgets[1].icon().pixmap(17, 17).toImage()
     assert before != after
@@ -142,7 +145,8 @@ def test_completed_circle_draws_the_bundled_check_icon_in_the_completed_colour(m
 
     monkeypatch.setattr(wizard_step_rail, "build_icon", spy)
     rail = WizardStepRail(["Type", "Data", "Labels"])
-    rail.set_tokens({"accent_selected_bg": "#FFFFFF", "accent_active_text": "#FF0000"})
+    # Sentinel colours: a pure red check on a white circle, so the check's pixels can be told apart below.
+    rail.set_tokens(design_tokens(accent_selected_bg="#FFFFFF", accent_active_text="#FF0000"))
     rail.set_state(current_index=1, summaries={0: "Type · Line"})
 
     assert ("check", "#FF0000") in requested

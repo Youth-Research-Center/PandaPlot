@@ -8,6 +8,7 @@ from pandaplot.gui.components.common.line_style_icons import (
     line_style_pen_style,
 )
 from pandaplot.models.chart.chart_configuration import LineStyleType
+from tests.gui.theme_testing import design_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -37,7 +38,7 @@ def test_line_style_pen_style_maps_none_to_no_pen():
 
 
 def test_build_line_style_icon_returns_non_null_icon_for_every_style():
-    tokens = {"text_primary": "#1C1E26"}
+    tokens = design_tokens()
     for style in LineStyleType:
         icon = build_line_style_icon(style, tokens)
         assert isinstance(icon, QIcon)

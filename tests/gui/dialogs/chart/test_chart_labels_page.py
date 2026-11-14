@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication, QPushButton
 
 from pandaplot.gui.dialogs.chart.chart_labels_page import ChartLabelsPage
 from pandaplot.services.theme.theme_manager import ThemeManager
+from tests.gui.theme_testing import design_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -14,29 +15,12 @@ def qapp():
     yield app
 
 
-_FAKE_TOKENS = {
-    "text_primary": "#1C1E26", "text_secondary": "#3F4350",
-    "text_muted": "#6B7280", "text_hint": "#9AA0AB",
-    "border_panel": "#E5E6EA", "border_control": "#DCDEE4",
-    "border_subtle": "#ECEEF2",
-    "surface_white": "#FFFFFF", "surface_chrome": "#FBFBFC",
-    "surface_inset": "#F4F5F8",
-    "accent": "#4A56C6", "accent_active_text": "#3A45A8", "accent_disabled": "#AAB1E3",
-    "accent_selected_bg": "#EEF0FB",
-    "status_modified_dot": "#E09A1F", "status_modified_text": "#B06A00",
-    "status_success": "#3FA46A",
-    "y2_accent": "#8A4BB8", "y2_accent_bg": "#F5EEFB",
-    "series_palette": ["#A01818", "#4A56C6", "#2B7A8C", "#3FA46A", "#E09A1F"],
-    "radius_swatch": 4, "radius_control": 5, "radius_card": 6, "radius_chip": 12,
-}
-
-
 def _fake_app_context():
     app_context = Mock()
     app_context.event_bus = Mock()
 
     theme_manager = Mock()
-    theme_manager.get_design_tokens.return_value = dict(_FAKE_TOKENS)
+    theme_manager.get_design_tokens.return_value = design_tokens()
 
     def _get_manager(manager_type, *args, **kwargs):
         if manager_type is ThemeManager:

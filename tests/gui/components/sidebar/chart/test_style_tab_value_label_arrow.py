@@ -13,6 +13,7 @@ from pandaplot.models.chart.series_style import LineSeriesStyle, ScatterSeriesSt
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.value_label_arrow import ValueLabelArrowLineStyle, ValueLabelArrowStyle
 from pandaplot.models.project.items.chart import DataSeries
+from tests.gui.theme_testing import design_tokens
 
 STYLED = {
     "value_label_arrow_style": ValueLabelArrowStyle.FILLED_ARROW,
@@ -273,7 +274,8 @@ def test_loading_does_not_report_a_change():
 
 def test_arrow_line_style_icons_follow_the_theme():
     tab = _tab()
-    tokens = {"text_primary": "#ff00ff"}
+    # A sentinel icon colour no theme uses, so the icons can only match if they were built from these tokens.
+    tokens = design_tokens(text_primary="#ff00ff")
     size = QSize(32, 16)
 
     tab.apply_theme(tokens)
