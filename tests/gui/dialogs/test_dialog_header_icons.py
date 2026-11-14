@@ -17,7 +17,8 @@ from pandaplot.gui.dialogs.import_wizard_dialog import ImportWizardDialog
 from pandaplot.gui.resources.app_icon import create_app_icon
 from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.state.app_context import AppContext
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.theme_testing import design_tokens, surface_palette
 
 NON_ASCII = re.compile(r"[^\x00-\x7f]")
 
@@ -26,8 +27,8 @@ def _context() -> Mock:
     context = Mock(spec=AppContext)
     context.event_bus = Mock()
     context.get_app_state.return_value.has_project = False
-    context.get_manager.return_value.get_surface_palette.return_value = {}
-    context.get_manager.return_value.get_design_tokens.return_value = dict(ICON_TOKENS)
+    context.get_manager.return_value.get_surface_palette.return_value = surface_palette()
+    context.get_manager.return_value.get_design_tokens.return_value = design_tokens()
     return context
 
 
@@ -62,7 +63,7 @@ def test_dialog_header_is_a_tinted_icon_label_without_emoji(qtbot, dialog_cls, k
 
     assert isinstance(dialog.icon_label, IconLabel)
     assert dialog.icon_label.icon_name == icon_name
-    assert_tinted(strongest_pixel(dialog.icon_label.pixmap().toImage()), ICON_TOKENS["text_primary"])
+    assert_tinted(strongest_pixel(dialog.icon_label.pixmap().toImage()), design_tokens()["text_primary"])
     for text in _texts(dialog):
         assert NON_ASCII.search(text) is None, f"{text!r} contains emoji or non-ASCII text"
 

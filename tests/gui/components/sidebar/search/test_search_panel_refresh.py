@@ -12,7 +12,8 @@ from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Note
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, hovered_selected_row_background, strongest_pixel
+from tests.gui.icon_testing import assert_tinted, hovered_selected_row_background, strongest_pixel
+from tests.gui.theme_testing import design_tokens, surface_palette
 
 
 @pytest.fixture
@@ -26,8 +27,8 @@ def search_setup(qtbot):
     context = Mock()
     context.event_bus = EventBus()
     context.get_app_state.return_value = app_state
-    context.get_manager.return_value.get_surface_palette.return_value = {}
-    context.get_manager.return_value.get_design_tokens.return_value = dict(ICON_TOKENS)
+    context.get_manager.return_value.get_surface_palette.return_value = surface_palette()
+    context.get_manager.return_value.get_design_tokens.return_value = design_tokens()
     panel = SearchPanel(context)
     qtbot.addWidget(panel)
     panel.search_input.setText("needle")
@@ -123,7 +124,7 @@ def test_selected_result_rows_use_the_selected_foreground_for_the_icon(search_se
     for i in range(panel.results.topLevelItemCount()):
         icon = panel.results.topLevelItem(i).icon(0)
         assert_tinted(strongest_pixel(icon.pixmap(QSize(16, 16), QIcon.Mode.Selected)), SELECTED_ROW_FOREGROUND)
-        assert_tinted(strongest_pixel(icon), ICON_TOKENS["text_primary"])
+        assert_tinted(strongest_pixel(icon), design_tokens()["text_primary"])
 
 
 def test_apply_theme_keeps_the_selected_icon_colour_of_the_result_rows(search_setup):
@@ -143,4 +144,4 @@ def test_a_selected_result_row_keeps_the_accent_background_when_hovered(search_s
 
     background = hovered_selected_row_background(panel.results, panel.results.topLevelItem(0))
 
-    assert_tinted(background, "#4A90E2")
+    assert_tinted(background, surface_palette()["accent"])

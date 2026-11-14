@@ -11,7 +11,8 @@ from pandaplot.gui.components.common import status_message
 from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.models.state.app_context import AppContext
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, fresh_icon_tokens, strongest_pixel
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.theme_testing import design_tokens
 
 KIND_TOKENS = {
     StatusKind.SUCCESS: "status_success",
@@ -24,7 +25,7 @@ KIND_TOKENS = {
 @pytest.fixture
 def app_context():
     ctx = Mock(spec=AppContext)
-    ctx.get_manager.return_value.get_design_tokens.return_value = fresh_icon_tokens()
+    ctx.get_manager.return_value.get_design_tokens.return_value = design_tokens()
     return ctx
 
 
@@ -70,7 +71,7 @@ def test_text_uses_the_primary_text_colour_via_the_palette(qapp, app_context):
     widget = StatusMessage(app_context)
     widget.set_message(StatusKind.INFO, "Hello")
 
-    assert _text(widget).palette().windowText().color().name().lower() == ICON_TOKENS["text_primary"].lower()
+    assert _text(widget).palette().windowText().color().name().lower() == design_tokens()["text_primary"].lower()
     assert not _text(widget).styleSheet()
 
 
@@ -90,7 +91,7 @@ def test_icon_is_tinted_with_the_kind_token(qapp, app_context, kind):
 
     widget.set_message(kind, "Message")
 
-    assert_tinted(strongest_pixel(_icon(widget).pixmap()), ICON_TOKENS[KIND_TOKENS[kind]])
+    assert_tinted(strongest_pixel(_icon(widget).pixmap()), design_tokens()[KIND_TOKENS[kind]])
 
 
 @pytest.mark.parametrize(
@@ -112,7 +113,7 @@ def test_icon_changes_when_the_kind_changes(qapp, app_context):
 
     widget.set_message(StatusKind.SUCCESS, "Good")
 
-    assert_tinted(strongest_pixel(_icon(widget).pixmap()), ICON_TOKENS["status_success"])
+    assert_tinted(strongest_pixel(_icon(widget).pixmap()), design_tokens()["status_success"])
 
 
 def test_clear_hides_and_empties(qapp, app_context):
@@ -139,7 +140,7 @@ def test_setting_an_empty_message_hides_the_widget(qapp, app_context):
 def test_retint_follows_changed_tokens(qapp, app_context):
     widget = StatusMessage(app_context)
     widget.set_message(StatusKind.ERROR, "Boom")
-    app_context.get_manager.return_value.get_design_tokens.return_value = {**ICON_TOKENS, "status_danger": "#00AA00"}
+    app_context.get_manager.return_value.get_design_tokens.return_value = design_tokens(status_danger="#00AA00")
 
     widget.retint()
 
@@ -149,7 +150,7 @@ def test_retint_follows_changed_tokens(qapp, app_context):
 def test_retint_recolours_the_text_with_the_primary_text_token(qapp, app_context):
     widget = StatusMessage(app_context)
     widget.set_message(StatusKind.INFO, "Hello")
-    app_context.get_manager.return_value.get_design_tokens.return_value = {**ICON_TOKENS, "text_primary": "#00AA00"}
+    app_context.get_manager.return_value.get_design_tokens.return_value = design_tokens(text_primary="#00AA00")
 
     widget.retint()
 

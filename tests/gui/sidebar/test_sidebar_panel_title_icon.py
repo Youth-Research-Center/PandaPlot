@@ -9,21 +9,9 @@ from PySide6.QtWidgets import QApplication
 from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.state.app_context import AppContext
-
-LIGHT = {
-    "text_primary": "#1C1E26",
-    "text_muted": "#6B7280",
-    "accent_icon_active": "#404BAC",
-    "text_disabled": "#AEB2BC",
-    "font_size_group_title": 9,
-}
-DARK = {
-    "text_primary": "#E2E2E2",
-    "text_muted": "#9AA0AB",
-    "accent_icon_active": "#8995FF",
-    "text_disabled": "#5B6270",
-    "font_size_group_title": 9,
-}
+from pandaplot.models.state.config import Theme
+from tests.gui.icon_testing import strongest_pixel
+from tests.gui.theme_testing import design_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -35,7 +23,7 @@ def qapp():
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = LIGHT
+    ctx.get_manager.return_value.get_design_tokens.return_value = design_tokens(Theme.LIGHT)
     return ctx
 
 
@@ -57,12 +45,6 @@ class _IconPanel(SidebarPanel):
 
 class _NoIconPanel(_IconPanel):
     ICON_NAME = None
-
-
-def _strongest(label: IconLabel) -> QColor:
-    image = label.pixmap().toImage()
-    pixels = (image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height()))
-    return max(pixels, key=lambda pixel: pixel.alpha())
 
 
 def _row_widgets(panel: SidebarPanel) -> list:
@@ -95,12 +77,13 @@ def test_panel_without_icon_name_has_no_title_icon(app_context):
 
 def test_theme_change_retints_the_title_icon(app_context):
     panel = _IconPanel(app_context)
-    app_context.get_manager.return_value.get_design_tokens.return_value = DARK
+    dark = design_tokens(Theme.DARK)
+    app_context.get_manager.return_value.get_design_tokens.return_value = dark
 
     panel._on_theme_changed({})
 
-    wanted = QColor(DARK["text_primary"])
-    actual = _strongest(panel.title_icon)
+    wanted = QColor(dark["text_primary"])
+    actual = strongest_pixel(panel.title_icon.pixmap())
     assert abs(actual.red() - wanted.red()) < 12
     assert abs(actual.green() - wanted.green()) < 12
     assert abs(actual.blue() - wanted.blue()) < 12

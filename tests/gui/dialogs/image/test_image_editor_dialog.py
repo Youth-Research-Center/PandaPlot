@@ -8,7 +8,9 @@ from pandaplot.app import build_app_context
 from pandaplot.gui.dialogs.image.image_editor_dialog import ImageEditorDialog
 from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.project.items import Image
+from pandaplot.models.state.config import Theme
 from pandaplot.services.theme.theme_manager import ThemeManager
+from tests.gui.theme_testing import design_tokens
 
 
 def _make_test_image_bytes(width: int = 100, height: int = 80) -> bytes:
@@ -94,7 +96,8 @@ class TestImageEditorDialogRotateButtons:
         manager = app_context.get_manager(ThemeManager)
         image = Image(id="rot", name="Photo", width=10, height=10, image_ext="png")
         dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(10, 10))
-        dark_tokens = {**manager.get_design_tokens(), "text_primary": "#E2E2E2", "text_disabled": "#5B6270"}
+        dark_tokens = design_tokens(Theme.DARK)
+        assert dark_tokens["text_primary"] != manager.get_design_tokens()["text_primary"]  # otherwise the retint is not observable
         monkeypatch.setattr(manager, "get_design_tokens", lambda: dict(dark_tokens))
 
         dialog._apply_theme()

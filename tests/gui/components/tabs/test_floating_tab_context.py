@@ -12,7 +12,7 @@ from pandaplot.models.events import UIEvents
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.project.items import Chart, Dataset
 from pandaplot.models.project.project import Project
-from tests.gui.icon_testing import ICON_TOKENS
+from tests.gui.theme_testing import design_tokens, surface_palette
 
 
 class _ChartContextTab(QWidget):
@@ -44,8 +44,8 @@ def test_floating_activation_and_same_pane_focus_restore_fit_context(qtbot: QtBo
     context.app_state = SimpleNamespace(current_project=project, has_project=True)
     context.get_app_state.return_value = context.app_state
     context.event_bus = EventBus()
-    context.get_manager.return_value.get_surface_palette.return_value = {"card_bg": "#17191e", "base_fg": "#ffffff"}
-    context.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
+    context.get_manager.return_value.get_surface_palette.return_value = surface_palette()
+    context.get_manager.return_value.get_design_tokens.return_value = design_tokens()
     container = TabContainer(context, parent=None)
     panel = FitPanel(context)
     qtbot.addWidget(container)

@@ -18,8 +18,8 @@ from pandaplot.models.project import Project
 from pandaplot.models.project.items import Dataset, Folder
 from pandaplot.models.state.config import Theme
 from pandaplot.services.theme import ThemeManager
-from pandaplot.services.theme.theme_manager import ThemeContext
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.theme_testing import theme_manager_for
 
 
 @pytest.fixture
@@ -184,7 +184,7 @@ def test_a_same_project_rebuild_leaves_nothing_selected_like_before(panel):
     assert panel.tree.currentItem() is None
     assert panel.tree.selectedItems() == []
     assert _root_button(panel) is button
-    assert_tinted(_icon_pixel(button), ICON_TOKENS["text_primary"])
+    assert_tinted(_icon_pixel(button), app_context.get_manager(ThemeManager).get_design_tokens()["text_primary"])
 
 
 def test_the_expanded_state_survives_a_same_project_rebuild(panel):
@@ -236,16 +236,16 @@ def test_the_icon_is_tinted_for_the_row_state_and_follows_the_theme(panel, monke
     app_context.get_app_state().load_project(_project_with_a_folder())
     button = _root_button(panel)
     root = panel.tree.topLevelItem(0)
-    assert_tinted(_icon_pixel(button), ICON_TOKENS["text_primary"])
-
-    panel.tree.setCurrentItem(root)
-    assert_tinted(_icon_pixel(button), ICON_TOKENS["text_on_accent"])
-
-    panel.tree.setCurrentItem(root.child(0))
-    assert_tinted(_icon_pixel(button), ICON_TOKENS["text_primary"])
-
     manager = app_context.get_manager(ThemeManager)
     real_tokens = manager.get_design_tokens()
+    assert_tinted(_icon_pixel(button), real_tokens["text_primary"])
+
+    panel.tree.setCurrentItem(root)
+    assert_tinted(_icon_pixel(button), real_tokens["text_on_accent"])
+
+    panel.tree.setCurrentItem(root.child(0))
+    assert_tinted(_icon_pixel(button), real_tokens["text_primary"])
+
     monkeypatch.setattr(manager, "get_design_tokens", lambda: {**real_tokens, "text_primary": "#00AA00"})
     panel.project_tree_manager.retint_icons()
     assert_tinted(_icon_pixel(button), "#00AA00")
@@ -255,8 +255,7 @@ def test_the_icon_is_tinted_for_the_row_state_and_follows_the_theme(panel, monke
 def test_the_icon_has_3_to_1_contrast_in_every_theme_and_state(panel, monkeypatch, theme):
     panel, app_context, _ = panel
     app_context.get_app_state().load_project(_project_with_a_folder())
-    themed = ThemeManager.__new__(ThemeManager)
-    themed._current = ThemeContext(theme=theme, accent="#4A56C6", interface_font_size=10)
+    themed = theme_manager_for(theme)
     manager = app_context.get_manager(ThemeManager)
     monkeypatch.setattr(manager, "get_design_tokens", themed.get_design_tokens)
     monkeypatch.setattr(manager, "get_surface_palette", themed.get_surface_palette)
@@ -326,8 +325,7 @@ def test_the_header_cannot_be_dragged_to_swap_the_columns(panel):
 
 
 def _themed(panel, app_context, monkeypatch, theme):
-    themed = ThemeManager.__new__(ThemeManager)
-    themed._current = ThemeContext(theme=theme, accent="#4A56C6", interface_font_size=10)
+    themed = theme_manager_for(theme)
     manager = app_context.get_manager(ThemeManager)
     monkeypatch.setattr(manager, "get_design_tokens", themed.get_design_tokens)
     monkeypatch.setattr(manager, "get_surface_palette", themed.get_surface_palette)

@@ -2,12 +2,21 @@ import pytest
 from PySide6.QtWidgets import QApplication, QWidget
 
 from pandaplot.gui.components.common.dirty_footer import DirtyFooter, format_status_text
+from tests.gui.theme_testing import design_tokens
+
+MODIFIED_SENTINEL = "#AA0000"
+MUTED_SENTINEL = "#00BB00"
 
 
 @pytest.fixture(scope="module", autouse=True)
 def qapp():
     app = QApplication.instance() or QApplication([])
     yield app
+
+
+def _distinct_status_tokens() -> dict:
+    """Real tokens whose modified and muted status colours are unmistakable sentinels, so the test can tell them apart."""
+    return design_tokens(status_modified_text=MODIFIED_SENTINEL, text_hint=MUTED_SENTINEL)
 
 
 def test_format_status_text_no_changes():
@@ -68,14 +77,14 @@ def test_set_modified_refreshes_status_color_from_last_tokens():
     stayed muted after an edit (and amber after Apply/Revert) until the
     next theme change."""
     footer = DirtyFooter()
-    footer.set_tokens({"status_modified_text": "#AA0000", "text_hint": "#00BB00"})
-    assert "#00BB00" in footer._status_label.styleSheet()
+    footer.set_tokens(_distinct_status_tokens())
+    assert MUTED_SENTINEL in footer._status_label.styleSheet()
 
     footer.setModified(is_modified=True, change_count=2)
-    assert "#AA0000" in footer._status_label.styleSheet()
+    assert MODIFIED_SENTINEL in footer._status_label.styleSheet()
 
     footer.setModified(is_modified=False, change_count=0)
-    assert "#00BB00" in footer._status_label.styleSheet()
+    assert MUTED_SENTINEL in footer._status_label.styleSheet()
 
 
 def test_status_color_stays_modified_while_an_ancestor_is_disabled():
@@ -84,9 +93,9 @@ def test_status_color_stays_modified_while_an_ancestor_is_disabled():
     changes in the muted color whenever the panel was temporarily disabled."""
     parent = QWidget()
     footer = DirtyFooter(parent)
-    footer.set_tokens({"status_modified_text": "#AA0000", "text_hint": "#00BB00"})
+    footer.set_tokens(_distinct_status_tokens())
     parent.setEnabled(False)
 
     footer.setModified(is_modified=True, change_count=2)
 
-    assert "#AA0000" in footer._status_label.styleSheet()
+    assert MODIFIED_SENTINEL in footer._status_label.styleSheet()

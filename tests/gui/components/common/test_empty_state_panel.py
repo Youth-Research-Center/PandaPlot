@@ -6,14 +6,13 @@ import pytest
 
 from pandaplot.gui.components.common.empty_state_panel import EmptyStatePanel
 from pandaplot.models.state.app_context import AppContext
-
-TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+from tests.gui.theme_testing import design_tokens
 
 
 @pytest.fixture
 def app_context():
     ctx = Mock(spec=AppContext)
-    ctx.get_manager.return_value.get_design_tokens.return_value = TOKENS
+    ctx.get_manager.return_value.get_design_tokens.return_value = design_tokens()
     return ctx
 
 
@@ -93,7 +92,7 @@ def test_icon_is_shown_and_retinted_by_set_tokens(qtbot, app_context):
     assert panel.icon_label.icon_name == "chart-line"
     assert not panel.icon_label.pixmap().isNull()
     panel.icon_label.retint = Mock()
-    panel.set_tokens(TOKENS)
+    panel.set_tokens(design_tokens())
     panel.icon_label.retint.assert_called_once_with()
 
 
@@ -101,7 +100,8 @@ def test_set_tokens_applies_colours(qtbot, app_context):
     panel = EmptyStatePanel(app_context, heading="H", description="D")
     qtbot.addWidget(panel)
 
-    panel.set_tokens({"text_primary": "#111111", "text_muted": "#222222"})
+    # Distinct sentinels tell the heading colour (text_primary) from the description colour (text_muted).
+    panel.set_tokens(design_tokens(text_primary="#111111", text_muted="#222222"))
 
     assert "#111111" in panel.heading_label.styleSheet()
     assert "font-weight: 600" in panel.heading_label.styleSheet()

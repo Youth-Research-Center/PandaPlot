@@ -29,10 +29,12 @@ from pandaplot.models.project.items.chart import Chart, DataSeries, YAxis, resto
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.models.state.config import Theme
 from pandaplot.services.fit.fit_service import FitResult
 from pandaplot.utils.error_messages import ErrorDescription
 from tests.commands.project.conftest import SyncTaskScheduler
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.theme_testing import design_tokens, surface_palette
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -45,7 +47,7 @@ def qapp():
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
+    ctx.get_manager.return_value.get_design_tokens.return_value = design_tokens()
     return ctx
 
 
@@ -102,25 +104,23 @@ def test_equation_label_uses_theme_tokens_not_hardcoded_colors(app_context):
     """equation_label used to hardcode background-color: #f5f5f5; color:
     #333333; border: 1px solid #ddd at construction, never refreshed by
     _apply_theme() -- a light-mode-only box against a dark app theme."""
+    palette = surface_palette(Theme.DARK)
     theme_manager = Mock()
-    theme_manager.get_surface_palette.return_value = {
-        "card_bg": "#2A2C2E", "card_border": "#4A4D52", "base_fg": "#E2E2E2",
-        "card_hover": "#26282B", "card_pressed": "#232527", "secondary_fg": "#C7CAD1",
-        "accent": "#4A56C6",
-    }
-    theme_manager.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
+    theme_manager.get_surface_palette.return_value = palette
+    theme_manager.get_design_tokens.return_value = design_tokens(Theme.DARK)
     app_context.get_manager.return_value = theme_manager
 
     panel = FitPanel(app_context)
     panel._apply_theme()
 
     style = panel.equation_label.styleSheet()
+    # The old hard-coded light-mode colours.
     assert "#f5f5f5" not in style
     assert "#333333" not in style
     assert "#ddd" not in style
-    assert "#2A2C2E" in style
-    assert "#4A4D52" in style
-    assert "#E2E2E2" in style
+    assert palette["card_bg"] in style
+    assert palette["card_border"] in style
+    assert palette["base_fg"] in style
 
 
 def test_fit_models_are_filtered_by_category(app_context):
@@ -2204,7 +2204,7 @@ def test_data_points_warning_is_a_warning_icon_without_emoji(app_context):
     assert isinstance(icon, IconLabel)
     assert icon.icon_name == "warning"
     assert icon.text() == ""
-    assert_tinted(strongest_pixel(icon.pixmap()), ICON_TOKENS["status_modified_text"])
+    assert_tinted(strongest_pixel(icon.pixmap()), design_tokens()["status_modified_text"])
 
 
 def test_data_points_warning_icon_shows_with_its_tooltip_when_no_data_is_selected(app_context):
@@ -2246,13 +2246,11 @@ def _panel_with_too_few_points(app_context):
     return panel
 
 
-@pytest.mark.parametrize("warning_colour", ["#B06A00", "#FFB74D"])
-def test_data_points_text_shares_the_warning_icon_colour(app_context, warning_colour):
-    app_context.get_manager.return_value.get_design_tokens.return_value = {
-        "font_size_group_title": 9,
-        **ICON_TOKENS,
-        "status_modified_text": warning_colour,
-    }
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+def test_data_points_text_shares_the_warning_icon_colour(app_context, theme):
+    tokens = design_tokens(theme)
+    warning_colour = tokens["status_modified_text"]
+    app_context.get_manager.return_value.get_design_tokens.return_value = tokens
 
     panel = _panel_with_too_few_points(app_context)
 
@@ -2274,11 +2272,8 @@ def test_data_points_text_follows_a_theme_change(app_context):
 
 
 def test_range_warning_uses_the_theme_warning_colour(app_context):
-    app_context.get_manager.return_value.get_design_tokens.return_value = {
-        "font_size_group_title": 9,
-        **ICON_TOKENS,
-        "status_modified_text": "#123456",
-    }
+    # A sentinel distinct from every real token, so the assertion proves which token the label uses.
+    app_context.get_manager.return_value.get_design_tokens.return_value = design_tokens(status_modified_text="#123456")
     panel = FitPanel(app_context)
     panel._apply_theme()
 
@@ -2292,11 +2287,8 @@ def test_range_warning_uses_the_theme_warning_colour(app_context):
 
 
 def test_availability_label_uses_theme_warning_color(app_context):
-    app_context.get_manager.return_value.get_design_tokens.return_value = {
-        **ICON_TOKENS,
-        "font_size_group_title": 9,
-        "status_modified_text": "#123456",
-    }
+    # A sentinel distinct from every real token, so the assertion proves which token the label uses.
+    app_context.get_manager.return_value.get_design_tokens.return_value = design_tokens(status_modified_text="#123456")
     panel = FitPanel(app_context)
     panel._apply_theme()
 

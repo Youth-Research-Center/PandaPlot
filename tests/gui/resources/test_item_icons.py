@@ -1,5 +1,6 @@
 """Item types map to bundled icons that `item_icon` renders in the theme's text colour."""
 
+from types import MappingProxyType
 from unittest.mock import Mock
 
 import pytest
@@ -9,7 +10,10 @@ from PySide6.QtGui import QIcon
 from pandaplot.gui.resources.icon_library import build_icon, icon_svg
 from pandaplot.gui.resources.item_icons import DEFAULT_ITEM_ICON_NAME, ITEM_TYPE_ICON_NAMES, item_icon, item_icon_name
 from pandaplot.models.state.app_context import AppContext
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, fresh_icon_tokens, strongest_pixel
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.theme_testing import design_tokens
+
+LIGHT = MappingProxyType(design_tokens())
 
 EXPECTED_NAMES = {
     "project": "folder",
@@ -27,7 +31,7 @@ EXPECTED_NAMES = {
 @pytest.fixture
 def app_context():
     ctx = Mock(spec=AppContext)
-    ctx.get_manager.return_value.get_design_tokens.return_value = fresh_icon_tokens()
+    ctx.get_manager.return_value.get_design_tokens.return_value = design_tokens()
     return ctx
 
 
@@ -47,7 +51,7 @@ def test_unknown_item_types_fall_back_to_the_default_icon():
 
 
 def test_item_icon_renders_the_mapped_icon_in_the_text_colour(qapp, app_context):
-    expected = build_icon("table", ICON_TOKENS["text_primary"], size=16, disabled_color=ICON_TOKENS["text_disabled"])
+    expected = build_icon("table", LIGHT["text_primary"], size=16, disabled_color=LIGHT["text_disabled"])
 
     actual = item_icon(app_context, "dataset")
 
@@ -62,4 +66,4 @@ def test_item_icon_renders_the_selected_pixmap_in_the_requested_colour(qapp, app
     icon = item_icon(app_context, "dataset", selected_color="#ffffff")
 
     assert_tinted(strongest_pixel(icon.pixmap(QSize(16, 16), QIcon.Mode.Selected)), "#ffffff")
-    assert_tinted(strongest_pixel(icon.pixmap(QSize(16, 16), QIcon.Mode.Normal)), ICON_TOKENS["text_primary"])
+    assert_tinted(strongest_pixel(icon.pixmap(QSize(16, 16), QIcon.Mode.Normal)), LIGHT["text_primary"])

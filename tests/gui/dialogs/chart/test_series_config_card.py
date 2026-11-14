@@ -1,4 +1,6 @@
 """Tests for SeriesConfigCard."""
+from typing import Any
+
 import pytest
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
@@ -10,7 +12,8 @@ from pandaplot.gui.dialogs.chart.series_config_card import (
 )
 from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
-from tests.gui.icon_testing import ICON_TOKENS, fresh_icon_tokens
+from pandaplot.models.state.config import Theme
+from tests.gui.theme_testing import design_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -264,7 +267,8 @@ def test_expand_and_collapse_chevrons_are_secondary_icon_pbuttons():
 
 def test_swatch_color_reflects_the_cards_index():
     card = _line_card()
-    card.set_tokens({"series_palette": ["#111111", "#222222", "#333333"]})
+    # Distinct sentinel colours that appear nowhere else in the stylesheet, so the assertion can tell which entry was used.
+    card.set_tokens(design_tokens(series_palette=["#111111", "#222222", "#333333"]))
     card.set_index(1)
 
     card.set_collapsed(collapsed=True)
@@ -376,25 +380,26 @@ def _icon_image(icon: QIcon, mode: QIcon.Mode = QIcon.Mode.Normal):
     return icon.pixmap(16, 16, mode).toImage()
 
 
-def _expected_chevron(name: str, tokens: dict[str, str]) -> QIcon:
+def _expected_chevron(name: str, tokens: dict[str, Any]) -> QIcon:
     return build_icon(name, tokens["text_muted"], size=16, disabled_color=tokens["text_disabled"])
 
 
 def test_expand_and_collapse_buttons_show_chevron_icons_without_glyph_text_once_tokens_are_set():
     card = _line_card()
 
-    card.set_tokens(fresh_icon_tokens())
+    tokens = design_tokens()
+    card.set_tokens(dict(tokens))
 
     for button, icon_name in ((card._expand_button, "caret-right"), (card._collapse_button, "caret-down")):
         assert button.text() == ""
-        assert _icon_image(button.icon()) == _icon_image(_expected_chevron(icon_name, ICON_TOKENS))
-        assert _icon_image(button.icon(), QIcon.Mode.Disabled) == _icon_image(_expected_chevron(icon_name, ICON_TOKENS), QIcon.Mode.Disabled)
+        assert _icon_image(button.icon()) == _icon_image(_expected_chevron(icon_name, tokens))
+        assert _icon_image(button.icon(), QIcon.Mode.Disabled) == _icon_image(_expected_chevron(icon_name, tokens), QIcon.Mode.Disabled)
 
 
 def test_chevron_icons_follow_a_token_change():
     card = _line_card()
-    card.set_tokens(fresh_icon_tokens())
-    dark = {**ICON_TOKENS, "text_muted": "#9AA0AB", "text_disabled": "#5B6270"}
+    card.set_tokens(design_tokens(Theme.LIGHT))
+    dark = design_tokens(Theme.DARK)
 
     card.set_tokens(dark)
 

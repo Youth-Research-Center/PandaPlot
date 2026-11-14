@@ -21,7 +21,8 @@ from pandaplot.gui.resources.item_icons import item_icon
 from pandaplot.gui.resources.themed_icons import IconRole, themed_icon
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.project.project import Project
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.theme_testing import design_tokens, surface_palette
 
 
 def _create_mock_app_context(project=None):
@@ -29,8 +30,8 @@ def _create_mock_app_context(project=None):
     app_state = MagicMock()
     app_state.current_project = project
     app_context.get_app_state.return_value = app_state
-    app_context.get_manager.return_value.get_surface_palette.return_value = {}
-    app_context.get_manager.return_value.get_design_tokens.return_value = dict(ICON_TOKENS)
+    app_context.get_manager.return_value.get_surface_palette.return_value = surface_palette()
+    app_context.get_manager.return_value.get_design_tokens.return_value = design_tokens()
     return app_context
 
 
@@ -221,7 +222,7 @@ def test_dataset_to_markdown_table_handles_array_valued_cells():
 def test_note_table_picker_no_datasets_label_uses_theme_palette(qapp):
     project = Project(name="Empty Dataset Project")
     app_context = _create_mock_app_context(project)
-    app_context.get_manager.return_value.get_surface_palette.return_value = {"secondary_fg": "#123456"}
+    app_context.get_manager.return_value.get_surface_palette.return_value = {**surface_palette(), "secondary_fg": "#123456"}  # sentinel: not a theme colour
 
     dialog = NoteTablePickerDialog(app_context, project)
 
@@ -435,7 +436,7 @@ def test_note_artefacts_dialog_empty_state_uses_a_muted_paperclip_icon(qapp):
 
     assert icon.icon_name == "paperclip"
     assert icon.width() == 36
-    assert_tinted(strongest_pixel(icon.pixmap().toImage()), ICON_TOKENS["text_muted"])
+    assert_tinted(strongest_pixel(icon.pixmap().toImage()), design_tokens()["text_muted"])
     assert all(label.text() != "📎" for label in dialog.empty_widget.findChildren(QLabel))
 
 
@@ -455,7 +456,7 @@ def test_note_artefacts_dialog_insert_buttons_have_plain_text_and_icons_that_fol
     # With nothing listed the chart button is the primary action: its icon uses the primary button's foreground, not text_primary.
     assert dialog.insert_chart_button.property("primary") is True
     assert pixels(dialog.insert_chart_button) == expected("chart-line", IconRole.ON_ACCENT)
-    assert_tinted(strongest_pixel(dialog.insert_chart_button.icon()), ICON_TOKENS["text_on_accent"])
+    assert_tinted(strongest_pixel(dialog.insert_chart_button.icon()), design_tokens()["text_on_accent"])
 
     text_edit.setPlainText("![Gone](missing-id =500x)")  # refresh_rows switches the chart button to the secondary role
 

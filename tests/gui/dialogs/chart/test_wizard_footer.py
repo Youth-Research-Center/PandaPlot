@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.dialogs.chart.wizard_footer import WizardFooter
+from tests.gui.theme_testing import design_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -120,7 +121,8 @@ def test_help_button_without_label_uses_generic_name():
 def test_set_tokens_styles_help_button_with_text_primary():
     footer = WizardFooter(step_number=1, total_steps=3, show_empty_link=False, help_topic="charts.x")
 
-    footer.set_tokens({"text_primary": "#123456"})
+    # A sentinel text_primary that no other token has, so the assertion proves which token styles the button.
+    footer.set_tokens(design_tokens(text_primary="#123456"))
 
     assert footer.help_button is not None
     assert "#123456" in footer.help_button.styleSheet()

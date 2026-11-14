@@ -15,7 +15,7 @@ from PySide6.QtWidgets import QApplication, QComboBox, QVBoxLayout, QWidget
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.value_combo_box import ValueComboBox
 from pandaplot.models.state.config import Theme
-from pandaplot.services.theme.theme_manager import ThemeContext, ThemeManager
+from tests.gui.theme_testing import theme_manager_for
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[3] / "pandaplot"
 THEME_MANAGER = PACKAGE_ROOT / "services" / "theme" / "theme_manager.py"
@@ -34,8 +34,7 @@ def themed_app(qapp):
     original_palette = qapp.palette()
 
     def apply(theme: Theme) -> dict:
-        manager = ThemeManager.__new__(ThemeManager)
-        manager._current = ThemeContext(theme=theme, accent="#4A56C6", interface_font_size=10)
+        manager = theme_manager_for(theme)
         qapp.setStyleSheet(manager.build_stylesheet(manager._current))
         return manager.get_design_tokens()
 
