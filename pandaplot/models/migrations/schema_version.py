@@ -17,6 +17,8 @@ previous version load as they are.
 Version 5: twin Y columns on line/scatter series (#491).
 Version 6: sketch items, which an older build cannot load at all.
 Version 7: example settings and the project cover image (#608, #598).
+Version 8: area-fill fields on fit styles (#431). An older build rebuilds a
+fit's FitStyle from every saved key and would fail on the unknown fill_* keys.
 """
 
-CURRENT_SCHEMA_VERSION = 7
+CURRENT_SCHEMA_VERSION = 8

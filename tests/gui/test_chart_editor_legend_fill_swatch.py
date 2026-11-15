@@ -75,3 +75,45 @@ def test_unfilled_series_keeps_plain_line_legend_handle():
     augmented = widget._add_fill_legend_swatches(handles)
     assert augmented == handles
     assert all(not isinstance(h, tuple) for h in augmented)
+
+
+def test_filled_fit_pairs_its_legend_handle_with_the_area_fill_not_the_band():
+    """#431: a fit has two PolyCollections when both its area fill and its
+    confidence band are on. The legend swatch must show the area fill, and
+    the fill must reach the series it fills to (resolved through the real
+    chart's baseline resolver)."""
+    import numpy as np
+
+    from pandaplot.gui.components.tabs.chart.series_renderers.fit import CONFIDENCE_BAND_GID
+    from pandaplot.models.chart.fit_style import FitStyle
+
+    _qapp()
+    app_ctx = build_app_context()
+    project = Project(name="Test Project")
+    dataset = Dataset(name="ds1", data=pd.DataFrame({"x": [0.0, 1.0, 2.0, 3.0], "y": [-5.0, -5.0, -5.0, -5.0]}))
+    project.add_item(dataset)
+    chart = Chart(name="Fit Chart", chart_type="line")
+    chart.add_data_series(dataset.id, x_column="x", y_column="y", label="Floor")
+    x = np.array([0.0, 1.0, 2.0, 3.0])
+    chart.add_fit_series(
+        source_dataset_id=dataset.id, x_data=x, y_data=x + 1.0, label="Fit",
+        style=FitStyle(
+            fill_enabled=True, fill_color="#00ff00", fill_to_index=0,
+            band_fill_enabled=True, confidence_lower=x, confidence_upper=x + 2.0,
+        ),
+    )
+    project.add_item(chart)
+    app_ctx.app_state.load_project(project)
+
+    widget = ChartEditorWidget(app_context=app_ctx, chart=chart, parent=None)
+
+    fill_artist = widget._find_fill_artist_for_series(1)
+    assert isinstance(fill_artist, PolyCollection)
+    assert fill_artist.get_gid() != CONFIDENCE_BAND_GID
+    fill_y = np.concatenate([path.vertices for path in fill_artist.get_paths()])[:, 1]
+    assert fill_y.min() == -5.0  # filled down to the "Floor" series, not to fill_base 0
+
+    handles, labels = widget.chart_canvas.axes.get_legend_handles_labels()
+    augmented = widget._add_fill_legend_swatches(handles)
+    by_label = dict(zip(labels, augmented, strict=True))
+    assert by_label["Fit"] == (handles[labels.index("Fit")], fill_artist)

@@ -15,6 +15,9 @@ def test_fit_style_has_moved_over_metadata_fields():
         "confidence_lower", "confidence_upper",
         "confidence_lower_column_id", "confidence_upper_column_id",
         "is_manual",
+        # Shared area fill (#431), independent of the band_* fields.
+        "fill_enabled", "fill_color", "fill_alpha", "fill_orientation", "fill_base",
+        "fill_to_index", "fill_range_enabled", "fill_sections",
     }
     assert "alpha" not in field_names
 
@@ -26,6 +29,26 @@ def test_fit_style_post_init_defaults():
     assert style.confidence_lower is None
     assert style.confidence_upper is None
     assert style.is_manual is False
+
+
+def test_fit_style_preserves_existing_positional_arguments():
+    style = FitStyle("#123456", "solid", 3.0, False, 0.4, "#abcdef", "horizontal", "Linear")
+
+    assert style.color == "#123456"
+    assert style.line_style == "solid"
+    assert style.line_width == 3.0
+    assert style.band_fill_enabled is False
+    assert style.band_fill_alpha == 0.4
+    assert style.band_color == "#abcdef"
+    assert style.band_orientation == "horizontal"
+    assert style.fit_type == "Linear"
+
+
+def test_fit_style_area_fill_fields_are_keyword_only():
+    style = FitStyle(fill_enabled=True, fill_sections=[(1, 3)])
+
+    assert style.fill_enabled is True
+    assert style.fill_sections == [(1, 3)]
 
 
 def test_series_style_from_dict_rebuilds_confidence_arrays():

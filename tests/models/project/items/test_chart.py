@@ -1332,13 +1332,31 @@ def test_fill_targets_round_trip():
 
 
 def test_fill_targets_skip_styles_without_a_fill_target():
+    from pandaplot.models.chart.series_style import BarSeriesStyle
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items.chart import DataSeries
+
+    chart = _fill_chart()
+    chart.data_series.append(DataSeries(dataset_id="ds", x_column="x", y_column="y", label="Bar",
+                                        series_type=SeriesType.BAR, style=BarSeriesStyle()))
+    assert chart.fill_targets()[-1] is None
+
+
+def test_a_fit_fill_target_follows_series_removal():
+    """A fit carries the shared fill fields (#431), so its fill_to_index is
+    remapped like a Line's when an earlier series is removed."""
     import numpy as np
 
     from pandaplot.models.chart.fit_style import FitStyle
 
     chart = _fill_chart()
-    chart.add_fit_series("ds", x_data=np.array([1.0]), y_data=np.array([1.0]), label="F", style=FitStyle())
-    assert chart.fill_targets()[-1] is None
+    fit = chart.add_fit_series("ds", x_data=np.array([1.0]), y_data=np.array([1.0]), label="F",
+                               style=FitStyle(fill_to_index=2))
+    assert chart.fill_targets()[-1] == 2
+
+    chart.remove_data_series(1)
+
+    assert fit.style.fill_to_index == 1
 
 
 @pytest.mark.parametrize("chart_type", ["colormap", "heatmap", "scatter3d"])
