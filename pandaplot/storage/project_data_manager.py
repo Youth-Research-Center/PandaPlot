@@ -83,7 +83,8 @@ def _create_sibling_temp_file(target: str) -> tuple[str, int]:
     while True:
         temp_path = os.path.join(directory, f".{name}.{secrets.token_hex(4)}.tmp")
         try:
-            return temp_path, os.open(temp_path, flags, 0o666)
+            mode = 0o600 if os.path.exists(target) else 0o666
+            return temp_path, os.open(temp_path, flags, mode)
         except FileExistsError:
             continue
 
