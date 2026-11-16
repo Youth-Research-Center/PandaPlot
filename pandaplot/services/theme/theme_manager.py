@@ -27,6 +27,7 @@ from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events.event_types import ConfigEvents, ThemeEvents
 from pandaplot.models.state.config import ApplicationConfig, Theme
 from pandaplot.services.theme.caret_icon import caret_icon_path
+from pandaplot.services.theme.contrast import adjust_until_contrast, contrast_ratio, contrasting_text_color, relative_luminance
 from pandaplot.utils.garbage_collection import paused_garbage_collection
 
 logger = logging.getLogger(__name__)
@@ -85,57 +86,23 @@ class ThemeManager:
 
     @staticmethod
     def _relative_luminance(color: QColor) -> float:
-        """WCAG 2.x relative luminance (gamma-corrected per channel)."""
-        def channel(v: int) -> float:
-            c = v / 255.0
-            return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
-
-        r, g, b = channel(color.red()), channel(color.green()), channel(color.blue())
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+        """WCAG 2.x relative luminance; see `contrast.relative_luminance`."""
+        return relative_luminance(color)
 
     @classmethod
     def _contrast_ratio(cls, first: QColor, second: QColor) -> float:
-        """WCAG 2.x contrast ratio (1:1 to 21:1) between two colors."""
-        lighter, darker = sorted((cls._relative_luminance(first), cls._relative_luminance(second)), reverse=True)
-        return (lighter + 0.05) / (darker + 0.05)
+        """WCAG 2.x contrast ratio; see `contrast.contrast_ratio`."""
+        return contrast_ratio(first, second)
 
     @classmethod
     def _accent_icon_color(cls, start: QColor, background: QColor, *, lighten: bool) -> QColor:
-        """Return `start`, lightened or darkened step by step until it reaches the WCAG 1.4.11 non-text contrast
-        (3:1) against `background`; falls back to black or white when no step is enough.
-
-        Used for icons that only exist as a glyph (the active sidebar icon), where text-contrast tweaks such as
-        `accent_active_text` can end up below 3:1 on the selected background (1.65:1 for the default accent in the
-        dark theme) because the accent is user-configurable while the selected background is fixed.
-        """
-        for factor in range(100, 405, 5):
-            candidate = start.lighter(factor) if lighten else start.darker(factor)
-            if cls._contrast_ratio(candidate, background) >= cls._MIN_ICON_CONTRAST:
-                return candidate
-        return cls._contrasting_text_color(background)
+        """Step `start` until it has 3:1 non-text contrast against `background`; see `contrast.adjust_until_contrast`."""
+        return adjust_until_contrast(start, background, min_ratio=cls._MIN_ICON_CONTRAST, lighten=lighten)
 
     @classmethod
     def _contrasting_text_color(cls, accent: QColor) -> QColor:
-        """Pick whichever of black/white has the higher WCAG contrast ratio
-        against `accent`, so it stays legible regardless of the app's
-        light/dark theme setting -- theme doesn't affect how legible text
-        is against a given background color.
-
-        Previously branched on theme too ("light theme prefers black text
-        down to luminance 0.25"), which picked black for the default accent
-        (#4A56C6) in light theme -- 3.44:1 contrast, below the WCAG 4.5:1
-        minimum for normal text -- even though white gives 6.11:1 there.
-        Reported live on the primary button; the same bug was independently
-        found and fixed for the context-menu selected-item text, but that
-        fix was scoped to a separate helper to avoid touching this method's
-        other call sites without evidence they were also affected. They
-        were -- so this replaces the heuristic here instead of duplicating
-        the correct logic a third time.
-        """
-        lum = cls._relative_luminance(accent)
-        white_contrast = (1.0 + 0.05) / (lum + 0.05)
-        black_contrast = (lum + 0.05) / (0.0 + 0.05)
-        return QColor(255, 255, 255) if white_contrast >= black_contrast else QColor(0, 0, 0)
+        """Black or white, whichever is more legible on `accent`; see `contrast.contrasting_text_color`."""
+        return contrasting_text_color(accent)
 
     @staticmethod
     def _combo_box_rules(tokens: dict, *, accent: str, selected_text: str) -> str:
