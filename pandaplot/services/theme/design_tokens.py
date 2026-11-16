@@ -68,11 +68,11 @@ def _theme_key(theme: Theme) -> Theme:
 
 def _accent_tokens(theme: Theme, accent: str) -> dict[str, str]:
     """Accent states: the teal table, or today's derivation with a legible selected text for any other accent."""
-    if accent.upper() == TEAL_ACCENT:
-        return dict(_TEAL[theme])
     color = QColor(accent)
     if not color.isValid():
         color = QColor(AppearanceConfig().accent_color)
+    if color.name().upper() == TEAL_ACCENT:
+        return dict(_TEAL[theme])
     sel_bg = _OTHER_ACCENT_SEL_BG[theme]
     sel_text = adjust_until_contrast(color, QColor(sel_bg), min_ratio=_TEXT_CONTRAST, lighten=theme == Theme.DARK)
     name = color.name().upper()
@@ -92,7 +92,7 @@ def build_design_tokens(theme: Theme, accent: str) -> dict[str, Any]:
 
     Args:
         theme: The theme; anything other than dark uses the light values.
-        accent: The configured accent colour. `TEAL_ACCENT` (any case) selects the hand-tuned teal table.
+        accent: The configured accent colour. `TEAL_ACCENT` (any case, or any string QColor parses to it) selects the hand-tuned teal table.
 
     Returns:
         Semantic tokens, the `space`, `radius`, `type` and `density` tables, and the legacy aliases.

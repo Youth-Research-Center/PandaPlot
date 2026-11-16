@@ -82,13 +82,18 @@ def test_checked_focus_ring_stands_out_from_the_accent_track(qtbot, theme: Theme
     assert contrast_ratio(toggle._focus_ring_color(), QColor(tokens["accent"])) >= 3.0
 
 
-def test_unchecked_focus_ring_uses_the_accent(qtbot) -> None:
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+@pytest.mark.parametrize("accent", ["#0E7C86", DEFAULT_ACCENT])
+def test_unchecked_focus_ring_stands_out_from_the_off_track_and_the_surface(qtbot, theme: Theme, accent: str) -> None:
+    """#581: when unchecked, the ring sits on the `toggle_off` track edge, half over the surface, so it needs 3:1 against both."""
     toggle = ToggleSwitch(checked=False)
     qtbot.addWidget(toggle)
-    tokens = design_tokens()
+    tokens = design_tokens(theme, accent=accent)
     toggle.set_tokens(tokens)
 
-    assert toggle._focus_ring_color().name().upper() == tokens["accent"]
+    ring = toggle._focus_ring_color()
+    assert contrast_ratio(ring, QColor(tokens["toggle_off"])) >= 3.0
+    assert contrast_ratio(ring, QColor(tokens["bg_surface"])) >= 3.0
 
 
 @pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])

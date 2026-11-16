@@ -37,6 +37,14 @@ def test_teal_is_recognised_in_any_letter_case() -> None:
     assert build_design_tokens(Theme.DARK, "#0e7c86")["accent"] == "#11808A"
 
 
+@pytest.mark.parametrize("accent", ["#0E7C86", "#0e7c86", "#FF0E7C86"])
+def test_teal_is_detected_on_the_parsed_colour(accent: str) -> None:
+    """An eight-digit ARGB string that QColor reads as opaque teal still selects the teal table."""
+    tokens = build_design_tokens(Theme.DARK, accent)
+
+    assert {key: tokens[key] for key in TEAL_DARK} == TEAL_DARK
+
+
 @pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
 @pytest.mark.parametrize("accent", ["#0E7C86", "#4A56C6", "#4a56c6", "#0e7c86"])
 def test_every_colour_is_upper_case_hex(theme: Theme, accent: str) -> None:
