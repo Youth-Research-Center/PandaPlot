@@ -332,12 +332,26 @@ class EditBatchCommand(Command):
             )
             return CommandResult.FAILURE
 
-        # Re-execute any expansion commands first
+        # Replay the expansion commands first; they keep the ids of the columns they added (#667).
+        replayed: list[Command] = []
         for command in self.executed_commands:
             try:
-                command.redo()
+                result = command.redo()
             except Exception:
                 self.logger.exception("Failed to redo expansion command")
+                result = CommandResult.FAILURE
+            if result is not CommandResult.SUCCESS:
+                self.logger.warning(
+                    "EditBatchCommand.redo: %s could not be replayed for dataset '%s'; rolling back",
+                    command.__class__.__name__, self.dataset_id,
+                )
+                for done in reversed(replayed):
+                    try:
+                        done.undo()
+                    except Exception:
+                        self.logger.exception("Failed to roll back %s after a failed redo", done.__class__.__name__)
+                return CommandResult.ABORTED
+            replayed.append(command)
 
         # Then reapply the cell changes
         for i, row_data in enumerate(self.new_data):

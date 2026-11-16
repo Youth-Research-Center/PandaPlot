@@ -333,3 +333,18 @@ def test_cleanup_releases_the_original_data_snapshot():
     command.cleanup()
 
     assert command.original_data is None
+
+
+def test_redo_keeps_the_ids_of_the_added_columns(mock_app_context, project_with):
+    """#667: redo() re-runs execute(), which must not give the added columns new ids."""
+    app_context, _app_state, _ = mock_app_context
+    dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2]}))
+    project_with(dataset)
+    command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=3, target_columns=3)
+    assert command.execute() is CommandResult.SUCCESS
+    ids_after_execute = list(dataset.column_ids.items())
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert command.redo() is CommandResult.SUCCESS
+
+    assert list(dataset.column_ids.items()) == ids_after_execute

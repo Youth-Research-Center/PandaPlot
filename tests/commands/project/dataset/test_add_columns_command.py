@@ -247,3 +247,78 @@ def test_cleanup_releases_the_original_data_snapshot():
     command.cleanup()
 
     assert command.original_data is None
+
+
+class TestAddColumnsRedoReplay:
+    """#667: redo() replays the first insertion and keeps the added columns' ids."""
+
+    @pytest.fixture
+    def context_with_dataset(self):
+        app_context = Mock(spec=AppContext)
+        app_state = Mock(spec=AppState)
+        ui_controller = Mock(spec=UIController)
+        app_context.get_app_state.return_value = app_state
+        app_context.get_ui_controller.return_value = ui_controller
+        app_state.event_bus = Mock()
+        app_state.has_project = True
+        dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1.0, 2.0], "b": [3.0, 4.0]}))
+        project = Mock()
+        project.find_item = Mock(return_value=dataset)
+        app_state.current_project = project
+        return app_context, app_state, ui_controller, dataset
+
+    def test_redo_restores_the_column_ids_of_the_first_execute(self, context_with_dataset):
+        app_context, _app_state, _ui, dataset = context_with_dataset
+        command = AddColumnsCommand(app_context, "ds-1", column_names=["L", "R"], reference_positions=[0, 1], side="left")
+        assert command.execute() is CommandResult.SUCCESS
+        ids_after_execute = list(dataset.column_ids.items())
+        data_after_execute = dataset.data.copy()
+
+        assert command.undo() is CommandResult.SUCCESS
+        assert command.redo() is CommandResult.SUCCESS
+
+        assert list(dataset.column_ids.items()) == ids_after_execute
+        pd.testing.assert_frame_equal(dataset.data, data_after_execute)
+
+    def test_redo_does_not_retake_the_undo_snapshot_or_prompt(self, context_with_dataset):
+        app_context, app_state, ui_controller, _dataset = context_with_dataset
+        command = AddColumnsCommand(app_context, "ds-1", column_names=["c"], reference_positions=[1])
+        assert command.execute() is CommandResult.SUCCESS
+        snapshot = command.original_data
+        assert command.undo() is CommandResult.SUCCESS
+        app_state.event_bus.emit.reset_mock()
+
+        assert command.redo() is CommandResult.SUCCESS
+
+        assert command.original_data is snapshot
+        assert ui_controller.method_calls == []
+        app_state.event_bus.emit.assert_called_once()
+        assert app_state.event_bus.emit.call_args.args[1]["column_positions"] == [2]
+
+    def test_redo_twice_after_two_undos_keeps_the_same_ids(self, context_with_dataset):
+        app_context, _app_state, _ui, dataset = context_with_dataset
+        command = AddColumnsCommand(app_context, "ds-1", column_names=["c"], reference_positions=[1])
+        assert command.execute() is CommandResult.SUCCESS
+        created_id = dataset.column_id("c")
+
+        for _ in range(2):
+            assert command.undo() is CommandResult.SUCCESS
+            assert command.redo() is CommandResult.SUCCESS
+
+        assert dataset.column_id("c") == created_id
+
+    def test_redo_aborts_when_the_column_already_exists(self, context_with_dataset):
+        app_context, _app_state, _ui, dataset = context_with_dataset
+        command = AddColumnsCommand(app_context, "ds-1", column_names=["c"], reference_positions=[1])
+        assert command.execute() is CommandResult.SUCCESS
+        before = dataset.data.copy()
+
+        assert command.redo() is CommandResult.ABORTED
+
+        pd.testing.assert_frame_equal(dataset.data, before)
+
+    def test_redo_without_a_successful_execute_is_aborted(self, context_with_dataset):
+        app_context, _app_state, _ui, _dataset = context_with_dataset
+        command = AddColumnsCommand(app_context, "ds-1", column_names=["c"], reference_positions=[1])
+
+        assert command.redo() is CommandResult.ABORTED

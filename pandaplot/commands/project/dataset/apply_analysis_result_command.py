@@ -18,6 +18,7 @@ import pandas as pd
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.column_change_events import emit_columns_changed
+from pandaplot.commands.project.dataset.column_identity import keep_created_column_ids
 from pandaplot.commands.project.dataset.formula_guard import refuse_live_formula_edit
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items import Dataset
@@ -45,6 +46,7 @@ class ApplyAnalysisResultCommand(Command):
         self.result_series = result_series
         self.column_existed_before = column_existed_before
         self.original_data = original_data
+        self._created_column_ids: dict[str, str] = {}
 
         self.dataset: Dataset | None = None
 
@@ -97,6 +99,10 @@ class ApplyAnalysisResultCommand(Command):
                     self.new_column_name, df_copy.shape)
 
             self.dataset.set_data(df_copy)
+            # redo() re-runs execute(): give a created column back its first id (#667).
+            self._created_column_ids = keep_created_column_ids(
+                self.dataset, [] if self.column_existed_before else [self.new_column_name], self._created_column_ids,
+            )
             emit_columns_changed(
                 self.app_context, self.dataset_id, self.dataset.data,
                 added_columns=[] if self.column_existed_before else [self.new_column_name],

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QDialog
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
+from pandaplot.commands.project.dataset.column_identity import keep_created_column_ids
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import (
     DatasetColumnsAddedData,
@@ -65,6 +66,7 @@ class AddRowsColumnsCommand(Command):
         self.dataset: Dataset | None = None
         self.added_row_positions: list[int] = []
         self.added_column_positions: list[int] = []
+        self._added_column_ids: dict[str, str] = {}
 
     @override
     def display_name(self) -> str:
@@ -134,6 +136,10 @@ class AddRowsColumnsCommand(Command):
                 current_rows + i for i in range(rows_to_add)]
 
             dataset.set_data(new_data)
+            # redo() re-runs execute(): give the added columns back their first ids (#667).
+            self._added_column_ids = keep_created_column_ids(
+                dataset, new_data.columns[current_columns:], self._added_column_ids,
+            )
 
             if columns_to_add:
                 self.app_state.event_bus.emit(

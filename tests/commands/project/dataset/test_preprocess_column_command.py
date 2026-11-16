@@ -233,3 +233,16 @@ class TestLiveFormulaTargets:
 
         assert command.execute() is CommandResult.SUCCESS
         assert "A_centered" in dataset.data.columns
+
+
+def test_redo_keeps_the_ids_of_the_created_columns(app_context_with_project):
+    """#667: redo() re-runs execute(), which must not give the created columns new ids."""
+    app_context, _, dataset = app_context_with_project
+    command = PreprocessColumnCommand(app_context, "ds-1", {"method": "center", "source_columns": ["A", "B"]})
+    assert command.execute() is CommandResult.SUCCESS
+    ids_after_execute = list(dataset.column_ids.items())
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert command.redo() is CommandResult.SUCCESS
+
+    assert list(dataset.column_ids.items()) == ids_after_execute
