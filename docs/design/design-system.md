@@ -199,6 +199,10 @@ Neutral and accent values: handoff README "Design tokens (final)" with the chang
   `accent_icon_active`, `text_hint`, `radius_*`, `status_*`, `font_size_group_title`, …) stay as aliases of the new
   values until DS-86. `accent_active_text` maps to `accent_sel_text`, which passes 4.5:1 on `accent_sel_bg`, so every
   consumer #581 lists becomes contrast-safe. `get_surface_palette()` stays until DS-86.
+- `text_on_danger` is black or white, whichever is legible on `danger` (white on the dark `#F07171` is only 2.87:1).
+  `text_hint` aliases `text_muted` as in the handoff; disabled controls use `text_disabled`.
+- Until DS-05, an accent other than teal keeps the previous derivation (hover `lighter(110)`, pressed `darker(115)`,
+  the previous selected backgrounds) with `accent_sel_text` stepped to 4.5:1, so #581's consumers stay legible.
 - `ThemeManager.current_tokens()` returns the cached token dict for the applied theme (for the focus ring and painted
   widgets, which must not rebuild tokens on every paint).
 

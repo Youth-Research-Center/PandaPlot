@@ -1,13 +1,17 @@
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.models.events.event_bus import EventBus
-from pandaplot.models.state.config import Theme
+from pandaplot.models.state.config import ApplicationConfig, Theme
 from pandaplot.services.config import ConfigManager
+from pandaplot.services.theme.contrast import contrast_ratio
+from pandaplot.services.theme.design_tokens import TEAL_ACCENT, build_design_tokens
 from pandaplot.services.theme.theme_manager import ThemeContext, ThemeManager
+from tests.gui.theme_testing import theme_manager_for
 
 
 def _luminance(hex_color: str) -> float:
@@ -31,14 +35,14 @@ def test_get_design_tokens_light_has_status_danger():
     manager = _manager_with_context(Theme.LIGHT)
     tokens = manager.get_design_tokens()
     assert "status_danger" in tokens
-    assert tokens["status_danger"] == "#DC3545"
+    assert tokens["status_danger"] == "#C82333"  # handoff `danger`, tokens v2
 
 
 def test_get_design_tokens_dark_has_status_danger():
     manager = _manager_with_context(Theme.DARK)
     tokens = manager.get_design_tokens()
     assert "status_danger" in tokens
-    assert tokens["status_danger"] == "#C24141"
+    assert tokens["status_danger"] == "#F07171"  # handoff `danger`, tokens v2
 
 
 def test_build_stylesheet_includes_secondary_destructive_icon_selectors():
@@ -82,7 +86,7 @@ def test_build_stylesheet_primary_uses_shared_shape():
     ctx = manager._current
     qss = manager.build_stylesheet(ctx)
     primary_rule = qss.split('QPushButton[primary="true"] {')[1].split("}")[0]
-    assert "border-radius: 5px" in primary_rule
+    assert "border-radius: 4px" in primary_rule  # radius_control is 4 in tokens v2 (spec section 5.1)
     assert "padding: 6px 14px" in primary_rule
     assert "font-weight: 600" in primary_rule
 
@@ -106,17 +110,20 @@ def test_build_stylesheet_primary_button_text_is_white_for_default_accent_in_lig
 def test_build_stylesheet_disabled_primary_button_text_is_legible(theme):
     """User-reported: a disabled primary button (e.g. an "Apply" button
     before there's anything to apply) rendered near-invisible text -- the
-    disabled rule used tokens['text_hint'] (#9AA0AB) against
-    tokens['accent_disabled'] (#7683FF for the default accent, same value
-    in both themes) for only ~1.24:1 contrast, versus ~6.46:1 for black and
-    ~3.25:1 for white. Must pick whichever of black/white actually
-    contrasts against the disabled background, same as the enabled
-    button's text color."""
+    disabled rule used a muted grey text colour against
+    tokens['accent_disabled'] for ~1.24:1 contrast. The text must contrast
+    with the disabled background (accent_disabled is the accent mixed 55%
+    towards the surface: #AEB3E5 light, #383F72 dark for the default
+    accent, so the text is black in the light theme and white in the dark
+    theme), same as the enabled button's text color.
+    """
     manager = _manager_with_context(theme)
     ctx = manager._current
+    tokens = manager.get_design_tokens()
     qss = manager.build_stylesheet(ctx)
     disabled_rule = qss.split('QPushButton[primary="true"]:disabled {')[1].split("}")[0]
-    assert "color: #000000;" in disabled_rule.lower()
+    text_color = disabled_rule.split("color: ")[-1].split(";")[0]
+    assert contrast_ratio(QColor(text_color), QColor(tokens["accent_disabled"])) >= 4.5
 
 
 @pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
@@ -124,13 +131,15 @@ def test_get_surface_palette_matches_design_tokens(theme):
     """get_surface_palette() must be a derived view over get_design_tokens(),
     not a separately-maintained dict -- this is what would have caught the
     card_border ('#404347') vs border_control ('#4A4D52') dark-theme mismatch
-    that existed before this fix."""
+    that existed before this fix. card_border is the quiet panel border
+    (border_panel), not the 3:1 control border: it is the background of the
+    icon bar and the sidebar panel titles."""
     manager = _manager_with_context(theme)
     palette = manager.get_surface_palette()
     tokens = manager.get_design_tokens()
 
     assert palette["card_bg"] == tokens["surface_white"]
-    assert palette["card_border"] == tokens["border_control"]
+    assert palette["card_border"] == tokens["border_panel"]
     assert palette["base_fg"] == tokens["text_primary"]
     assert palette["secondary_fg"] == tokens["text_secondary"]
     assert palette["accent"] == tokens["accent"]
@@ -215,7 +224,7 @@ def test_build_stylesheet_styles_combo_boxes_from_design_tokens(theme):
 
     disabled_rule = _rule(qss, "QComboBox:disabled")
     assert f"background-color: {tokens['surface_inset']}" in disabled_rule
-    assert f"color: {tokens['text_hint']}" in disabled_rule
+    assert f"color: {tokens['text_disabled']}" in disabled_rule
 
 
 @pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
@@ -448,3 +457,79 @@ def test_app_palette_survives_the_color_scheme_change(qapp, tmp_path: Path):
         qapp.styleHints().unsetColorScheme()
         qapp.setPalette(original_palette)
         qapp.setStyleSheet(original_sheet)
+
+
+def _applied_manager(theme: Theme, accent: str) -> ThemeManager:
+    manager = ThemeManager(EventBus(), config_provider=None)
+    config = ApplicationConfig.default()
+    config.appearance.theme = theme
+    config.appearance.accent_color = accent
+    manager.apply_from_config(config)
+    return manager
+
+
+def test_get_design_tokens_returns_tokens_v2_for_the_context() -> None:
+    manager = theme_manager_for(Theme.DARK, accent=TEAL_ACCENT)
+
+    assert manager.get_design_tokens() == build_design_tokens(Theme.DARK, TEAL_ACCENT)
+
+
+def test_current_tokens_are_cached_and_read_only() -> None:
+    manager = _applied_manager(Theme.LIGHT, TEAL_ACCENT)
+
+    first = manager.current_tokens()
+    assert manager.current_tokens() is first
+    assert isinstance(first, MappingProxyType)
+    assert dict(first)["accent"] == "#0E7C86"
+
+
+def test_current_tokens_follow_a_theme_change() -> None:
+    manager = _applied_manager(Theme.LIGHT, TEAL_ACCENT)
+    light = manager.current_tokens()
+    config = ApplicationConfig.default()
+    config.appearance.theme = Theme.DARK
+    config.appearance.accent_color = TEAL_ACCENT
+    manager.apply_from_config(config)
+
+    assert manager.current_tokens() is not light
+    assert manager.current_tokens()["accent"] == "#11808A"
+
+
+def test_current_tokens_follow_a_context_changed_in_place() -> None:
+    manager = theme_manager_for(Theme.LIGHT, accent=TEAL_ACCENT)
+    assert manager.current_tokens()["accent"] == "#0E7C86"
+    assert manager._current is not None
+    manager._current.accent = "#4A56C6"
+
+    assert manager.current_tokens()["accent"] == "#4A56C6"
+
+
+def test_current_tokens_work_on_a_manager_built_without_init() -> None:
+    assert theme_manager_for(Theme.DARK, accent=TEAL_ACCENT).current_tokens()["accent"] == "#11808A"
+
+
+def test_stylesheet_uses_the_teal_accent_states() -> None:
+    manager = theme_manager_for(Theme.DARK, accent=TEAL_ACCENT)
+    assert manager._current is not None
+    qss = manager.build_stylesheet(manager._current)
+
+    assert "#0F7780" in qss  # dark accent_hover from the teal table, not lighter(110)
+    assert "#0C6E77" in qss  # dark accent_pressed
+
+
+def test_selected_chip_text_uses_on_accent() -> None:
+    manager = theme_manager_for(Theme.LIGHT, accent="#FFD400")
+    assert manager._current is not None
+    qss = manager.build_stylesheet(manager._current)
+    chip_rule = qss.split('QPushButton[chip="true"][selected="true"]', 1)[1].split("}", 1)[0]
+
+    assert f"color: {build_design_tokens(Theme.LIGHT, '#FFD400')['on_accent']};" in chip_rule
+
+
+def test_disabled_controls_use_text_disabled() -> None:
+    manager = theme_manager_for(Theme.LIGHT)
+    assert manager._current is not None
+    qss = manager.build_stylesheet(manager._current)
+    combo_disabled = qss.split("QComboBox:disabled", 1)[1].split("}", 1)[0]
+
+    assert f"color: {manager.get_design_tokens()['text_disabled']};" in combo_disabled

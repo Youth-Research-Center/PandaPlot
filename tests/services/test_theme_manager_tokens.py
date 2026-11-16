@@ -104,12 +104,16 @@ def test_accent_icon_active_has_non_text_contrast_on_the_selected_background(tmp
     assert _contrast_ratio(tokens["accent_icon_active"], tokens["accent_selected_bg"]) >= 3.0
 
 
-def test_accent_icon_active_is_lighter_than_the_accent_in_the_dark_theme(tmp_path):
+def test_accent_active_text_is_legible_on_the_selected_background_in_the_dark_theme(tmp_path):
+    """#581: the dark selected text used to be the accent darkened (under 3:1 on the selected background).
+
+    Tokens v2 (spec section 4.2) make accent_icon_active and accent_active_text the same colour (accent_sel_text),
+    which is stepped to 4.5:1 on accent_selected_bg.
+    """
     tokens = _make_manager(tmp_path, theme=Theme.DARK).get_design_tokens()
 
-    assert tokens["accent_icon_active"] != tokens["accent_active_text"]
-    assert _contrast_ratio(tokens["accent_active_text"], tokens["accent_selected_bg"]) < 3.0
-    assert _contrast_ratio(tokens["accent_icon_active"], tokens["accent_selected_bg"]) >= 3.0
+    assert tokens["accent_icon_active"] == tokens["accent_active_text"]
+    assert _contrast_ratio(tokens["accent_active_text"], tokens["accent_selected_bg"]) >= 4.5
 
 
 def test_accent_icon_active_matches_active_text_in_the_light_theme(tmp_path):
@@ -131,5 +135,8 @@ def test_text_on_accent_is_white_for_the_default_accent(tmp_path):
 
 
 @pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
-def test_text_on_danger_is_white_in_both_themes(tmp_path, theme):
-    assert _make_manager(tmp_path, theme=theme).get_design_tokens()["text_on_danger"].upper() == "#FFFFFF"
+def test_text_on_danger_is_legible_on_danger(tmp_path, theme):
+    """Tokens v2 pick black or white per theme: white on the dark danger colour (#F07171) is only 2.87:1."""
+    tokens = _make_manager(tmp_path, theme=theme).get_design_tokens()
+
+    assert _contrast_ratio(tokens["text_on_danger"], tokens["danger"]) >= 4.5

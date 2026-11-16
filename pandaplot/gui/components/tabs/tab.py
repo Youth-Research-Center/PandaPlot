@@ -134,12 +134,7 @@ class CustomTabWidget(PTabWidget):
         secondary_fg = palette.get("secondary_fg", "#555555")
         accent = palette.get("accent", "#4A90E2")
 
-        # Derive accent color variant for pressed state
-        accent_color = QColor(accent)
-        if accent_color.isValid():
-            accent_pressed = accent_color.darker(115).name()
-        else:
-            accent_pressed = accent
+        accent_pressed = tokens["accent_pressed"]
 
         overlay_color = QColor(accent)
         overlay_r, overlay_g, overlay_b = (
