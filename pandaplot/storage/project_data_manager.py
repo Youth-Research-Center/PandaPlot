@@ -1,5 +1,9 @@
+import contextlib
 import json
 import logging
+import os
+import secrets
+import shutil
 import zipfile
 import zlib
 from collections.abc import Callable, Collection
@@ -61,6 +65,30 @@ def read_cover_entry(entry: object, names: Collection[str], read: Callable[[str]
     return data
 
 
+def _create_sibling_temp_file(target: str) -> tuple[str, int]:
+    """Create an empty, uniquely named temporary file in the directory of ``target``.
+
+    The file sits in the same directory so ``os.replace`` onto ``target`` is a same-filesystem rename. It is created
+    with ``os.open(..., 0o666)`` rather than ``tempfile.mkstemp`` so that, like a file opened normally, a newly saved
+    project gets the permissions the user's umask allows instead of owner-only ``0o600``.
+
+    Args:
+        target: The resolved path of the file that will be replaced.
+
+    Returns:
+        The temporary file's path and an open, writable file descriptor for it.
+    """
+    directory, name = os.path.split(target)
+    flags = os.O_RDWR | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+    while True:
+        temp_path = os.path.join(directory, f".{name}.{secrets.token_hex(4)}.tmp")
+        try:
+            mode = 0o600 if os.path.exists(target) else 0o666
+            return temp_path, os.open(temp_path, flags, mode)
+        except FileExistsError:
+            continue
+
+
 class _ZipBytesProxy:
     """Mimics zipfile.ZipFile.read() using pre-loaded bytes so managers need no changes."""
     def __init__(self, raw_data: dict):
@@ -78,29 +106,60 @@ class ProjectDataManager:
         self.data_factory = item_data_manager_factory
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def save(self, project: Project, filepath: str):
+    def save(self, project: Project, filepath: str | os.PathLike[str]) -> None:
+        """Write ``project`` to ``filepath`` atomically.
+
+        The archive is written to a temporary file next to the target, flushed to disk and then renamed over the
+        target, so a save that fails part-way (disk full, an item manager raising, the process being killed) leaves
+        the previous file untouched (#665). A symlinked target is followed, so the link itself is kept, and an
+        existing file keeps its permissions.
+
+        Args:
+            project: The project to save.
+            filepath: The project file to create or replace.
+
+        Raises:
+            Exception: Whatever writing an item or replacing the target raised; the temporary file is removed first.
+        """
         self.logger.info(f"Saving project {project.name} to {filepath}")
-        with zipfile.ZipFile(filepath, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-            project_dict = project.to_dict()
+        target = os.path.realpath(filepath)
+        temp_path, fd = _create_sibling_temp_file(target)
+        try:
+            with os.fdopen(fd, "w+b") as handle:
+                with zipfile.ZipFile(handle, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                    self._write_archive(project, zf)
+                handle.flush()
+                os.fsync(handle.fileno())
+            if os.path.exists(target):
+                shutil.copymode(target, temp_path)
+            os.replace(temp_path, target)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(temp_path)
+            raise
 
-            # Add item references (with paths to their separate files)
-            for item in project.get_all_items():
-                type_name = item.__class__.__name__.lower()
-                item_file = f"items/{item.id}.{self.data_factory.get_extension_for_type(type_name)}"
-                project_dict.setdefault("item_files", {})[item.id] = {
-                    "type": type_name,
-                    "path": item_file
-                }
-                manager = self.data_factory.get_manager(type_name)
-                manager.save(item, zf, item_file)
+    def _write_archive(self, project: Project, zf: zipfile.ZipFile) -> None:
+        """Write the items, the cover image and project.json of ``project`` into ``zf``."""
+        project_dict = project.to_dict()
 
-            if project.cover_image is not None:
-                # Already PNG-compressed, so deflating it again only costs time.
-                zf.writestr(COVER_IMAGE_ENTRY, project.cover_image, compress_type=zipfile.ZIP_STORED)
-                project_dict["cover_image"] = COVER_IMAGE_ENTRY
+        # Add item references (with paths to their separate files)
+        for item in project.get_all_items():
+            type_name = item.__class__.__name__.lower()
+            item_file = f"items/{item.id}.{self.data_factory.get_extension_for_type(type_name)}"
+            project_dict.setdefault("item_files", {})[item.id] = {
+                "type": type_name,
+                "path": item_file
+            }
+            manager = self.data_factory.get_manager(type_name)
+            manager.save(item, zf, item_file)
 
-            # Save project.json last
-            zf.writestr("project.json", json.dumps(project_dict, indent=2))
+        if project.cover_image is not None:
+            # Already PNG-compressed, so deflating it again only costs time.
+            zf.writestr(COVER_IMAGE_ENTRY, project.cover_image, compress_type=zipfile.ZIP_STORED)
+            project_dict["cover_image"] = COVER_IMAGE_ENTRY
+
+        # Save project.json last
+        zf.writestr("project.json", json.dumps(project_dict, indent=2))
 
     def load(self, filepath: str) -> Project:
         self.logger.info(f"Loading project from {filepath}")

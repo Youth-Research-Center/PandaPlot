@@ -9,6 +9,8 @@ trips its schema_version unchanged, without re-running migrations that
 no longer apply.
 """
 import json
+import os
+import stat
 import zipfile
 
 import pandas as pd
@@ -335,3 +337,95 @@ def test_truncated_png_cover_loads_as_none(tmp_path, manager, length):
     manager.save(project, path)
 
     assert manager.load(path).cover_image is None
+
+
+def _saved_lab_project(path, manager) -> Project:
+    project = Project(name="Lab")
+    project.add_item(Dataset(id="ds-1", name="D", data=pd.DataFrame({"a": [1, 2, 3]})))
+    manager.save(project, str(path))
+    return project
+
+
+def test_failed_save_leaves_the_previous_file_intact(tmp_path, manager, monkeypatch):
+    """#665: a save that fails part-way must not truncate the existing project file."""
+    path = tmp_path / "lab.pplot"
+    project = _saved_lab_project(path, manager)
+    original_bytes = path.read_bytes()
+
+    project.add_item(Dataset(id="ds-2", name="E", data=pd.DataFrame({"b": [4]})))
+
+    def fail(*_args, **_kwargs):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(DatasetDataManager, "save", fail)
+    with pytest.raises(OSError, match="No space left"):
+        manager.save(project, str(path))
+
+    assert path.read_bytes() == original_bytes
+    monkeypatch.undo()
+    loaded = manager.load(str(path))
+    assert [item.id for item in loaded.get_all_items()] == ["ds-1"]
+    pd.testing.assert_frame_equal(loaded.find_item("ds-1").data, pd.DataFrame({"a": [1, 2, 3]}))
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["lab.pplot"]
+
+
+def test_failed_first_save_leaves_no_file_behind(tmp_path, manager, monkeypatch):
+    path = tmp_path / "new.pplot"
+    project = Project(name="Lab")
+    project.add_item(Dataset(id="ds-1", name="D", data=pd.DataFrame({"a": [1]})))
+    monkeypatch.setattr(DatasetDataManager, "save", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    with pytest.raises(RuntimeError, match="boom"):
+        manager.save(project, str(path))
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_successful_save_replaces_the_file_and_leaves_no_temp_file(tmp_path, manager):
+    path = tmp_path / "lab.pplot"
+    project = _saved_lab_project(path, manager)
+    project.add_item(Dataset(id="ds-2", name="E", data=pd.DataFrame({"b": [4]})))
+
+    manager.save(project, path)
+
+    assert sorted(item.id for item in manager.load(str(path)).get_all_items()) == ["ds-1", "ds-2"]
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["lab.pplot"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits")
+def test_save_keeps_the_existing_file_permissions(tmp_path, manager):
+    path = tmp_path / "lab.pplot"
+    project = _saved_lab_project(path, manager)
+    path.chmod(0o640)
+
+    manager.save(project, str(path))
+
+    assert stat.S_IMODE(path.stat().st_mode) == 0o640
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits")
+def test_new_file_gets_umask_permissions_not_owner_only(tmp_path, manager):
+    old_umask = os.umask(0o022)
+    try:
+        _saved_lab_project(tmp_path / "lab.pplot", manager)
+    finally:
+        os.umask(old_umask)
+
+    assert stat.S_IMODE((tmp_path / "lab.pplot").stat().st_mode) == 0o644
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlinks need privileges on Windows")
+def test_save_through_a_symlink_updates_the_target_and_keeps_the_link(tmp_path, manager):
+    real_dir = tmp_path / "real"
+    real_dir.mkdir()
+    real = real_dir / "lab.pplot"
+    project = _saved_lab_project(real, manager)
+    link = tmp_path / "link.pplot"
+    link.symlink_to(real)
+    project.add_item(Dataset(id="ds-2", name="E", data=pd.DataFrame({"b": [4]})))
+
+    manager.save(project, str(link))
+
+    assert link.is_symlink()
+    assert sorted(item.id for item in manager.load(str(real)).get_all_items()) == ["ds-1", "ds-2"]
+    assert sorted(p.name for p in real_dir.iterdir()) == ["lab.pplot"]
