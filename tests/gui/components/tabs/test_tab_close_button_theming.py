@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QWidget
 
 from pandaplot.gui.components.tabs.tab import CustomTabWidget
 from pandaplot.models.state.app_context import AppContext
@@ -52,7 +52,7 @@ def test_close_button_hover_color_derives_from_status_danger_token():
 
 @pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
 @pytest.mark.parametrize("accent", ["#0E7C86", DEFAULT_ACCENT])
-def test_selected_and_pressed_menu_items_use_legible_text_on_the_accent(theme: Theme, accent: str) -> None:
+def test_selected_and_pressed_menu_items_use_legible_text_on_the_accent(qtbot, theme: Theme, accent: str) -> None:
     """The tab context menu paints `on_accent` text on the accent fills, not the card background (illegible on a light accent)."""
     app_context = Mock(spec=AppContext)
     app_context.event_bus = Mock()
@@ -62,7 +62,9 @@ def test_selected_and_pressed_menu_items_use_legible_text_on_the_accent(theme: T
     theme_manager.get_design_tokens.return_value = tokens
     app_context.get_manager.return_value = theme_manager
 
-    tab = CustomTabWidget(app_context, None)
+    parent = QWidget()
+    qtbot.addWidget(parent)
+    tab = CustomTabWidget(app_context, parent)
     tab._apply_theme()
 
     for selector, fill in (("QMenu::item:selected", "accent"), ("QMenu::item:pressed", "accent_pressed")):
