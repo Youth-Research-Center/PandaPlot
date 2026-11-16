@@ -96,7 +96,7 @@ New semantic tokens (the handoff only defines `danger`; the 1e mock, `StatusMess
   primary button label fails AA. It becomes `#0F7780` (5.29:1), between `accent` `#11808A` (4.69:1) and
   `accent_pressed` `#0C6E77` (5.98:1), so dark hover darkens the button as light hover already does.
 - Any other stored accent derives the same tokens plus `accent_disabled` (mix with `bg_surface` at 0.55) and a
-  separate, lighter dark-theme `focus`, adjusting each in steps (as `_accent_icon_color` does) until it passes the
+  separate, lighter dark-theme `focus`, adjusting each in steps (as `contrast.adjust_until_contrast` does) until it passes the
   pairs in section 5.2. The Settings accent picker stays.
 - The wizard's series swatches (`series_palette` token, `series_config_card.py`) use the chart's real default series
   colours (`default_series_color`) instead of a separate palette, so a wizard preview matches the chart it creates.
@@ -199,6 +199,10 @@ Neutral and accent values: handoff README "Design tokens (final)" with the chang
   `accent_icon_active`, `text_hint`, `radius_*`, `status_*`, `font_size_group_title`, …) stay as aliases of the new
   values until DS-86. `accent_active_text` maps to `accent_sel_text`, which passes 4.5:1 on `accent_sel_bg`, so every
   consumer #581 lists becomes contrast-safe. `get_surface_palette()` stays until DS-86.
+- `text_on_danger` is black or white, whichever is legible on `danger` (white on the dark `#F07171` is only 2.87:1).
+  `text_hint` aliases `text_muted` as in the handoff; disabled controls use `text_disabled`.
+- Until DS-05, an accent other than teal keeps the previous derivation (hover `lighter(110)`, pressed `darker(115)`,
+  the previous selected backgrounds) with `accent_sel_text` stepped to 4.5:1, so #581's consumers stay legible.
 - `ThemeManager.current_tokens()` returns the cached token dict for the applied theme (for the focus ring and painted
   widgets, which must not rebuild tokens on every paint).
 

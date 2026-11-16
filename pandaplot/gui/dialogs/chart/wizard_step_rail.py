@@ -21,7 +21,7 @@ _CHECK_SIZE = 10
 def _circle_icon(state: str, number: int, tokens: dict) -> QIcon:
     """Paint a `_CIRCLE_SIZE`x`_CIRCLE_SIZE` circle for `state` ("current",
     "completed", or "upcoming"), matching the mockup's three treatments:
-    indigo-filled + white number, light-indigo-bg + checkmark, or
+    indigo-filled + `on_accent` number, light-indigo-bg + checkmark, or
     outlined + muted number. The completed checkmark is the bundled `check` icon.
     """
     accent = tokens.get("accent", "#4A56C6")
@@ -41,7 +41,7 @@ def _circle_icon(state: str, number: int, tokens: dict) -> QIcon:
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(QColor(accent)))
         painter.drawEllipse(rect)
-        painter.setPen(QPen(QColor("#FFFFFF")))
+        painter.setPen(QPen(QColor(tokens.get("on_accent", "#FFFFFF"))))
         font.setPixelSize(10)
         font.setWeight(QFont.Weight.Bold)
         text = str(number)

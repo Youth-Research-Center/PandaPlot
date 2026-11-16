@@ -4,9 +4,14 @@ import sys
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.components.common.toggle_switch import ToggleSwitch, knob_x_for_state
+from pandaplot.models.state.config import Theme
+from pandaplot.services.theme.contrast import contrast_ratio
+from tests.gui.icon_testing import assert_tinted
+from tests.gui.theme_testing import DEFAULT_ACCENT, design_tokens, surface_palette
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -63,3 +68,45 @@ def test_toggle_switch_set_checked_emits_toggled_once_per_change(qtbot):
     toggle.setChecked(checked=True)
 
     assert emitted == [True]
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+@pytest.mark.parametrize("accent", ["#0E7C86", DEFAULT_ACCENT])
+def test_checked_focus_ring_stands_out_from_the_accent_track(qtbot, theme: Theme, accent: str) -> None:
+    """#581: when checked, the focus ring is drawn over the accent track, so it needs 3:1 against `accent`."""
+    toggle = ToggleSwitch(checked=True)
+    qtbot.addWidget(toggle)
+    tokens = design_tokens(theme, accent=accent)
+    toggle.set_tokens(tokens)
+
+    assert contrast_ratio(toggle._focus_ring_color(), QColor(tokens["accent"])) >= 3.0
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+@pytest.mark.parametrize("accent", ["#0E7C86", DEFAULT_ACCENT])
+def test_unchecked_focus_ring_stands_out_from_the_off_track_and_the_surface(qtbot, theme: Theme, accent: str) -> None:
+    """#581: when unchecked, the ring sits on the `toggle_off` track edge, half over the surface, so it needs 3:1 against both."""
+    toggle = ToggleSwitch(checked=False)
+    qtbot.addWidget(toggle)
+    tokens = design_tokens(theme, accent=accent)
+    toggle.set_tokens(tokens)
+
+    ring = toggle._focus_ring_color()
+    assert contrast_ratio(ring, QColor(tokens["toggle_off"])) >= 3.0
+    assert contrast_ratio(ring, QColor(tokens["bg_surface"])) >= 3.0
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+def test_unchecked_track_uses_the_toggle_off_token(qtbot, theme: Theme) -> None:
+    """The off track is `toggle_off`, which keeps 3:1 against the surface it sits on; `border_panel` did not."""
+    toggle = ToggleSwitch(checked=False)
+    qtbot.addWidget(toggle)
+    tokens = design_tokens(theme)
+    toggle.set_tokens(tokens)
+
+    image = toggle.grab().toImage()
+    # Mid-track, right of the knob (the unchecked knob sits at the left).
+    track_pixel = image.pixelColor(21, 7)
+
+    assert_tinted(track_pixel, tokens["toggle_off"])
+    assert contrast_ratio(QColor(tokens["toggle_off"]), QColor(surface_palette(theme)["card_bg"])) >= 3.0

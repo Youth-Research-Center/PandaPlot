@@ -1683,7 +1683,7 @@ class TestImageGalleryTabIcons:
     def test_delete_button_hover_icon_retints_when_the_theme_changes(self, app_context):
         tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
         tab.delete_button.setEnabled(True)
-        # text_on_danger is the same in both real themes, so a sentinel proves the hover icon is re-tinted too.
+        # The sentinel differs from the real dark text_on_danger, so it proves the hover icon is re-tinted too.
         app_context.theme_tokens.update(design_tokens(Theme.DARK, text_on_danger="#F0F0F0"))
 
         tab._apply_theme()
