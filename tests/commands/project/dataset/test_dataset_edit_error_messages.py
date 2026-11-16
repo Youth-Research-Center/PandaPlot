@@ -138,9 +138,11 @@ def test_create_empty_dataset_redo_failure_shows_a_short_sentence(env):
 
 
 def test_delete_columns_redo_failure_shows_a_short_sentence(env):
-    app_context, _project, ui_controller = env
+    app_context, project, ui_controller = env
+    dataset = Dataset(id="ds-1", name="D", data=pd.DataFrame({"a": [1]}))
+    project.find_item.return_value = dataset
     command = DeleteColumnsCommand(app_context, "ds-1", [0])
-    command.dataset = Mock()
+    command.dataset = dataset
     command.original_data = pd.DataFrame({"a": [1]})
     command.column_names = ["a"]
     error = KeyError("a")

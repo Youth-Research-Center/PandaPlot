@@ -7,6 +7,7 @@ import pandas as pd
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.formula_guard import refuse_live_formula_edit
+from pandaplot.commands.project.dataset.live_dataset import rebind_live_dataset
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
@@ -21,17 +22,17 @@ class ChangeColumnDtypeCommand(Command):
     Handles data conversion and removes values that cannot be converted.
     """
 
-    def __init__(self, app_context: AppContext, dataset_id: str, 
+    def __init__(self, app_context: AppContext, dataset_id: str,
                  column_index: int, target_dtype: str):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
         self.ui_controller: UIController = app_context.get_ui_controller()
-        
+
         self.dataset_id = dataset_id
         self.column_index = column_index
         self.target_dtype = target_dtype
-        
+
         # Store state for undo
         self.original_data = None
         self.original_dtype = None
@@ -45,7 +46,7 @@ class ChangeColumnDtypeCommand(Command):
         """Execute the change column dtype command."""
         try:
             self.logger.info(f"Executing ChangeColumnDtypeCommand for column {self.column_index} to {self.target_dtype}")
-            
+
             if not self.app_state.has_project:
                 self.logger.warning("ChangeColumnDtypeCommand.execute: no project is currently loaded")
                 self.ui_controller.show_warning_message(
@@ -119,7 +120,7 @@ class ChangeColumnDtypeCommand(Command):
             # Check if conversion is needed
             if original_dtype == self.target_dtype:
                 self.ui_controller.show_info_message(
-                    "Change Column Type", 
+                    "Change Column Type",
                     f"Column '{column_name}' is already of type {self.target_dtype}."
                 )
                 return CommandResult.NOOP
@@ -142,17 +143,17 @@ class ChangeColumnDtypeCommand(Command):
             # Apply the converted data
             self.dataset.data[self.column_name] = conversion_result["converted_data"]
             self.dataset.set_data(self.dataset.data)
-            
+
             # Show conversion report if there were issues
             if conversion_result["errors_count"] > 0:
                 self.ui_controller.show_warning_message(
-                    "Column Type Changed", 
+                    "Column Type Changed",
                     f"Column '{self.column_name}' type changed from {self.original_dtype} to {self.target_dtype}.\n"
                     f"{conversion_result['errors_count']} values could not be converted and were set to NaN/None."
                 )
             else:
                 self.ui_controller.show_info_message(
-                    "Column Type Changed", 
+                    "Column Type Changed",
                     f"Column '{self.column_name}' type successfully changed from {self.original_dtype} to {self.target_dtype}."
                 )
 
@@ -161,16 +162,16 @@ class ChangeColumnDtypeCommand(Command):
 
             # Emit event for data change
             self.app_context.event_bus.emit(
-                DatasetEvents.DATASET_DATA_CHANGED, 
+                DatasetEvents.DATASET_DATA_CHANGED,
                 DatasetDataChangedData(
-                    dataset_id=self.dataset_id, 
-                    start_index=(0, self.column_index), 
+                    dataset_id=self.dataset_id,
+                    start_index=(0, self.column_index),
                     end_index=(len(self.dataset.data) - 1, self.column_index)
                 ).to_dict()
             )
 
             return CommandResult.SUCCESS
-            
+
         except Exception as e:
             self.logger.exception("Failed to change column type for column %s", self.column_index)
             self.ui_controller.show_error_message("Change Column Type Error", "Couldn't change the column type.", error=e)
@@ -189,16 +190,16 @@ class ChangeColumnDtypeCommand(Command):
         try:
             if self.dataset is None or self.dataset.data is None:
                 return None
-                
+
             original_series = self.dataset.data[column_name]
             errors_count = 0
             converted_data = None
-            
+
             if self.target_dtype == "int64":
                 # Convert to integer
                 converted_data = pd.to_numeric(original_series, errors="coerce").astype("Int64")
                 errors_count = converted_data.isna().sum() - original_series.isna().sum()
-                
+
             elif self.target_dtype == "float64":
                 # Convert to float. pd.to_numeric alone is not enough: it picks
                 # the tightest numeric dtype for the values, so a column of
@@ -206,12 +207,12 @@ class ChangeColumnDtypeCommand(Command):
                 # becoming float64.
                 converted_data = pd.to_numeric(original_series, errors="coerce").astype("float64")
                 errors_count = converted_data.isna().sum() - original_series.isna().sum()
-                
+
             elif self.target_dtype == "object" or self.target_dtype == "string":
                 # Convert to string - should always work
                 converted_data = original_series.astype("string")
                 errors_count = 0
-                
+
             elif self.target_dtype == "bool":
                 # Convert to boolean
                 # Try to interpret common boolean representations
@@ -229,29 +230,29 @@ class ChangeColumnDtypeCommand(Command):
                         elif lower_val in ["false", "0", "no", "n", "f"]:
                             return False
                     return np.nan
-                
+
                 converted_data = original_series.apply(convert_to_bool)
                 errors_count = converted_data.isna().sum() - original_series.isna().sum()
-                
+
             elif self.target_dtype == "datetime64[ns]":
                 # Convert to datetime
                 converted_data = pd.to_datetime(original_series, errors="coerce")
                 errors_count = converted_data.isna().sum() - original_series.isna().sum()
-                
+
             else:
                 self.ui_controller.show_error_message(
-                    "Change Column Type", 
+                    "Change Column Type",
                     f"Unsupported target data type: {self.target_dtype}"
                 )
                 return None
-            
+
             return {
                 "converted_data": converted_data,
                 "errors_count": errors_count,
                 "original_dtype": self.original_dtype,
                 "target_dtype": self.target_dtype
             }
-            
+
         except Exception as e:
             self.logger.exception("Error converting column data")
             self.ui_controller.show_error_message("Change Column Type Error", "Couldn't change the column type.", error=e)
@@ -259,6 +260,8 @@ class ChangeColumnDtypeCommand(Command):
 
     def undo(self) -> CommandResult:
         """Restore the original column data and dtype."""
+        if not rebind_live_dataset(self, "ChangeColumnDtypeCommand.undo"):
+            return CommandResult.ABORTED
         # column_name is itself a valid label when None, so it cannot serve as
         # the "unset" marker; original_data is only recorded by a successful execute().
         if self.original_data is not None and self.dataset and self.dataset.data is not None:
@@ -285,6 +288,8 @@ class ChangeColumnDtypeCommand(Command):
 
     def redo(self) -> CommandResult:
         """Reapply the column dtype change."""
+        if not rebind_live_dataset(self, "ChangeColumnDtypeCommand.redo"):
+            return CommandResult.ABORTED
         if self.conversion_report and self.dataset and self.dataset.data is not None:
 
             # Re-execute the conversion

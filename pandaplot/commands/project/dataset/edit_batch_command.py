@@ -5,6 +5,7 @@ from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.add_columns_command import AddColumnsCommand
 from pandaplot.commands.project.dataset.add_rows_command import AddRowsCommand
 from pandaplot.commands.project.dataset.formula_guard import refuse_live_formula_edit
+from pandaplot.commands.project.dataset.live_dataset import rebind_live_dataset
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
@@ -290,6 +291,8 @@ class EditBatchCommand(Command):
 
     def undo(self) -> CommandResult:
         """Restore the original data and undo any expansion commands"""
+        if not rebind_live_dataset(self, "EditBatchCommand.undo"):
+            return CommandResult.ABORTED
         if self.old_data is not None and self.dataset and self.dataset.data is not None:
             self.dataset.data.iloc[
                 self.start_row:self.end_row + 1,
@@ -321,6 +324,8 @@ class EditBatchCommand(Command):
 
     def redo(self) -> CommandResult:
         """Reapply the batch edit"""
+        if not rebind_live_dataset(self, "EditBatchCommand.redo"):
+            return CommandResult.ABORTED
         # Confirm this command actually executed successfully before
         # replaying anything -- otherwise a stray redo() on a command whose
         # execute() failed (possibly after partially expanding the dataset)

@@ -3,6 +3,7 @@ from typing import override
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.formula_guard import refuse_live_formula_edit
+from pandaplot.commands.project.dataset.live_dataset import rebind_live_dataset
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
@@ -102,6 +103,8 @@ class EditCommand(Command):
             return CommandResult.FAILURE
 
     def undo(self) -> CommandResult:
+        if not rebind_live_dataset(self, "EditCommand.undo"):
+            return CommandResult.ABORTED
         if self.dataset is None or self.dataset.data is None:
             self.logger.warning(
                 "EditCommand.undo: cannot undo for dataset '%s' (dataset found=%s)",
@@ -119,6 +122,8 @@ class EditCommand(Command):
         return CommandResult.SUCCESS
 
     def redo(self) -> CommandResult:
+        if not rebind_live_dataset(self, "EditCommand.redo"):
+            return CommandResult.ABORTED
         if self.dataset is None or self.dataset.data is None:
             self.logger.warning(
                 "EditCommand.redo: cannot redo for dataset '%s' (dataset found=%s)",

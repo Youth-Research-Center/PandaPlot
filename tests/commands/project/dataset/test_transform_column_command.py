@@ -390,9 +390,11 @@ def test_undo_logs_a_warning_when_dataset_not_set(caplog):
 
 
 def test_undo_logs_a_warning_when_dataset_has_no_data(caplog):
-    command = _make_command()
     dataset = Mock(spec=Dataset)
     dataset.data = None
+    app_context = Mock(spec=AppContext)
+    app_context.get_app_state.return_value.current_project.find_item.return_value = dataset
+    command = _make_command(app_context)
     command.dataset = dataset
 
     with caplog.at_level(logging.WARNING):

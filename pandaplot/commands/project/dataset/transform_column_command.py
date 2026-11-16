@@ -9,6 +9,7 @@ import pandas as pd
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.column_change_events import emit_columns_changed
+from pandaplot.commands.project.dataset.live_dataset import rebind_live_dataset
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.models.state.app_context import AppContext
@@ -180,6 +181,8 @@ class TransformColumnCommand(Command):
     @override
     def undo(self) -> CommandResult:
         """Remove the added column from dataset or restore original data."""
+        if not rebind_live_dataset(self, "TransformColumnCommand.undo"):
+            return CommandResult.ABORTED
         try:
             if not self.dataset or not isinstance(self.dataset, Dataset):
                 self.logger.warning(
@@ -251,6 +254,8 @@ class TransformColumnCommand(Command):
     @override
     def redo(self) -> CommandResult:
         """Re-apply the transformation, keeping the new column's original id."""
+        if not rebind_live_dataset(self, "TransformColumnCommand.redo"):
+            return CommandResult.ABORTED
         return self._apply(replay=self._applied_once)
 
     @override

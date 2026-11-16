@@ -14,6 +14,7 @@ from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.column_change_events import emit_columns_changed
 from pandaplot.commands.project.dataset.column_identity import keep_created_column_ids
 from pandaplot.commands.project.dataset.formula_guard import refuse_live_formula_edit
+from pandaplot.commands.project.dataset.live_dataset import rebind_live_dataset
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -124,6 +125,8 @@ class PreprocessColumnCommand(Command):
     @override
     def undo(self) -> CommandResult:
         """Restore replaced columns and drop newly created ones."""
+        if not rebind_live_dataset(self, "PreprocessColumnCommand.undo"):
+            return CommandResult.ABORTED
         try:
             if not isinstance(self.dataset, Dataset) or self.dataset.data is None:
                 self.logger.warning(
@@ -190,6 +193,8 @@ class PreprocessColumnCommand(Command):
     @override
     def redo(self) -> CommandResult:
         """Re-apply the transformation."""
+        if not rebind_live_dataset(self, "PreprocessColumnCommand.redo"):
+            return CommandResult.ABORTED
         return self.execute()
 
     @override

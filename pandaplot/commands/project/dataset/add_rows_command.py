@@ -14,6 +14,7 @@ import pandas as pd
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
+from pandaplot.commands.project.dataset.live_dataset import rebind_live_dataset
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetRowsAddedData, DatasetRowsRemovedData
 from pandaplot.models.events.event_types import DatasetOperationEvents
@@ -292,6 +293,8 @@ class AddRowsCommand(Command):
 
     def undo(self) -> CommandResult:
         """Undo the add rows command."""
+        if not rebind_live_dataset(self, "AddRowsCommand.undo"):
+            return CommandResult.ABORTED
         try:
             if self.dataset and self.original_data is not None:
                 # Restore original data
@@ -320,6 +323,8 @@ class AddRowsCommand(Command):
         Replays the original insertion instead of re-running ``execute()``, which would validate and prompt again and
         re-take the undo snapshot (#667).
         """
+        if not rebind_live_dataset(self, "AddRowsCommand.redo"):
+            return CommandResult.ABORTED
         if self.dataset is None or self.dataset.data is None or self.original_data is None:
             self.logger.warning("AddRowsCommand.redo: dataset '%s' was never changed by execute()", self.dataset_id)
             return CommandResult.ABORTED

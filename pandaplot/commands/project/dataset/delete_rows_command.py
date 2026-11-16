@@ -2,6 +2,7 @@ from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
+from pandaplot.commands.project.dataset.live_dataset import rebind_live_dataset
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetRowsAddedData, DatasetRowsRemovedData
 from pandaplot.models.events.event_types import DatasetOperationEvents
@@ -20,10 +21,10 @@ class DeleteRowsCommand(Command):
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
         self.ui_controller: UIController = app_context.get_ui_controller()
-        
+
         self.dataset_id = dataset_id
         self.row_positions = sorted(row_positions)  # Sort for consistent processing
-        
+
         # Store state for undo
         self.original_data = None
         self.deleted_rows_data = None
@@ -35,7 +36,7 @@ class DeleteRowsCommand(Command):
         """Execute the delete rows command."""
         try:
             self.logger.info(f"Executing DeleteRowsCommand for {len(self.row_positions)} rows")
-            
+
             # Validate input
             if not self.row_positions:
                 self.logger.warning("DeleteRowsCommand.execute: no row positions specified for deletion")
@@ -119,33 +120,33 @@ class DeleteRowsCommand(Command):
                     "Duplicate row positions found in the deletion list."
                 )
                 return CommandResult.FAILURE
-            
+
             # Store original data for undo
             self.original_data = self.dataset.data.copy()
-            
+
             # Store the deleted rows data for potential restoration
             self.deleted_rows_data = self.dataset.data.iloc[self.row_positions].copy()
-            
+
             # Create new DataFrame with the rows removed
             # Sort positions in reverse order to avoid index shifting issues
             new_data = self.dataset.data.copy()
             for position in sorted(self.row_positions, reverse=True):
                 new_data = new_data.drop(new_data.index[position])
-            
+
             # Reset index after deletion
             new_data = new_data.reset_index(drop=True)
-            
+
             # Update dataset
             self.dataset.set_data(new_data)
-            
+
             # Emit event
-            self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_ROW_REMOVED, 
+            self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_ROW_REMOVED,
                  DatasetRowsRemovedData(dataset_id=self.dataset_id, row_positions=self.row_positions).to_dict()
             )
 
             self.logger.info(f"Deleted {len(self.row_positions)} rows from dataset '{self.dataset.name}' (ID: {self.dataset_id})")
             return CommandResult.SUCCESS
-            
+
         except Exception as e:
             self.logger.exception("Failed to delete %d rows", len(self.row_positions) if self.row_positions else 0)
             self.ui_controller.show_error_message("Delete Rows Error", "Couldn't delete the selected rows.", error=e)
@@ -153,6 +154,8 @@ class DeleteRowsCommand(Command):
 
     def undo(self) -> CommandResult:
         """Undo the delete rows command by restoring the original data."""
+        if not rebind_live_dataset(self, "DeleteRowsCommand.undo"):
+            return CommandResult.ABORTED
         try:
             if self.dataset and self.original_data is not None:
                 # Restore original data
@@ -178,6 +181,8 @@ class DeleteRowsCommand(Command):
 
     def redo(self) -> CommandResult:
         """Redo the delete rows command."""
+        if not rebind_live_dataset(self, "DeleteRowsCommand.redo"):
+            return CommandResult.ABORTED
         # Re-execute with stored parameters
         return self.execute()
 

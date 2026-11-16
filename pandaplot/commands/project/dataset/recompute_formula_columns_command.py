@@ -11,6 +11,7 @@ import pandas as pd
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
+from pandaplot.commands.project.dataset.live_dataset import rebind_live_dataset
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
@@ -81,6 +82,8 @@ class RecomputeFormulaColumnsCommand(Command):
 
     @override
     def undo(self) -> CommandResult:
+        if not rebind_live_dataset(self, "RecomputeFormulaColumnsCommand.undo"):
+            return CommandResult.ABORTED
         if self.dataset is None or not self._old_values:
             self.logger.warning("RecomputeFormulaColumnsCommand.undo: nothing to undo for dataset '%s'", self.dataset_id)
             return CommandResult.FAILURE
@@ -88,6 +91,8 @@ class RecomputeFormulaColumnsCommand(Command):
 
     @override
     def redo(self) -> CommandResult:
+        if not rebind_live_dataset(self, "RecomputeFormulaColumnsCommand.redo"):
+            return CommandResult.ABORTED
         if self.dataset is None or not self._new_values:
             self.logger.warning("RecomputeFormulaColumnsCommand.redo: nothing to redo for dataset '%s'", self.dataset_id)
             return CommandResult.FAILURE
