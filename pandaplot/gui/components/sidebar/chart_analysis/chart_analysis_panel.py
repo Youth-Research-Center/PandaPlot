@@ -239,6 +239,8 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             self.num_points_spin.setValue(200)
             self.parameters_layout.addRow("Points:", self.num_points_spin)
 
+        self._restore_form_tab_order(self.parameters_group, self.parameters_layout)
+
     def _update_smoothing_params(self):
         # Remove any rows previously added below the method row.
         while self.parameters_layout.rowCount() > 1:
@@ -262,6 +264,8 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             self.window_spin.setRange(2, 100)
             self.window_spin.setValue(5)
             self.parameters_layout.addRow("Window size:", self.window_spin)
+
+        self._restore_form_tab_order(self.parameters_group, self.parameters_layout)
 
     # -- config -----------------------------------------------------------
 

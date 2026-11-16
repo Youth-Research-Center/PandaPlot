@@ -6,6 +6,7 @@ label | "Data series and fitted curves of this chart." |
 group | "Operation" |
 combo | "Type:" | value="Derivative" items=["Derivative", "Integral", "Arc length (line length)", "Smoothing", "Interpolation"]
 group | "Parameters" |
+combo | "Method:" | value="Central difference" items=["Central difference", "Forward difference", "Backward difference"]
 group | "Segment (index range)" |
 label | "Start index:" |
 number | "" | value=0 range=0..99 decimals=0
@@ -23,4 +24,3 @@ button | "Preview" |
 text | "" | value="" placeholder="Preview results will appear here..." read-only
 button | "Apply" |
 button | "Clear" |
-combo | "Method:" | value="Central difference" items=["Central difference", "Forward difference", "Backward difference"]
