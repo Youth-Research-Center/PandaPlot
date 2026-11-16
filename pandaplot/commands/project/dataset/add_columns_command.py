@@ -9,6 +9,7 @@ import pandas as pd
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
+from pandaplot.commands.project.dataset.column_identity import keep_created_column_ids
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData
 from pandaplot.models.events.event_types import DatasetOperationEvents
@@ -61,13 +62,15 @@ class AddColumnsCommand(Command):
         self.project = None
         self.dataset = None
         self.final_insertion_positions = []  # Store actual positions where columns were inserted
+        # Ids the added columns got on the first execute(), given back on redo() (#667).
+        self._added_column_ids: dict[str, str] = {}
 
     @override
     def execute(self) -> CommandResult:
         """Execute the add multiple columns command."""
         try:
             self.logger.info(f"Executing AddColumnsCommand: adding {len(self.column_names)} columns {self.side.value}")
-            
+
             # Validate input
             if not self.column_names:
                 self.logger.warning("AddColumnsCommand.execute: no column names provided")
@@ -179,22 +182,18 @@ class AddColumnsCommand(Command):
                     "Duplicate column names found in the list of new columns."
                 )
                 return CommandResult.FAILURE
-            
+
             # Insert columns using the new logic
             new_data = self._insert_columns_with_new_logic(self.dataset.data)
-            
+
             # Update dataset
             self.dataset.set_data(new_data)
-            
-            # Emit event with final insertion positions
-            self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_COLUMN_ADDED, DatasetColumnsAddedData(
-                dataset_id=self.dataset_id,
-                column_positions=self.final_insertion_positions
-            ).to_dict())
+            self._added_column_ids = keep_created_column_ids(self.dataset, self.column_names, {})
+            self._emit_columns_added()
 
             self.logger.info(f"Added {len(self.column_names)} columns to dataset '{self.dataset.name}' (ID: {self.dataset_id})")
             return CommandResult.SUCCESS
-            
+
         except Exception as e:
             self.logger.exception("AddColumnsCommand Error")
             self.ui_controller.show_error_message("Add Columns Error", "Couldn't add the columns.", error=e)
@@ -213,17 +212,17 @@ class AddColumnsCommand(Command):
         # Start with a copy of the current data
         result_data = data.copy()
         self.final_insertion_positions = []
-        
+
         # Group consecutive positions
         consecutive_groups = self._group_consecutive_positions()
-        
+
         # Process groups from right to left to avoid position shifts
         for group in reversed(consecutive_groups):
             group_positions = [item[0] for item in group]
             group_columns = [item[1] for item in group]
             group_defaults = [item[2] for item in group]
             group_indices = [item[3] for item in group]
-            
+
             # Calculate insertion position for this group
             if self.side == InsertionSide.LEFT:
                 # Insert before the first position in the group
@@ -231,20 +230,20 @@ class AddColumnsCommand(Command):
             else:  # RIGHT
                 # Insert after the last position in the group
                 insertion_pos = max(group_positions) + 1
-            
+
             # Insert all columns for this group as a block
             result_data = self._insert_column_block(result_data, insertion_pos, group_columns, group_defaults)
-            
+
             # Track final positions for this group
             for i, original_idx in enumerate(group_indices):
                 self.final_insertion_positions.append((insertion_pos + i, original_idx))
-        
+
         # Sort final positions by original index to match the order of input column names
         self.final_insertion_positions.sort(key=lambda x: x[1])
         self.final_insertion_positions = [pos for pos, _ in self.final_insertion_positions]
-        
+
         return result_data
-    
+
     def _group_consecutive_positions(self):
         """
         Group consecutive reference positions with their corresponding column data.
@@ -254,20 +253,20 @@ class AddColumnsCommand(Command):
         """
         # Create list of (reference_position, column_name, default_value, original_index)
         items = list(zip(self.reference_positions, self.column_names, self.default_values, range(len(self.column_names)), strict=False))
-        
+
         # Sort by reference position
         items.sort(key=lambda x: x[0])
-        
+
         if not items:
             return []
-        
+
         groups = []
         current_group = [items[0]]
-        
+
         for i in range(1, len(items)):
             current_pos = items[i][0]
             prev_pos = items[i-1][0]
-            
+
             # If positions are consecutive, add to current group
             if current_pos == prev_pos + 1:
                 current_group.append(items[i])
@@ -275,12 +274,12 @@ class AddColumnsCommand(Command):
                 # Start a new group
                 groups.append(current_group)
                 current_group = [items[i]]
-        
+
         # Don't forget the last group
         groups.append(current_group)
-        
+
         return groups
-    
+
     def _insert_column_block(self, data: pd.DataFrame, position: int, column_names: list[str], default_values: list[Any]) -> pd.DataFrame:
         """
         Insert multiple columns as a block at the specified position.
@@ -296,11 +295,11 @@ class AddColumnsCommand(Command):
         """
         # Clamp position to valid range
         position = max(0, min(position, len(data.columns)))
-        
+
         # Prepare new columns data
         new_columns_data = {}
         num_rows = len(data)
-        
+
         for col_name, default_val in zip(column_names, default_values, strict=False):
             if default_val is None:
                 # No explicit value given: new columns default to float64/0.0.
@@ -311,7 +310,7 @@ class AddColumnsCommand(Command):
                 new_columns_data[col_name] = pd.Series([default_val] * num_rows, name=col_name, index=data.index)
             else:
                 new_columns_data[col_name] = pd.Series([str(default_val)] * num_rows, name=col_name, index=data.index)
-        
+
         if position >= len(data.columns):
             # Append at end
             new_df = pd.DataFrame(new_columns_data, index=data.index)
@@ -319,19 +318,19 @@ class AddColumnsCommand(Command):
         else:
             # Insert at specific position using pd.concat to avoid fragmentation
             columns = list(data.columns)
-            
+
             # Split into before and after
             before_cols = columns[:position]
             after_cols = columns[position:]
-            
+
             # Create DataFrames
             before_df = data[before_cols] if before_cols else pd.DataFrame(index=data.index)
             after_df = data[after_cols] if after_cols else pd.DataFrame(index=data.index)
             new_df = pd.DataFrame(new_columns_data, index=data.index)
-            
+
             # Concatenate all parts at once to avoid fragmentation
             result = pd.concat([before_df, new_df, after_df], axis=1)
-        
+
         return result
 
     def undo(self) -> CommandResult:
@@ -360,9 +359,40 @@ class AddColumnsCommand(Command):
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
-        """Redo the add columns command."""
-        # Re-execute with stored parameters
-        return self.execute()
+        """Insert the same columns again, with the ids they got the first time.
+
+        Replays the original insertion instead of re-running ``execute()``, which would validate and prompt again,
+        re-take the undo snapshot and give the columns new ids that later commands do not reference (#667).
+        """
+        if self.dataset is None or self.dataset.data is None or self.original_data is None:
+            self.logger.warning("AddColumnsCommand.redo: dataset '%s' was never changed by execute()", self.dataset_id)
+            return CommandResult.ABORTED
+        clashing = [name for name in self.column_names if name in self.dataset.data.columns]
+        if clashing:
+            self.logger.warning(
+                "AddColumnsCommand.redo: dataset '%s' already has columns %s; not adding them again",
+                self.dataset_id, clashing,
+            )
+            return CommandResult.ABORTED
+        taken_ids = [cid for cid in self._added_column_ids.values() if cid in self.dataset.column_ids]
+        if taken_ids:
+            self.logger.warning("AddColumnsCommand.redo: column ids %s are already in use", taken_ids)
+            return CommandResult.ABORTED
+        try:
+            self.dataset.set_data(self._insert_columns_with_new_logic(self.dataset.data))
+            keep_created_column_ids(self.dataset, self.column_names, self._added_column_ids)
+            self._emit_columns_added()
+            return CommandResult.SUCCESS
+        except Exception:
+            self.logger.exception("AddColumnsCommand Redo Error")
+            return CommandResult.FAILURE
+
+    def _emit_columns_added(self) -> None:
+        """Tell subscribers where the new columns were inserted."""
+        self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_COLUMN_ADDED, DatasetColumnsAddedData(
+            dataset_id=self.dataset_id,
+            column_positions=self.final_insertion_positions
+        ).to_dict())
 
     @override
     def cleanup(self) -> None:

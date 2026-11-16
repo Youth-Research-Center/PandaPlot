@@ -14,6 +14,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 ## [Unreleased]
 
 ### Fixed
+- Undoing and redoing a command that added columns (**Add Columns**, **Add Rows / Columns**, a paste that grew the table, an analysis result or a preprocessing column) now brings the columns back with the same identity, so formula columns, chart series and fits created from them afterwards still find them (#667).
 - A **Save As** that could not write the file no longer leaves the project pointing at that location, so the next Save goes to the original file again. A paste that fails partway, for example on a cell that cannot be stored, now leaves the dataset as it was, instead of keeping the rows it had added and the cells it had already written (#561).
 - Inserting a chart snapshot into a note no longer moves the caret back to where **Insert** was clicked when the render finishes: if you moved the caret, selected text or kept typing meanwhile, the caret and selection stay where you left them (#526).
 - Applying an **Interpolation** in the Analysis Operations panel no longer fails when **Points** (100 by default) is larger than the number of rows, and it now respects the Start and End rows. An interpolation has its own X values, so the result is added to the project as a new dataset (X and interpolated Y), as on the chart tab, instead of a column of the analyzed dataset (#576).

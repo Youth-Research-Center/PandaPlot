@@ -145,3 +145,38 @@ def test_inserted_row_keeps_bool_column_bool(mock_app_context, project_with):
     assert command.execute() is CommandResult.SUCCESS
     pd.testing.assert_series_equal(dataset.data["flag"], pd.Series([True, False, False], name="flag"))
     pd.testing.assert_series_equal(dataset.data["n"], pd.Series([1, 0, 2], name="n"))
+
+
+def test_redo_replays_the_rows_without_retaking_the_undo_snapshot(mock_app_context, project_with):
+    """#667: redo() inserts the same rows again instead of re-running execute()."""
+    app_context, app_state, ui_controller = mock_app_context
+    dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1.0, 2.0, 3.0]}))
+    project_with(dataset)
+    command = AddRowsCommand(app_context, "ds-1", reference_positions=[0, 2], side="below")
+    assert command.execute() is CommandResult.SUCCESS
+    data_after_execute = dataset.data.copy()
+    ids_after_execute = dict(dataset.column_ids)
+    snapshot = command.original_data
+    assert command.undo() is CommandResult.SUCCESS
+    app_state.event_bus.emit.reset_mock()
+
+    assert command.redo() is CommandResult.SUCCESS
+
+    pd.testing.assert_frame_equal(dataset.data, data_after_execute)
+    assert dict(dataset.column_ids) == ids_after_execute
+    assert command.original_data is snapshot
+    assert ui_controller.method_calls == []
+    app_state.event_bus.emit.assert_called_once()
+
+
+def test_redo_aborts_when_the_row_count_changed(mock_app_context, project_with):
+    app_context, _, _ = mock_app_context
+    dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1.0, 2.0]}))
+    project_with(dataset)
+    command = AddRowsCommand(app_context, "ds-1", reference_positions=[0])
+    assert command.execute() is CommandResult.SUCCESS
+    before = dataset.data.copy()
+
+    assert command.redo() is CommandResult.ABORTED
+
+    pd.testing.assert_frame_equal(dataset.data, before)

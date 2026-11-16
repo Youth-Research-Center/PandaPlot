@@ -51,11 +51,11 @@ class AddRowsCommand(Command):
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
         self.ui_controller: UIController = app_context.get_ui_controller()
-        
+
         self.dataset_id = dataset_id
         self.reference_positions = reference_positions
         self.side = InsertionSide(side)
-        
+
         # Store state for undo
         self.original_data = None
         self.project = None
@@ -67,7 +67,7 @@ class AddRowsCommand(Command):
         """Execute the add multiple rows command."""
         try:
             self.logger.info(f"Executing AddRowsCommand: adding {len(self.reference_positions)} rows {self.side.value}")
-            
+
             # Validate input
             if not self.reference_positions:
                 self.logger.warning(
@@ -150,22 +150,17 @@ class AddRowsCommand(Command):
                         f"Reference position {pos} is out of bounds (0-{num_rows-1})."
                     )
                     return CommandResult.FAILURE
-            
+
             # Insert rows using the new logic
             new_data = self._insert_rows_with_new_logic(self.dataset.data)
-            
+
             # Update dataset
             self.dataset.set_data(new_data)
-            
-            # Emit event with final insertion positions
-            self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_ROW_ADDED, DatasetRowsAddedData(
-                dataset_id=self.dataset_id,
-                row_positions=self.final_insertion_positions
-            ).to_dict())
+            self._emit_rows_added()
 
             self.logger.info(f"Added {len(self.reference_positions)} rows to dataset '{self.dataset.name}' (ID: {self.dataset_id})")
             return CommandResult.SUCCESS
-            
+
         except Exception as e:
             self.logger.exception("AddRowsCommand Error")
             self.ui_controller.show_error_message("Add Rows Error", "Couldn't add the rows.", error=e)
@@ -183,10 +178,10 @@ class AddRowsCommand(Command):
         # Start with a copy of the current data
         result_data = data.copy()
         self.final_insertion_positions = []
-        
+
         # Group consecutive positions
         consecutive_groups = self._group_consecutive_positions(self.reference_positions)
-        
+
         # Process each group from bottom to top to avoid position shifts
         for group in reversed(consecutive_groups):
             # Determine insertion position for this group
@@ -196,20 +191,20 @@ class AddRowsCommand(Command):
             else:  # BELOW
                 # Insert below the last row in the group
                 insertion_pos = max(group) + 1
-            
+
             # Insert one row per position in the group
             rows_to_insert = len(group)
             result_data = self._insert_row_block(result_data, insertion_pos, rows_to_insert)
-            
+
             # Track the final positions
             for i in range(rows_to_insert):
                 self.final_insertion_positions.append(insertion_pos + i)
-        
+
         # Reverse the final positions since we processed groups in reverse order
         self.final_insertion_positions.reverse()
-        
+
         return result_data
-    
+
     def _group_consecutive_positions(self, positions: list[int]) -> list[list[int]]:
         """
         Group consecutive positions together.
@@ -222,27 +217,27 @@ class AddRowsCommand(Command):
         """
         if not positions:
             return []
-        
+
         # Sort positions to handle them in order
         sorted_positions = sorted(set(positions))  # Remove duplicates and sort
-        
+
         groups = []
         current_group = [sorted_positions[0]]
-        
+
         for i in range(1, len(sorted_positions)):
             pos = sorted_positions[i]
             prev_pos = sorted_positions[i-1]
-            
+
             # Check if this position is consecutive to the previous one
             if pos == prev_pos + 1:
                 current_group.append(pos)
             else:
                 groups.append(current_group)
                 current_group = [pos]
-        
+
         groups.append(current_group)
         return groups
-    
+
     def _insert_row_block(self, data: pd.DataFrame, position: int, num_rows: int) -> pd.DataFrame:
         """
         Insert multiple rows as a block at the specified position.
@@ -257,7 +252,7 @@ class AddRowsCommand(Command):
         """
         # Clamp position to valid range
         position = max(0, min(position, len(data)))
-        
+
         # Create new rows with default values
         new_rows_data = []
         for _ in range(num_rows):
@@ -265,10 +260,10 @@ class AddRowsCommand(Command):
             for column in data.columns:
                 new_row[column] = self._get_default_value_for_column(data, column)
             new_rows_data.append(new_row)
-        
+
         # Create DataFrame for new rows
         new_rows_df = pd.DataFrame(new_rows_data, columns=data.columns)
-        
+
         if position >= len(data):
             # Append at end
             result = pd.concat([data, new_rows_df], ignore_index=True)
@@ -277,13 +272,13 @@ class AddRowsCommand(Command):
             before = data.iloc[:position]
             after = data.iloc[position:]
             result = pd.concat([before, new_rows_df, after], ignore_index=True)
-        
+
         return result
-    
+
     def _get_default_value_for_column(self, data: pd.DataFrame, column: str) -> Any:
         """Generate appropriate default value based on column type."""
         col_dtype = data[column].dtype
-        
+
         # bool is also a numeric dtype, so it must be checked first.
         if pd.api.types.is_bool_dtype(col_dtype):
             return False
@@ -320,9 +315,34 @@ class AddRowsCommand(Command):
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
-        """Redo the add rows command."""
-        # Re-execute with stored parameters
-        return self.execute()
+        """Insert the same rows again.
+
+        Replays the original insertion instead of re-running ``execute()``, which would validate and prompt again and
+        re-take the undo snapshot (#667).
+        """
+        if self.dataset is None or self.dataset.data is None or self.original_data is None:
+            self.logger.warning("AddRowsCommand.redo: dataset '%s' was never changed by execute()", self.dataset_id)
+            return CommandResult.ABORTED
+        if len(self.dataset.data) != len(self.original_data):
+            self.logger.warning(
+                "AddRowsCommand.redo: dataset '%s' has %d rows, not the %d the rows were inserted into",
+                self.dataset_id, len(self.dataset.data), len(self.original_data),
+            )
+            return CommandResult.ABORTED
+        try:
+            self.dataset.set_data(self._insert_rows_with_new_logic(self.dataset.data))
+            self._emit_rows_added()
+            return CommandResult.SUCCESS
+        except Exception:
+            self.logger.exception("AddRowsCommand Redo Error")
+            return CommandResult.FAILURE
+
+    def _emit_rows_added(self) -> None:
+        """Tell subscribers where the new rows were inserted."""
+        self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_ROW_ADDED, DatasetRowsAddedData(
+            dataset_id=self.dataset_id,
+            row_positions=self.final_insertion_positions
+        ).to_dict())
 
     @override
     def cleanup(self) -> None:

@@ -12,6 +12,7 @@ from pandaplot.analysis.preprocessing_types import PREPROCESSING_METHODS
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.column_change_events import emit_columns_changed
+from pandaplot.commands.project.dataset.column_identity import keep_created_column_ids
 from pandaplot.commands.project.dataset.formula_guard import refuse_live_formula_edit
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items import Dataset
@@ -54,6 +55,7 @@ class PreprocessColumnCommand(Command):
         # State for undo/redo: (target_column, existed_before, original_data)
         self.dataset: Dataset | None = None
         self._undo_state: list[tuple[str, bool, pd.Series | None]] = []
+        self._created_column_ids: dict[str, str] = {}
 
     def _target_name(self, source_column: str) -> str:
         """Resolve the result column name for a source column."""
@@ -102,6 +104,8 @@ class PreprocessColumnCommand(Command):
                 df[target] = result.data
 
             self.dataset.set_data(df)
+            # redo() re-runs execute(): give the created columns back their first ids (#667).
+            self._created_column_ids = keep_created_column_ids(self.dataset, added_columns, self._created_column_ids)
             emit_columns_changed(
                 self.app_context, self.dataset_id, self.dataset.data,
                 added_columns, replaced_columns,

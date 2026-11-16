@@ -612,3 +612,19 @@ class TestApplyAnalysisResultCommand:
             column_existed_before=False, original_data=None,
         )
         assert command.execute() is CommandResult.FAILURE
+
+
+def test_apply_analysis_result_redo_keeps_the_created_column_id(ctx):
+    """#667: redo() re-runs execute(), which must not give the result column a new id."""
+    app_context, _, dataset, _ = ctx
+    command = ApplyAnalysisResultCommand(
+        app_context, "ds-1", "dydx", pd.Series(np.arange(11.0)),
+        column_existed_before=False, original_data=None,
+    )
+    assert command.execute() is CommandResult.SUCCESS
+    ids_after_execute = list(dataset.column_ids.items())
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert command.redo() is CommandResult.SUCCESS
+
+    assert list(dataset.column_ids.items()) == ids_after_execute

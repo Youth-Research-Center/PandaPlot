@@ -365,7 +365,6 @@ class TestBatchEditExpansion:
         # execute, undo and redo all tell subscribers which dataset changed.
         assert [p["dataset_id"] for p in _data_changed_payloads(mock_app_context)] == ["ds-1", "ds-1", "ds-1"]
 
-    @pytest.mark.xfail(strict=True, reason="#667: AddColumnsCommand.redo() re-runs execute() and mints new column IDs")
     def test_redo_keeps_the_ids_of_columns_the_paste_added(self, mock_app_context, project_with_dataset):
         dataset = project_with_dataset
         command = EditBatchCommand(mock_app_context, "ds-1", 0, 1, [[10.0, 11.0]])
@@ -376,6 +375,25 @@ class TestBatchEditExpansion:
         assert command.redo() is CommandResult.SUCCESS
 
         assert dict(dataset.column_ids) == column_ids_after
+
+    def test_redo_aborts_and_rolls_back_when_an_expansion_cannot_be_replayed(
+        self, mock_app_context, project_with_dataset, monkeypatch,
+    ):
+        """A paste that grew rows and columns must not half-replay: if the column
+        expansion cannot be redone, the rows it re-added are removed again."""
+        dataset = project_with_dataset
+        command = EditBatchCommand(mock_app_context, "ds-1", 1, 1, [[10.0, 11.0], [12.0, 13.0]])
+        assert command.execute() is CommandResult.SUCCESS
+        assert command.undo() is CommandResult.SUCCESS
+        before = dataset.data.copy()
+        monkeypatch.setattr(
+            "pandaplot.commands.project.dataset.edit_batch_command.AddColumnsCommand.redo",
+            lambda self: CommandResult.ABORTED,
+        )
+
+        assert command.redo() is CommandResult.ABORTED
+
+        pd.testing.assert_frame_equal(dataset.data, before)
 
     def test_failed_column_expansion_rolls_back_the_rows_it_added(self, mock_app_context, project_with_dataset, monkeypatch):
         """A paste that cannot add its columns must not leave behind the rows it
