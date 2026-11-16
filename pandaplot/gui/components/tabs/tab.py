@@ -135,6 +135,7 @@ class CustomTabWidget(PTabWidget):
         accent = palette.get("accent", "#4A90E2")
 
         accent_pressed = tokens["accent_pressed"]
+        on_accent = tokens["on_accent"]
 
         overlay_color = QColor(accent)
         overlay_r, overlay_g, overlay_b = (
@@ -214,11 +215,11 @@ class CustomTabWidget(PTabWidget):
             }}
             QMenu::item:selected {{
                 background-color: {accent};
-                color: {card_bg};
+                color: {on_accent};
             }}
             QMenu::item:pressed {{
                 background-color: {accent_pressed};
-                color: {card_bg};
+                color: {on_accent};
             }}
             QMenu::separator {{
                 height: 1px;

@@ -38,7 +38,8 @@ def test_adjust_until_contrast_falls_back_to_black_or_white() -> None:
     background = QColor("#808080")
     result = adjust_until_contrast(QColor("#7F7F7F"), background, min_ratio=21.0, lighten=True)
 
-    assert result.name() == contrasting_text_color(background).name()
+    # Black has 5.32:1 on #808080, white 3.95:1, so black is the better fallback.
+    assert result.name() == "#000000"
 
 
 def test_mix_interpolates_each_channel() -> None:

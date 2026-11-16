@@ -16,6 +16,7 @@ from pandaplot.models.events.event_types import ThemeEvents
 from pandaplot.models.project import Project
 from pandaplot.models.project.items.sketch import LineElement, Sketch, SketchLayer
 from pandaplot.models.state.config import Theme
+from pandaplot.services.theme.contrast import contrast_ratio
 from pandaplot.services.theme.theme_manager import ThemeContext, ThemeManager
 from tests.gui.theme_testing import DEFAULT_ACCENT
 
@@ -166,10 +167,11 @@ def test_status_and_zoom_labels_show_canvas_feedback(tab):
 
 
 @pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
-def test_checked_tool_text_is_legible(app_context, tab, theme: Theme) -> None:
+@pytest.mark.parametrize("accent", ["#0E7C86", DEFAULT_ACCENT])
+def test_checked_tool_text_is_legible(app_context, tab, theme: Theme, accent: str) -> None:
     """#581: the checked toolbar button draws `accent_active_text` on `accent_selected_bg`."""
     manager = app_context.get_manager(ThemeManager)
-    manager._current = ThemeContext(theme=theme, accent=DEFAULT_ACCENT, interface_font_size=10)
+    manager._current = ThemeContext(theme=theme, accent=accent, interface_font_size=10)
     app_context.event_bus.emit(ThemeEvents.THEME_CHANGED, {})
     tokens = manager.get_design_tokens()
     rule = tab.toolbar.styleSheet().split("QToolBar > QToolButton:checked {", 1)[1].split("}", 1)[0]
@@ -177,4 +179,4 @@ def test_checked_tool_text_is_legible(app_context, tab, theme: Theme) -> None:
 
     assert f"color: {tokens['accent_active_text']};" in declarations
     assert f"background-color: {tokens['accent_selected_bg']};" in declarations
-    assert ThemeManager._contrast_ratio(QColor(tokens["accent_active_text"]), QColor(tokens["accent_selected_bg"])) >= 4.5
+    assert contrast_ratio(QColor(tokens["accent_active_text"]), QColor(tokens["accent_selected_bg"])) >= 4.5

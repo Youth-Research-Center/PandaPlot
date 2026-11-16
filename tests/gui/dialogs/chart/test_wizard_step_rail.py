@@ -184,3 +184,20 @@ def test_completed_step_check_is_legible_on_its_circle(monkeypatch, theme: Theme
     assert ("check", tokens["accent_active_text"]) in requested
     assert Counter(opaque).most_common(1)[0][0] == tokens["accent_selected_bg"]
     assert contrast_ratio(QColor(tokens["accent_active_text"]), QColor(tokens["accent_selected_bg"])) >= 4.5
+
+
+def test_current_step_number_uses_on_accent_over_a_light_accent() -> None:
+    """On a yellow accent `on_accent` is black; a hard-coded white number would be unreadable."""
+    tokens = design_tokens(accent="#FFD400")
+    assert tokens["on_accent"] == "#000000"
+    rail = WizardStepRail(["Type", "Data", "Labels"])
+    rail.set_state(current_index=1, summaries={})
+    rail.set_tokens(tokens)
+
+    image = rail._step_widgets[1].icon().pixmap(17, 17, QIcon.Mode.Normal).toImage()
+    accent = QColor(tokens["accent"])
+    opaque = [image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height()) if image.pixelColor(x, y).alpha() == 255]
+    farthest = max(opaque, key=lambda pixel: abs(pixel.lightness() - accent.lightness()))
+
+    assert contrast_ratio(farthest, accent) >= 3.0
+    assert farthest.lightness() < accent.lightness()

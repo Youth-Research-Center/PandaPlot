@@ -57,7 +57,7 @@ class ToggleSwitch(QAbstractButton):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         on_color = QColor(self._tokens.get("accent", "#4A56C6"))
-        off_color = QColor(self._tokens.get("border_panel", "#E5E6EA"))
+        off_color = QColor(self._tokens.get("toggle_off", "#8B8E96"))
         track_color = on_color if self.isChecked() else off_color
 
         painter.setPen(Qt.PenStyle.NoPen)

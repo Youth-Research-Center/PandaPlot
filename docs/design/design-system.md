@@ -96,7 +96,7 @@ New semantic tokens (the handoff only defines `danger`; the 1e mock, `StatusMess
   primary button label fails AA. It becomes `#0F7780` (5.29:1), between `accent` `#11808A` (4.69:1) and
   `accent_pressed` `#0C6E77` (5.98:1), so dark hover darkens the button as light hover already does.
 - Any other stored accent derives the same tokens plus `accent_disabled` (mix with `bg_surface` at 0.55) and a
-  separate, lighter dark-theme `focus`, adjusting each in steps (as `_accent_icon_color` does) until it passes the
+  separate, lighter dark-theme `focus`, adjusting each in steps (as `contrast.adjust_until_contrast` does) until it passes the
   pairs in section 5.2. The Settings accent picker stays.
 - The wizard's series swatches (`series_palette` token, `series_config_card.py`) use the chart's real default series
   colours (`default_series_color`) instead of a separate palette, so a wizard preview matches the chart it creates.
