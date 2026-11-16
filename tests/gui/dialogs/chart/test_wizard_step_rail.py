@@ -1,11 +1,15 @@
 """Tests for WizardStepRail."""
+from collections import Counter
+
 import pytest
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.dialogs.chart import wizard_step_rail
 from pandaplot.gui.dialogs.chart.wizard_step_rail import WizardStepRail
-from tests.gui.theme_testing import design_tokens
+from pandaplot.models.state.config import Theme
+from pandaplot.services.theme.contrast import contrast_ratio
+from tests.gui.theme_testing import DEFAULT_ACCENT, design_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -159,3 +163,24 @@ def test_completed_circle_draws_the_bundled_check_icon_in_the_completed_colour(m
     ]
     assert check_pixels, "no pixel of the completed colour where the check is drawn"
     assert all(3 <= x <= 13 and 3 <= y <= 13 for x, y in check_pixels)
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+@pytest.mark.parametrize("accent", ["#0E7C86", DEFAULT_ACCENT])
+def test_completed_step_check_is_legible_on_its_circle(monkeypatch, theme: Theme, accent: str) -> None:
+    """#581: the completed circle is filled with `accent_selected_bg` and its check is tinted `accent_active_text`, which reaches 4.5:1."""
+    requested = []
+    real_build_icon = wizard_step_rail.build_icon
+
+    def spy(name, color, **kwargs):
+        requested.append((name, color))
+        return real_build_icon(name, color, **kwargs)
+
+    monkeypatch.setattr(wizard_step_rail, "build_icon", spy)
+    tokens = design_tokens(theme, accent=accent)
+    image = wizard_step_rail._circle_icon("completed", 1, tokens).pixmap(17, 17).toImage()
+    opaque = [image.pixelColor(x, y).name().upper() for x in range(image.width()) for y in range(image.height()) if image.pixelColor(x, y).alpha() == 255]
+
+    assert ("check", tokens["accent_active_text"]) in requested
+    assert Counter(opaque).most_common(1)[0][0] == tokens["accent_selected_bg"]
+    assert contrast_ratio(QColor(tokens["accent_active_text"]), QColor(tokens["accent_selected_bg"])) >= 4.5

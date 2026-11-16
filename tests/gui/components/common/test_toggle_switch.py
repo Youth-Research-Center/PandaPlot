@@ -4,9 +4,13 @@ import sys
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.components.common.toggle_switch import ToggleSwitch, knob_x_for_state
+from pandaplot.models.state.config import Theme
+from pandaplot.services.theme.contrast import contrast_ratio
+from tests.gui.theme_testing import DEFAULT_ACCENT, design_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -63,3 +67,24 @@ def test_toggle_switch_set_checked_emits_toggled_once_per_change(qtbot):
     toggle.setChecked(checked=True)
 
     assert emitted == [True]
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+@pytest.mark.parametrize("accent", ["#0E7C86", DEFAULT_ACCENT])
+def test_checked_focus_ring_stands_out_from_the_accent_track(qtbot, theme: Theme, accent: str) -> None:
+    """#581: when checked, the focus ring is drawn over the accent track, so it needs 3:1 against `accent`."""
+    toggle = ToggleSwitch(checked=True)
+    qtbot.addWidget(toggle)
+    tokens = design_tokens(theme, accent=accent)
+    toggle.set_tokens(tokens)
+
+    assert contrast_ratio(toggle._focus_ring_color(), QColor(tokens["accent"])) >= 3.0
+
+
+def test_unchecked_focus_ring_uses_the_accent(qtbot) -> None:
+    toggle = ToggleSwitch(checked=False)
+    qtbot.addWidget(toggle)
+    tokens = design_tokens()
+    toggle.set_tokens(tokens)
+
+    assert toggle._focus_ring_color().name().upper() == tokens["accent"]
