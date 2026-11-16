@@ -14,7 +14,7 @@ from pandaplot.models.project import Project
 from pandaplot.models.project.items import Chart
 from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.state.app_context import AppContext
-from tests.gui.icon_testing import ICON_TOKENS
+from tests.gui.theme_testing import design_tokens, surface_palette
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -27,8 +27,8 @@ def _context() -> Mock:
     """A spec'd context whose theme manager serves real design tokens, as the dialog header icon needs."""
     context = Mock(spec=AppContext)
     context.event_bus = Mock()
-    context.get_manager.return_value.get_surface_palette.return_value = {}
-    context.get_manager.return_value.get_design_tokens.return_value = dict(ICON_TOKENS)
+    context.get_manager.return_value.get_surface_palette.return_value = surface_palette()
+    context.get_manager.return_value.get_design_tokens.return_value = design_tokens()
     return context
 
 

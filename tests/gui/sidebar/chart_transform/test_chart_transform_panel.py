@@ -23,7 +23,9 @@ from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+from pandaplot.models.state.config import Theme
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.theme_testing import design_tokens
 
 
 def same_pixels(first, second) -> bool:
@@ -57,7 +59,7 @@ def project():
 def app_context(project):
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
+    ctx.get_manager.return_value.get_design_tokens.return_value = design_tokens()
     app_state = Mock(spec=AppState)
     app_state.has_project = True
     app_state.current_project = project
@@ -373,9 +375,8 @@ def test_insert_function_button_is_text_with_a_function_icon_and_still_opens_its
 
 
 def test_insert_function_icon_retints_when_the_theme_changes(panel, app_context):
-    tokens = app_context.get_manager.return_value.get_design_tokens.return_value
     before = panel.insert_function_btn.icon().pixmap(QSize(16, 16)).toImage()
-    app_context.get_manager.return_value.get_design_tokens.return_value = {**tokens, "text_primary": "#E2E2E2", "text_disabled": "#5B6270"}
+    app_context.get_manager.return_value.get_design_tokens.return_value = design_tokens(Theme.DARK)
 
     panel._apply_theme()
 

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0;background:#E8E9ED;color:#1C1E26;font-family:'IBM Plex Sans',sans-serif}a{color:#0A5F67}a:hover{color:#1C1E26}*{box-sizing:border-box}</style>
+</helmet>
+<section id="step4" data-screen-label="Step 4 Multi-select" style="padding:56px; display:flex; flex-direction:column; gap:56px; width:2440px">
+  <header style="display:flex; flex-direction:column; gap:10px; max-width:1200px">
+    <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#5B6270; letter-spacing:1px">PANDAPLOT COMPONENTS · STEP 4 · MULTI-SELECT</span>
+    <h1 style="margin:0; font-size:44px; font-weight:600; letter-spacing:-0.5px">Multi-select list</h1>
+    <p style="margin:0; font-size:18px; line-height:1.5; color:#3F4350; text-wrap:pretty">You asked for all three forms. As with dialogs, each suits a different job, so each card says where it fits. Built on the approved tokens, 3a buttons, 3g dropdown styling and the focus ring. Pick which to keep (any or all), and one detail per kept form.</p>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; padding-top:6px">
+      <sc-for list="{{ picks }}" as="pk" hint-placeholder-count="5"><span style="font-family:'IBM Plex Mono',monospace; font-size:13px; padding:5px 10px; border-radius:5px; background:#FFFFFF; border:1px solid #D5D8DE">{{ pk }}</span></sc-for>
+    </div>
+  </header>
+
+  <div style="display:flex; flex-direction:column; gap:18px">
+    <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start">
+      <sc-for list="{{ opts }}" as="opt" hint-placeholder-count="3">
+        <div id="{{ opt.id }}" style="width:760px; background:#FFFFFF; border:1px solid #D5D8DE; border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:14px">
+          <div style="display:flex; gap:12px; align-items:flex-start">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500; background:#1C1E26; color:#FFFFFF; padding:4px 9px; border-radius:6px">{{ opt.id }}</span>
+            <div style="display:flex; flex-direction:column; gap:3px; flex:1; min-width:0">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap"><span style="font-size:18px; font-weight:600">{{ opt.title }}</span><sc-if value="{{ opt.bold }}"><span style="font-size:12px; font-weight:600; color:#6A2C91; background:#F2E8F9; padding:2px 8px; border-radius:4px">Bold</span></sc-if></div>
+              <span style="font-size:14px; color:#5B6270; line-height:1.45; text-wrap:pretty">{{ opt.sub }}</span>
+              <span style="font-size:13px; color:#0A5F67; font-weight:600; padding-top:2px">Use for: {{ opt.use }}</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px">
+            <sc-for list="{{ opt.themes }}" as="t" hint-placeholder-count="2">
+              <div style="flex:1 1 0; min-width:0; background:{{ t.surface }}; color:{{ t.text }}; border:1px solid {{ t.bPanel }}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:12px; font-family:'Segoe UI', system-ui, sans-serif; font-size:{{ t.font }}px">
+                <span style="font-weight:700; font-size:11px; color:{{ t.muted }}; letter-spacing:.5px">{{ t.label }}</span>
+                <sc-for list="{{ t.states }}" as="st" hint-placeholder-count="3">
+                  <div style="display:flex; flex-direction:column; gap:5px">
+                    <span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ st.s }}</span>
+
+                    <sc-if value="{{ opt.kList }}">
+                      <div style="border:1px solid {{ t.bControl }}; border-radius:4px; outline:{{ st.ring }}; outline-offset:1px; display:flex; flex-direction:column; overflow:hidden">
+                        <div style="height:{{ t.h }}px; display:flex; align-items:center; gap:8px; padding:0 {{ t.px }}px; border-bottom:1px solid {{ t.bSubtle }}; background:{{ t.inset }}">
+                          <div style="width:14px; height:14px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; background:{{ st.allBg }}; border:1px solid {{ st.allBd }}; color:#FFFFFF">{{ st.allMark }}</div>
+                          <span style="font-weight:600; flex:1">{{ st.allLabel }}</span>
+                          <span style="font-size:11px; color:{{ t.muted }}">{{ st.count }}</span>
+                        </div>
+                        <sc-for list="{{ st.items }}" as="it">
+                          <div style="height:{{ t.h }}px; display:flex; align-items:center; gap:8px; padding:0 {{ t.px }}px; background:{{ it.bg }}; color:{{ it.col }}; outline:{{ it.ring }}; outline-offset:-2px">
+                            <div style="width:14px; height:14px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; background:{{ it.cbBg }}; border:1px solid {{ it.cbBd }}; color:#FFFFFF; flex:none">{{ it.mark }}</div>
+                            <span style="width:10px; height:3px; border-radius:2px; background:{{ it.sw }}; flex:none"></span>
+                            <span style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ it.l }}</span>
+                            <span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ it.meta }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+
+                    <sc-if value="{{ opt.kChips }}">
+                      <div style="display:flex; flex-direction:column; gap:3px">
+                        <div style="min-height:{{ t.h }}px; border:1px solid {{ st.fBd }}; outline:{{ st.ring }}; outline-offset:1px; border-radius:4px; display:flex; flex-wrap:wrap; align-items:center; gap:4px; padding:2px 4px; background:{{ st.fBg }}">
+                          <sc-for list="{{ st.chips }}" as="c"><span style="height:{{ t.hChip }}px; display:flex; align-items:center; gap:5px; padding:0 4px 0 7px; border-radius:4px; background:{{ c.bg }}; color:{{ c.col }}; font-size:11.5px; white-space:nowrap"><span style="width:8px; height:3px; border-radius:2px; background:{{ c.sw }}"></span>{{ c.l }}<span style="color:{{ c.xCol }}; font-size:11px; padding:0 2px">×</span></span></sc-for>
+                          <sc-if value="{{ st.more }}"><span style="font-size:11px; color:{{ t.muted }}; padding:0 4px">{{ st.more }}</span></sc-if>
+                          <sc-if value="{{ st.ph }}"><span style="color:{{ t.muted }}; padding:0 4px; font-style:italic">{{ st.ph }}</span></sc-if>
+                          <span style="flex:1"></span>
+                          <span style="font-size:8px; color:{{ t.muted }}; padding:0 4px">{{ st.chev }}</span>
+                        </div>
+                        <sc-if value="{{ st.open }}">
+                          <div style="background:{{ t.surface }}; border:1px solid {{ t.bPanel }}; border-radius:4px; padding:3px; display:flex; flex-direction:column; gap:1px">
+                            <div style="height:{{ t.h }}px; border:1px solid {{ t.bControl }}; border-radius:3px; display:flex; align-items:center; gap:2px; padding:0 {{ t.px }}px; margin-bottom:3px; color:{{ t.muted }}">Filter series…</div>
+                            <sc-for list="{{ st.popItems }}" as="it">
+                              <div style="height:{{ t.h }}px; display:flex; align-items:center; gap:8px; padding:0 {{ t.px }}px; border-radius:3px; background:{{ it.bg }}">
+                                <div style="width:14px; height:14px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; background:{{ it.cbBg }}; border:1px solid {{ it.cbBd }}; color:#FFFFFF; flex:none">{{ it.mark }}</div>
+                                <span style="width:10px; height:3px; border-radius:2px; background:{{ it.sw }}"></span>
+                                <span style="flex:1">{{ it.l }}</span>
+                              </div>
+                            </sc-for>
+                          </div>
+                        </sc-if>
+                      </div>
+                    </sc-if>
+
+                    <sc-if value="{{ opt.kDual }}">
+                      <div style="display:grid; grid-template-columns:minmax(0,1fr) 30px minmax(0,1fr); gap:6px; align-items:stretch">
+                        <sc-for list="{{ st.panes }}" as="pn">
+                          <sc-if value="{{ pn.isList }}">
+                            <div style="border:1px solid {{ t.bControl }}; outline:{{ pn.ring }}; outline-offset:1px; border-radius:4px; display:flex; flex-direction:column; overflow:hidden; min-width:0">
+                              <div style="height:22px; display:flex; align-items:center; justify-content:space-between; padding:0 {{ t.px }}px; background:{{ t.inset }}; border-bottom:1px solid {{ t.bSubtle }}"><span style="font-size:10.5px; font-weight:700; letter-spacing:.8px; color:{{ t.muted }}">{{ pn.title }}</span><span style="font-size:10px; color:{{ t.muted }}">{{ pn.count }}</span></div>
+                              <sc-for list="{{ pn.items }}" as="it">
+                                <div style="height:{{ t.h }}px; display:flex; align-items:center; gap:6px; padding:0 {{ t.px }}px; background:{{ it.bg }}; color:{{ it.col }}; font-weight:{{ it.w }}">
+                                  <sc-if value="{{ pn.grip }}"><span style="font-size:9px; color:{{ t.muted }}; letter-spacing:-1px">⋮⋮</span></sc-if>
+                                  <span style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ it.l }}</span>
+                                  <span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ it.meta }}</span>
+                                </div>
+                              </sc-for>
+                              <sc-if value="{{ pn.empty }}"><div style="flex:1; min-height:60px; display:flex; align-items:center; justify-content:center; padding:8px; text-align:center; font-size:11px; color:{{ t.muted }}">{{ pn.empty }}</div></sc-if>
+                            </div>
+                          </sc-if>
+                          <sc-if value="{{ pn.isMid }}">
+                            <div style="display:flex; flex-direction:column; justify-content:center; gap:4px">
+                              <sc-for list="{{ pn.btns }}" as="b"><div style="height:{{ t.h }}px; border:1px solid {{ b.bd }}; color:{{ b.col }}; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; justify-content:center; font-weight:600">{{ b.l }}</div></sc-for>
+                            </div>
+                          </sc-if>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:5px">
+            <sc-for list="{{ opt.notes }}" as="nt"><div style="display:grid; grid-template-columns:14px minmax(0,1fr); gap:6px; font-size:14px; line-height:1.45"><span style="color:{{ nt.col }}; font-weight:700">{{ nt.s }}</span><span style="text-wrap:pretty">{{ nt.t }}</span></div></sc-for>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px; padding:12px; background:#F4F5F8; border-radius:8px">
+            <span style="font-size:13px; font-weight:600">Detail to pick</span>
+            <sc-for list="{{ opt.variants }}" as="v">
+              <div style="display:grid; grid-template-columns:36px minmax(0,1fr); gap:8px; font-size:13.5px; line-height:1.45"><span style="font-family:'IBM Plex Mono',monospace; font-weight:600">{{ v.id }}</span><span style="text-wrap:pretty">{{ v.t }}<sc-if value="{{ v.rec }}"><span style="font-size:11px; font-weight:600; color:#1F6B42; background:#E3F4EA; padding:1px 6px; border-radius:4px; margin-left:6px">Recommended</span></sc-if></span></div>
+            </sc-for>
+          </div>
+          <pre style="margin:0; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.55; background:#F4F5F8; border:1px solid #E5E6EA; border-radius:6px; padding:10px 12px; white-space:pre-wrap; color:#3F4350">{{ opt.qss }}</pre>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:10px; max-width:1500px; padding:20px; background:#1C1E26; color:#FFFFFF; border-radius:12px">
+    <span style="font-size:18px; font-weight:600">Next</span>
+    <span style="font-size:15px; line-height:1.6; color:#D5D8DE">Reply with what to keep plus a detail each (e.g. "4a + 4a1, 4b + 4b2, 4c + 4c1"), or "recommended". Then I'll write the multi-select handoff and move on to <b style="color:#FFFFFF">style unification</b>: applying every pick to the real panels (Chart Properties, Series, Settings, Wizard) in one before/after review.</span>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Compact&quot;,&quot;Default&quot;,&quot;Comfortable&quot;],&quot;default&quot;:&quot;Default&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;themes&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Both&quot;,&quot;Light&quot;,&quot;Dark&quot;],&quot;default&quot;:&quot;Both&quot;,&quot;tsType&quot;:&quot;string&quot;}}">class Component extends DCLogic {
+  renderVals() {
+    const DEN = { Compact: { h: 22, px: 6, font: 12 }, Default: { h: 26, px: 8, font: 12 }, Comfortable: { h: 30, px: 10, font: 13 } };
+    const dn = DEN[this.props.density ?? 'Default'] || DEN.Default;
+    const view = this.props.themes ?? 'Both';
+    const T = {
+      light: { label: 'LIGHT', surface: '#FFFFFF', inset: '#F4F5F8', bPanel: '#E5E6EA', bControl: '#C9CDD5', bSubtle: '#ECEEF2', text: '#1C1E26', text2: '#3F4350', muted: '#6B7280', disabled: '#AEB2BC', accent: '#0E7C86', selBg: '#E3F4F5', selText: '#0A5F67', focus: '#0E7C86' },
+      dark: { label: 'DARK', surface: '#2A2C2E', inset: '#242628', bPanel: '#3A3D40', bControl: '#5A5E64', bSubtle: '#33363A', text: '#E2E2E2', text2: '#C7CAD1', muted: '#A3A9B3', disabled: '#5B6270', accent: '#11808A', selBg: '#163A3E', selText: '#8FDDE3', focus: '#3FB6C1' }
+    };
+    const keys = view === 'Light' ? ['light'] : view === 'Dark' ? ['dark'] : ['light', 'dark'];
+    const N = (s, t) => ({ s, t, col: s === '+' ? '#1F7A45' : s === '–' ? '#C0283A' : '#5B6270' });
+    const themesFor = fn => keys.map(k => { const t = { ...T[k], ...dn, hChip: dn.h - 6 }; return { ...t, states: fn(t) }; });
+    const R = t => '2px solid ' + t.focus;
+    const SER = [['Revenue', '#1F77B4', 'f64'], ['Cost', '#FF7F0E', 'f64'], ['Margin', '#2CA02C', 'f64'], ['Units', '#D62728', 'i64'], ['Region', '#9467BD', 'str']];
+    const cb = (t, on, dis) => on ? { cbBg: dis ? t.disabled : t.accent, cbBd: dis ? t.disabled : t.accent, mark: '✓' } : { cbBg: t.surface, cbBd: dis ? t.bSubtle : t.bControl, mark: '' };
+
+    const listState = (t, s, sel, o = {}) => {
+      const n = sel.length, all = n === SER.length, none = n === 0;
+      const items = SER.map(([l, sw, meta], i) => {
+        const on = sel.includes(i), dis = o.dis;
+        return { l, sw: dis ? t.disabled : sw, meta, col: dis ? t.disabled : t.text, bg: o.hover === i ? t.inset : 'transparent', ring: o.focusRow === i ? R(t) : 'none', ...cb(t, on, dis) };
+      });
+      return { s, items, ring: 'none', count: n + ' of ' + SER.length, allLabel: 'All series',
+        allBg: none ? t.surface : (o.dis ? t.disabled : t.accent), allBd: none ? t.bControl : (o.dis ? t.disabled : t.accent), allMark: all ? '✓' : none ? '' : '–' };
+    };
+
+    const chip = (t, i, dis) => ({ l: SER[i][0], sw: dis ? t.disabled : SER[i][1], bg: dis ? t.inset : t.selBg, col: dis ? t.disabled : t.selText, xCol: dis ? t.disabled : t.selText });
+    const chipState = (t, s, sel, o = {}) => ({ s, chips: sel.slice(0, o.max ?? 9).map(i => chip(t, i, o.dis)), more: o.more || '', ph: sel.length ? '' : 'Select series…', fBd: o.dis ? t.bSubtle : o.open ? t.focus : t.bControl, fBg: t.surface, ring: o.ring ? R(t) : 'none', chev: o.open ? '▲' : '▼', open: !!o.open,
+      popItems: SER.map(([l, sw], i) => ({ l, sw, bg: i === 3 ? t.inset : 'transparent', ...cb(t, sel.includes(i)) })) });
+
+    const dual = (t, s, availIdx, selIdx, o = {}) => {
+      const it = (i, picked) => ({ l: SER[i][0], meta: SER[i][2], bg: picked ? t.selBg : 'transparent', col: picked ? t.selText : t.text, w: picked ? 600 : 400 });
+      const btn = (l, on) => ({ l, bd: on ? t.bControl : t.bSubtle, col: on ? t.text : t.disabled });
+      return { s, panes: [
+        { isList: true, title: 'AVAILABLE', count: String(availIdx.length), items: availIdx.map(i => it(i, o.pickA === i)), ring: o.focusA ? R(t) : 'none', empty: availIdx.length ? '' : 'All columns added' },
+        { isMid: true, btns: [btn('›', o.pickA != null), btn('‹', o.pickS != null), btn('»', availIdx.length > 0)] },
+        { isList: true, title: 'Y AXIS · ORDER', count: String(selIdx.length), grip: true, items: selIdx.map(i => it(i, o.pickS === i)), ring: 'none', empty: selIdx.length ? '' : 'Double-click or drag columns here' }
+      ] };
+    };
+
+    const opts = [
+      { id: '4a', title: 'Checkbox list', bold: false, kList: true,
+        sub: 'Always-visible list with a tri-state "All" header, a series swatch and a type badge. Click toggles a row, Shift+click selects a range, Space toggles the focused row.',
+        use: 'series visibility, legend entries, layers, i.e. short lists (≤ ~12) that stay on screen',
+        notes: [N('+', 'Zero clicks to see what\'s on; the most scannable'), N('+', 'The tri-state header gives Select all / none in one control'), N('–', 'Vertical space grows with item count')],
+        variants: [{ id: '4a1', t: 'Plain rows: only the checkbox shows state (as drawn)', rec: true }, { id: '4a2', t: 'Checked rows also get an accent_sel_bg tint. Stronger, but clashes with the "current row" highlight' }],
+        qss: 'class CheckList(QListView):   # QStandardItemModel, Qt.ItemIsUserCheckable\n    header: TriStateCheckBox "All" (PartiallyChecked when 0 < n < total)\n    delegate: checkbox 14px r3 · swatch 10×3 · label · meta (mono 10, text_muted)\nQCheckBox::indicator { width: 14px; height: 14px; border-radius: 3px; border: 1px solid border_control; }\nQCheckBox::indicator:checked { background: accent; border-color: accent; image: url(check-white.svg); }',
+        themes: themesFor(t => [listState(t, 'partial · hover Margin', [0, 1], { hover: 2 }), listState(t, 'keyboard focus on Units', [0, 1, 2, 3, 4], { focusRow: 3 }), listState(t, 'disabled (no data)', [0, 2], { dis: true })]) },
+      { id: '4b', title: 'Chips + popover', bold: false, kChips: true,
+        sub: 'A compact field showing the selection as removable chips. Clicking it opens a filterable checkbox popover with the same rows as 4a, and it overflows to "+N".',
+        use: 'filters and selections in dense panels, e.g. "Apply to series", "Group by", tag pickers',
+        notes: [N('+', 'One row tall, so it lines up with other 26px fields'), N('+', 'Chips use accent_sel_bg, the same selected style as lists and the rail'), N('–', 'The selection is hidden behind +N once there are many')],
+        variants: [{ id: '4b1', t: 'Wrap chips onto multiple lines (the field grows)' }, { id: '4b2', t: 'Single line with "+N" overflow (the field stays 26px)', rec: true }],
+        qss: 'class ChipSelect(QWidget):\n    field: Chip(QFrame)… + "+N" QLabel + chevron; opens CheckList in a Qt.Popup QFrame\nQFrame[chip="true"] { background: accent_sel_bg; color: accent_sel_text; border-radius: 4px; }\n/* Backspace removes last chip; ↓ opens popover */',
+        themes: themesFor(t => [chipState(t, 'rest · overflow', [0, 1, 2, 3], { max: 2, more: '+2' }), chipState(t, 'open · filter', [0, 1], { open: true }), chipState(t, 'keyboard focus · empty', [], { ring: true })]) },
+      { id: '4c', title: 'Dual list', bold: true, kDual: true,
+        sub: 'Available on the left, selected and ordered on the right. Move items with › ‹ », double-click or drag. Drag handles reorder the right list.',
+        use: 'when order matters or lists are long: Y-column assignment in the wizard, export column order, stacking order',
+        notes: [N('+', 'The only form that captures order'), N('+', 'Handles 100+ columns with a search field above Available'), N('–', 'Needs ~280px+, so it belongs in dialogs and wizards, not 260px side panels')],
+        variants: [{ id: '4c1', t: 'Arrow buttons between the lists (as drawn). Explicit and keyboard-friendly', rec: true }, { id: '4c2', t: 'No middle column: an inline + / − button appears on row hover (saves 36px)' }],
+        qss: 'class DualList(QWidget):\n    left/right: QListView (DragDrop); right uses InternalMove for reorder\n    middle: 3 × PButton(icon=True) ›  ‹  »  — disabled when nothing to move\n    header strip: bg_inset, 10.5px/700 caps + count',
+        themes: themesFor(t => [dual(t, 'item picked on the left · focus', [2, 3, 4], [0, 1], { pickA: 3, focusA: true }), dual(t, 'reorder on the right', [3, 4], [1, 0, 2], { pickS: 0 }), dual(t, 'empty selection', [0, 1, 2, 3, 4], [])]) }
+    ];
+    const picks = ['Tokens: teal · 4/6/4 · 26px', 'Containers 2b · 2d · 2h', 'Tabs 2j (+2l) · Shell 2m · Dialogs by purpose', 'Controls 3a · 3d · 3g (+3i)', 'Focus = outline ring'];
+    return { opts, picks };
+  }
+}</script>
+</body>
+</html>

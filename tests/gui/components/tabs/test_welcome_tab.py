@@ -7,6 +7,7 @@ bypasses a patched class attribute at the C++ call site), so dialog-driven
 flows are exercised through their post-dialog dispatch/handler methods
 directly rather than by driving a real modal dialog.
 """
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -23,17 +24,9 @@ from pandaplot.gui.dialogs.create_or_open_project_dialog import (
 )
 from pandaplot.gui.dialogs.getting_started_step_dialog import GettingStartedStepDialog
 from pandaplot.models.state.app_context import AppContext
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
-
-SURFACE_PALETTE = {
-    "card_bg": "#FFFFFF",
-    "card_hover": "#F0F0F0",
-    "card_pressed": "#E0E0E0",
-    "card_border": "#CCCCCC",
-    "base_fg": "#111111",
-    "secondary_fg": "#666666",
-    "accent": "#4A56C6",
-}
+from pandaplot.models.state.config import Theme
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.theme_testing import design_tokens, surface_palette
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -42,13 +35,13 @@ def qapp():
     yield app
 
 
-def _make_context(tokens: dict[str, str] | None = None) -> Mock:
+def _make_context(tokens: dict[str, Any] | None = None) -> Mock:
     """A context whose theme manager serves real design tokens and a surface palette."""
     app_context = Mock(spec=AppContext)
     app_context.event_bus = Mock()
     theme_manager = app_context.get_manager.return_value
-    theme_manager.get_design_tokens.return_value = dict(tokens or ICON_TOKENS)
-    theme_manager.get_surface_palette.return_value = dict(SURFACE_PALETTE)
+    theme_manager.get_design_tokens.return_value = dict(tokens or design_tokens())
+    theme_manager.get_surface_palette.return_value = surface_palette()
     return app_context
 
 
@@ -291,7 +284,7 @@ def test_action_cards_have_plain_titles_and_a_themed_icon():
         (icon,) = _icons(card)
         assert icon.icon_name == icon_name
         assert icon.width() == 24
-        assert_tinted(strongest_pixel(icon.pixmap().toImage()), ICON_TOKENS["accent_icon_active"])
+        assert_tinted(strongest_pixel(icon.pixmap().toImage()), design_tokens()["accent_icon_active"])
 
 
 def test_welcome_tab_no_longer_shows_emoji_in_action_cards():
@@ -349,14 +342,14 @@ def test_card_and_recent_icons_retint_after_a_theme_change():
     _recent_item(tab)
     recent_icon = _icons(tab.recent_projects_layout.itemAt(0).widget())[0]
     card_icon = _icons(_cards(tab)[0])[0]
-    assert_tinted(strongest_pixel(card_icon.pixmap().toImage()), ICON_TOKENS["accent_icon_active"])
+    assert_tinted(strongest_pixel(card_icon.pixmap().toImage()), design_tokens()["accent_icon_active"])
 
-    dark = {**ICON_TOKENS, "accent_icon_active": "#8995FF"}
+    dark = design_tokens(Theme.DARK)
     app_context.get_manager.return_value.get_design_tokens.return_value = dark
     tab._apply_theme()
 
-    assert_tinted(strongest_pixel(card_icon.pixmap().toImage()), "#8995FF")
-    assert_tinted(strongest_pixel(recent_icon.pixmap().toImage()), "#8995FF")
+    assert_tinted(strongest_pixel(card_icon.pixmap().toImage()), dark["accent_icon_active"])
+    assert_tinted(strongest_pixel(recent_icon.pixmap().toImage()), dark["accent_icon_active"])
 
 
 def test_theme_change_skips_icons_of_removed_recent_items(monkeypatch):

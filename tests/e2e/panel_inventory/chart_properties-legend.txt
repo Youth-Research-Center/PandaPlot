@@ -1,0 +1,23 @@
+label | "Show legend" |
+checkable | "" | checked=true
+group | "Legend" |
+label | "Position:" |
+combo | "" | value="Upper Right" items=["Upper Right", "Upper Left", "Lower Right", "Lower Left", "Center", "Upper Center", "Lower Center", "Center Left", "Center Right", "Best", "Outside Right", "Outside Top", "Outside Bottom", "Custom..."]
+label | "X:" | hidden
+number | "" | value=1 range=0..1 decimals=2 hidden
+label | "Y:" | hidden
+number | "" | value=0.5 range=0..1 decimals=2 hidden
+label | "Anchor:" | hidden
+combo | "" | value="Center Left" items=["Upper Left", "Upper Right", "Lower Left", "Lower Right", "Center", "Center Left", "Center Right", "Upper Center", "Lower Center"] hidden
+label | "Font Size:" |
+number | "" | value=10 range=6..18 decimals=0
+label | "Columns:" |
+choice | "" | value="1" items=["1", "2", "3"]
+label | "Font family:" |
+combo | "" | value="DejaVu Sans" items=<installed font families>
+label | "FRAME" |
+checkable | "" | checked=true
+label | "Background:" |
+color | "" | value="#ffffff"
+label | "Opacity:" |
+slider | "" | value=1 range=0..1 decimals=2

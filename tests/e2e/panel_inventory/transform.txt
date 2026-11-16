@@ -1,0 +1,25 @@
+label | "Transform Operations" |
+button | "?" |
+group | "Active Dataset" |
+label | "Measurements" |
+label | "100 rows, 3 columns" |
+group | "Transform Type" |
+combo | "Type:" | value="Custom Function" items=["Custom Function", "Math Operations", "String Operations", "Date/Time Operations", "Statistical Operations"]
+group | "Column Selection" |
+list | "Source Columns:" | items=["time  →  x", "signal", "reference"] selected=["time  →  x"]
+text | "New Column:" | value="time_transformed" placeholder="new_column"
+checkable | "Replace existing column" | checked=false
+checkable | "Save as formula column" | checked=false
+checkable | "Live (recompute when sources change)" | checked=false hidden
+group | "Transform Function" |
+button | "Insert function" |
+button | "?" |
+text | "" | value="" placeholder="Use 'x' for the selected column (highlighted in the list\nabove) -- or cols['name'] by its real name -- e.g.\n  x * 2            (double the values)\n  (x - x.mean()) / x.std()   (z-score)\n  np.sqrt(x)       (square root)\nOr pick one from 'Insert function' above."
+label | "<b>Variables</b>: <code>x</code> (also <code>value</code>, <code>column</code>, <code>data</code>, and <code>cols['name']</code> by the column's own real name) = the selected column -- see the highlighted entry in the list above for exactly which one.<br><b>Math</b>: <code>np.sqrt</code>, <code>np.log</code>, <code>np.log10</code>, <code>np.exp</code>, <code>np.abs</code>, <code>np.sin/cos/tan</code>, <code>np.sign</code>.<br><b>Stats</b>: <code>x.mean()</code>, <code>x.std()</code>, <code>x.median()</code>, <code>x.min()</code>, <code>x.max()</code>, <code>x.rank()</code>, <code>x.cumsum()</code>, <code>x.rolling(n).mean()</code>, <code>x.shift(1)</code>.<br><b>Text</b>: <code>x.str.upper()</code>, <code>x.str.lower()</code>, <code>x.str.strip()</code>, <code>x.str.len()</code>.<br><b>Date/Time</b>: <code>pd.to_datetime(x)</code>, <code>pd.to_datetime(x).dt.year</code>." | hidden
+group | "Preview" |
+button | "Preview" |
+label | "rows:" |
+combo | "" | value="5" items=["5", "10", "20"]
+text | "" | value="" read-only
+button | "Apply" | disabled
+button | "Clear" |

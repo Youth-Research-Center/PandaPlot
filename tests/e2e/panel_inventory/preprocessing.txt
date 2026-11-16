@@ -1,0 +1,20 @@
+label | "Preprocessing" |
+button | "?" |
+group | "Transformation" |
+combo | "Method:" | value="Center (mean removal)" items=["Center (mean removal)", "Standardize (Z-score)", "Min-Max scale", "Robust scale (median / IQR)", "Max-Abs scale"]
+label | "Subtracts the mean so the values are centered on zero. Keeps the original spread and units; only the location changes." |
+label | "Formula:  x - mean(x)" |
+group | "Columns" |
+label | "Select one or more numeric columns:" |
+list | "" | items=["time", "signal", "reference"]
+group | "Parameters" | hidden
+number | "Output min:" | value=0 range=-1000000..1000000 decimals=3 hidden
+number | "Output max:" | value=1 range=-1000000..1000000 decimals=3 hidden
+group | "Result" |
+checkable | "Replace source columns in place" | checked=false
+label | "No columns selected." |
+group | "Preview" |
+button | "Preview" |
+text | "" | value="" placeholder="Preview results will appear here..." read-only
+button | "Apply" |
+button | "Clear" |

@@ -1,0 +1,6 @@
+label | "Chart Properties" |
+button | "?" |
+tabs | "" | value="Chart" items=["Chart", "Data", "Style", "Axes", "Legend"]
+label | "No changes" |
+button | "Revert" | disabled
+button | "Apply" | disabled

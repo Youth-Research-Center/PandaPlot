@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0;background:#E8E9ED;color:#1C1E26;font-family:'IBM Plex Sans',sans-serif}a{color:#0A5F67}a:hover{color:#1C1E26}*{box-sizing:border-box}</style>
+</helmet>
+<section id="step3" data-screen-label="Step 3 Controls" style="padding:56px; display:flex; flex-direction:column; gap:56px; width:2440px">
+  <header style="display:flex; flex-direction:column; gap:10px; max-width:1200px">
+    <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#5B6270; letter-spacing:1px">PANDAPLOT COMPONENTS · STEP 3 · CONTROLS</span>
+    <h1 style="margin:0; font-size:44px; font-weight:600; letter-spacing:-0.5px">PButton · Slider + spinbox · Dropdown</h1>
+    <p style="margin:0; font-size:18px; line-height:1.5; color:#3F4350; text-wrap:pretty">Full state matrix for each option in light and dark. Every control uses the 26px height token, so a row mixing button, field and dropdown lines up. Keyboard focus is a 2px ring 1px outside the control, separate from the border, so focus never looks like hover or selected. QSS has no outline, so the ring is painted by a shared FocusRing helper (see code notes). Pick one per component.</p>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; padding-top:6px">
+      <sc-for list="{{ picks }}" as="pk" hint-placeholder-count="5"><span style="font-family:'IBM Plex Mono',monospace; font-size:13px; padding:5px 10px; border-radius:5px; background:#FFFFFF; border:1px solid #D5D8DE; white-space:nowrap; flex:none">{{ pk }}</span></sc-for>
+    </div>
+  </header>
+
+  <div style="display:flex; flex-direction:column; gap:18px">
+    <div style="display:flex; flex-direction:column; gap:4px"><h2 style="margin:0; font-size:28px; font-weight:600">PButton</h2><span style="font-size:15px; color:#5B6270">Roles: primary · secondary · ghost (new) · destructive · icon. Today's <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">p_button.py</span> is ~28px tall with weak secondary text; all options fix both.</span></div>
+    <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start">
+      <sc-for list="{{ btnOpts }}" as="opt" hint-placeholder-count="3">
+        <div id="{{ opt.id }}" style="width:760px; background:#FFFFFF; border:1px solid #D5D8DE; border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:14px">
+          <div style="display:flex; gap:12px; align-items:flex-start">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500; background:#1C1E26; color:#FFFFFF; padding:4px 9px; border-radius:6px">{{ opt.id }}</span>
+            <div style="display:flex; flex-direction:column; gap:3px; flex:1; min-width:0">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap"><span style="font-size:18px; font-weight:600">{{ opt.title }}</span><sc-if value="{{ opt.rec }}"><span style="font-size:12px; font-weight:600; color:#1F6B42; background:#E3F4EA; padding:2px 8px; border-radius:4px">Recommended</span></sc-if><sc-if value="{{ opt.bold }}"><span style="font-size:12px; font-weight:600; color:#6A2C91; background:#F2E8F9; padding:2px 8px; border-radius:4px">Bold</span></sc-if></div>
+              <span style="font-size:14px; color:#5B6270; line-height:1.45; text-wrap:pretty">{{ opt.sub }}</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px">
+            <sc-for list="{{ opt.themes }}" as="t" hint-placeholder-count="2">
+              <div style="flex:1 1 0; min-width:0; background:{{ t.surface }}; color:{{ t.text }}; border:1px solid {{ t.bPanel }}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:7px; font-family:'Segoe UI', system-ui, sans-serif; font-size:{{ t.font }}px">
+                <span style="font-weight:700; font-size:11px; color:{{ t.muted }}; letter-spacing:.5px">{{ t.label }}</span>
+                <div style="display:flex; gap:5px; align-items:center"><span style="width:50px; flex:none"></span><sc-for list="{{ t.cols }}" as="c"><span style="flex:{{ c.flex }}; min-width:0; font-size:9.5px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace; text-align:center">{{ c.l }}</span></sc-for></div>
+                <sc-for list="{{ t.rows }}" as="row" hint-placeholder-count="5">
+                  <div style="display:flex; gap:5px; align-items:center">
+                    <span style="width:50px; flex:none; font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ row.s }}</span>
+                    <sc-for list="{{ row.cells }}" as="b"><div style="flex:{{ b.flex }}; min-width:0; height:{{ t.h }}px; display:flex; align-items:center; justify-content:center; background:{{ b.bg }}; color:{{ b.col }}; border:1px solid {{ b.bd }}; border-radius:4px; outline:{{ b.ring }}; outline-offset:1px; font-weight:{{ b.w }}; white-space:nowrap">{{ b.l }}</div></sc-for>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:5px">
+            <sc-for list="{{ opt.notes }}" as="nt"><div style="display:grid; grid-template-columns:14px minmax(0,1fr); gap:6px; font-size:14px; line-height:1.45"><span style="color:{{ nt.col }}; font-weight:700">{{ nt.s }}</span><span style="text-wrap:pretty">{{ nt.t }}</span></div></sc-for>
+          </div>
+          <pre style="margin:0; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.55; background:#F4F5F8; border:1px solid #E5E6EA; border-radius:6px; padding:10px 12px; white-space:pre-wrap; color:#3F4350">{{ opt.qss }}</pre>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:18px">
+    <div style="display:flex; flex-direction:column; gap:4px"><h2 style="margin:0; font-size:28px; font-weight:600">Slider + spinbox</h2><span style="font-size:15px; color:#5B6270">Opacity, line width, marker size, alpha. Today the track and handle are native (they differ per OS) and the spinbox is a fixed 72px with no unit. States: rest, dragging, typing, disabled, mixed (several series selected with different values).</span></div>
+    <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start">
+      <sc-for list="{{ sliderOpts }}" as="opt" hint-placeholder-count="3">
+        <div id="{{ opt.id }}" style="width:760px; background:#FFFFFF; border:1px solid #D5D8DE; border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:14px">
+          <div style="display:flex; gap:12px; align-items:flex-start">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500; background:#1C1E26; color:#FFFFFF; padding:4px 9px; border-radius:6px">{{ opt.id }}</span>
+            <div style="display:flex; flex-direction:column; gap:3px; flex:1; min-width:0">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap"><span style="font-size:18px; font-weight:600">{{ opt.title }}</span><sc-if value="{{ opt.rec }}"><span style="font-size:12px; font-weight:600; color:#1F6B42; background:#E3F4EA; padding:2px 8px; border-radius:4px">Recommended</span></sc-if><sc-if value="{{ opt.bold }}"><span style="font-size:12px; font-weight:600; color:#6A2C91; background:#F2E8F9; padding:2px 8px; border-radius:4px">Bold</span></sc-if></div>
+              <span style="font-size:14px; color:#5B6270; line-height:1.45; text-wrap:pretty">{{ opt.sub }}</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px">
+            <sc-for list="{{ opt.themes }}" as="t" hint-placeholder-count="2">
+              <div style="flex:1 1 0; min-width:0; background:{{ t.surface }}; color:{{ t.text }}; border:1px solid {{ t.bPanel }}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:10px; font-family:'Segoe UI', system-ui, sans-serif; font-size:{{ t.font }}px">
+                <span style="font-weight:700; font-size:11px; color:{{ t.muted }}; letter-spacing:.5px">{{ t.label }}</span>
+                <sc-for list="{{ t.states }}" as="st" hint-placeholder-count="5">
+                  <div style="display:flex; flex-direction:column; gap:4px">
+                    <span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ st.s }}</span>
+                    <div style="display:grid; grid-template-columns:52px minmax(0,1fr); gap:8px; align-items:center">
+                      <span style="color:{{ st.lbl }}">Opacity</span>
+                      <sc-if value="{{ opt.kTrack }}">
+                        <div style="display:flex; align-items:center; gap:8px; min-width:0">
+                          <div style="flex:1; min-width:0; height:{{ t.h }}px; display:flex; align-items:center">
+                            <div style="flex:1; height:4px; border-radius:2px; background:{{ st.track }}; position:relative">
+                              <div style="position:absolute; left:0; top:0; bottom:0; width:{{ st.pct }}%; background:{{ st.fill }}; border-radius:2px"></div>
+                              <sc-if value="{{ st.thumb }}"><div style="position:absolute; left:{{ st.pct }}%; top:50%; width:{{ st.th }}px; height:{{ st.th }}px; margin-left:{{ st.thM }}px; margin-top:{{ st.thM }}px; border-radius:50%; background:{{ st.thBg }}; border:{{ st.thBw }}px solid {{ st.thBd }}"></div></sc-if>
+                            </div>
+                          </div>
+                          <sc-if value="{{ opt.kSpin }}">
+                            <div style="width:58px; flex:none; height:{{ t.h }}px; outline:{{ st.ring }}; outline-offset:1px; border:1px solid {{ st.fBd }}; background:{{ t.surface }}; border-radius:4px; display:flex; align-items:center; justify-content:flex-end; gap:3px; padding:0 {{ t.px }}px; color:{{ st.fCol }}"><span>{{ st.v }}</span><span style="color:{{ st.uCol }}">%</span><sc-if value="{{ st.caret }}"><span style="width:1px; height:12px; background:{{ t.text }}"></span></sc-if></div>
+                          </sc-if>
+                          <sc-if value="{{ opt.kStep }}">
+                            <div style="flex:none; height:{{ t.h }}px; display:flex; outline:{{ st.ring }}; outline-offset:1px; border:1px solid {{ st.fBd }}; border-radius:4px; overflow:hidden; color:{{ st.fCol }}">
+                              <span style="width:20px; display:flex; align-items:center; justify-content:center; border-right:1px solid {{ t.bSubtle }}; color:{{ st.uCol }}">−</span>
+                              <span style="width:38px; display:flex; align-items:center; justify-content:center; gap:3px; background:{{ t.surface }}">{{ st.v }}<sc-if value="{{ st.caret }}"><span style="width:1px; height:12px; background:{{ t.text }}"></span></sc-if></span>
+                              <span style="width:20px; display:flex; align-items:center; justify-content:center; border-left:1px solid {{ t.bSubtle }}; color:{{ st.uCol }}">+</span>
+                            </div>
+                          </sc-if>
+                        </div>
+                      </sc-if>
+                      <sc-if value="{{ opt.kScrub }}">
+                        <div style="height:{{ t.h }}px; outline:{{ st.ring }}; outline-offset:1px; border:1px solid {{ st.fBd }}; border-radius:4px; background:{{ st.scrubBg }}; position:relative; overflow:hidden; min-width:0">
+                          <div style="position:absolute; left:0; top:0; bottom:0; width:{{ st.pct }}%; background:{{ st.scrubFill }}"></div>
+                          <div style="position:relative; height:100%; display:flex; align-items:center; justify-content:space-between; padding:0 {{ t.px }}px; gap:6px; color:{{ st.fCol }}">
+                            <span style="font-size:10px; color:{{ st.uCol }}">{{ st.hint }}</span>
+                            <span style="display:flex; align-items:center; gap:3px; font-weight:600">{{ st.v }}<span style="font-weight:400; color:{{ st.uCol }}">%</span><sc-if value="{{ st.caret }}"><span style="width:1px; height:12px; background:{{ t.text }}"></span></sc-if></span>
+                          </div>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:5px">
+            <sc-for list="{{ opt.notes }}" as="nt"><div style="display:grid; grid-template-columns:14px minmax(0,1fr); gap:6px; font-size:14px; line-height:1.45"><span style="color:{{ nt.col }}; font-weight:700">{{ nt.s }}</span><span style="text-wrap:pretty">{{ nt.t }}</span></div></sc-for>
+          </div>
+          <pre style="margin:0; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.55; background:#F4F5F8; border:1px solid #E5E6EA; border-radius:6px; padding:10px 12px; white-space:pre-wrap; color:#3F4350">{{ opt.qss }}</pre>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:18px">
+    <div style="display:flex; flex-direction:column; gap:4px"><h2 style="margin:0; font-size:28px; font-weight:600">Dropdown / value combo</h2><span style="font-size:15px; color:#5B6270">Merges <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">ValueComboBox</span> and <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">DropDownComboBox</span> into one class with a styled popup. States: rest, hover, focus, open, disabled, mixed / placeholder.</span></div>
+    <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start">
+      <sc-for list="{{ ddOpts }}" as="opt" hint-placeholder-count="3">
+        <div id="{{ opt.id }}" style="width:760px; background:#FFFFFF; border:1px solid #D5D8DE; border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:14px">
+          <div style="display:flex; gap:12px; align-items:flex-start">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500; background:#1C1E26; color:#FFFFFF; padding:4px 9px; border-radius:6px">{{ opt.id }}</span>
+            <div style="display:flex; flex-direction:column; gap:3px; flex:1; min-width:0">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap"><span style="font-size:18px; font-weight:600">{{ opt.title }}</span><sc-if value="{{ opt.rec }}"><span style="font-size:12px; font-weight:600; color:#1F6B42; background:#E3F4EA; padding:2px 8px; border-radius:4px">Recommended</span></sc-if><sc-if value="{{ opt.bold }}"><span style="font-size:12px; font-weight:600; color:#6A2C91; background:#F2E8F9; padding:2px 8px; border-radius:4px">Bold</span></sc-if></div>
+              <span style="font-size:14px; color:#5B6270; line-height:1.45; text-wrap:pretty">{{ opt.sub }}</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px">
+            <sc-for list="{{ opt.themes }}" as="t" hint-placeholder-count="2">
+              <div style="flex:1 1 0; min-width:0; background:{{ t.surface }}; color:{{ t.text }}; border:1px solid {{ t.bPanel }}; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:10px; font-family:'Segoe UI', system-ui, sans-serif; font-size:{{ t.font }}px">
+                <span style="font-weight:700; font-size:11px; color:{{ t.muted }}; letter-spacing:.5px">{{ t.label }}</span>
+                <sc-for list="{{ t.states }}" as="st" hint-placeholder-count="6">
+                  <div style="display:flex; flex-direction:column; gap:4px">
+                    <span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ st.s }}</span>
+                    <div style="display:grid; grid-template-columns:52px minmax(0,1fr); gap:8px; align-items:start">
+                      <span style="color:{{ st.lbl }}; line-height:{{ t.h }}px">{{ opt.fLabel }}</span>
+                      <div style="display:flex; flex-direction:column; gap:2px; min-width:0">
+                        <div style="height:{{ t.h }}px; outline:{{ st.ring }}; outline-offset:1px; border:1px solid {{ st.fBd }}; background:{{ st.fBg }}; border-radius:4px; display:flex; align-items:center; gap:6px; padding:0 {{ t.px }}px; color:{{ st.fCol }}">
+                          <sc-if value="{{ opt.glyph }}"><span style="font-size:10px; color:{{ st.uCol }}; font-family:'IBM Plex Mono',monospace">{{ opt.glyph }}</span></sc-if>
+                          <span style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-style:{{ st.fStyle }}">{{ st.v }}</span>
+                          <span style="font-size:8px; color:{{ st.uCol }}">{{ st.chev }}</span>
+                        </div>
+                        <sc-if value="{{ st.open }}">
+                          <div style="background:{{ t.surface }}; border:1px solid {{ t.bPanel }}; border-radius:4px; padding:3px; display:flex; flex-direction:column; gap:1px">
+                            <sc-if value="{{ opt.search }}"><div style="height:{{ t.h }}px; border:1px solid {{ t.focus }}; border-radius:3px; display:flex; align-items:center; gap:2px; padding:0 {{ t.px }}px; margin-bottom:3px"><span>rev</span><span style="width:1px; height:12px; background:{{ t.text }}"></span></div></sc-if>
+                            <sc-for list="{{ t.items }}" as="it">
+                              <div style="min-height:{{ it.h }}px; display:flex; align-items:center; gap:6px; padding:0 {{ t.px }}px; border-radius:3px; background:{{ it.bg }}; color:{{ it.col }}; font-weight:{{ it.w }}; font-size:{{ it.fs }}px; letter-spacing:{{ it.ls }}px">
+                                <sc-if value="{{ opt.checkCol }}"><span style="width:10px; font-size:10px; color:{{ it.ckCol }}">{{ it.ck }}</span></sc-if>
+                                <span style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ it.l }}</span>
+                                <sc-if value="{{ it.meta }}"><span style="font-size:10px; color:{{ t.muted }}; font-family:'IBM Plex Mono',monospace">{{ it.meta }}</span></sc-if>
+                              </div>
+                            </sc-for>
+                          </div>
+                        </sc-if>
+                      </div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:5px">
+            <sc-for list="{{ opt.notes }}" as="nt"><div style="display:grid; grid-template-columns:14px minmax(0,1fr); gap:6px; font-size:14px; line-height:1.45"><span style="color:{{ nt.col }}; font-weight:700">{{ nt.s }}</span><span style="text-wrap:pretty">{{ nt.t }}</span></div></sc-for>
+          </div>
+          <pre style="margin:0; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.55; background:#F4F5F8; border:1px solid #E5E6EA; border-radius:6px; padding:10px 12px; white-space:pre-wrap; color:#3F4350">{{ opt.qss }}</pre>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:10px; max-width:1500px; padding:20px; background:#1C1E26; color:#FFFFFF; border-radius:12px">
+    <span style="font-size:18px; font-weight:600">Next</span>
+    <span style="font-size:15px; line-height:1.6; color:#D5D8DE">Reply with picks (e.g. "3a, 3d, 3g"). Then comes <b style="color:#FFFFFF">Step 4 · Multi-select list</b>: checkbox list, chips + popover, and dual list. After that, style unification across all panels.</span>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Compact&quot;,&quot;Default&quot;,&quot;Comfortable&quot;],&quot;default&quot;:&quot;Default&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;themes&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Both&quot;,&quot;Light&quot;,&quot;Dark&quot;],&quot;default&quot;:&quot;Both&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const mix = (a, b, t) => { const p = s => [1, 3, 5].map(i => parseInt(s.substr(i, 2), 16)); const A = p(a), B = p(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+    const DEN = { Compact: { h: 22, px: 6, font: 12 }, Default: { h: 26, px: 8, font: 12 }, Comfortable: { h: 30, px: 10, font: 13 } };
+    const dn = DEN[this.props.density ?? 'Default'] || DEN.Default;
+    const view = this.props.themes ?? 'Both';
+    const T = {
+      light: { label: 'LIGHT', canvas: '#FBFBFC', surface: '#FFFFFF', inset: '#F4F5F8', bPanel: '#E5E6EA', bControl: '#C9CDD5', bSubtle: '#ECEEF2', text: '#1C1E26', text2: '#3F4350', muted: '#6B7280', disabled: '#AEB2BC', danger: '#C82333', track: '#C9CDD5', knob: '#FFFFFF', accent: '#0E7C86', hover: '#0B6C75', pressed: '#095C63', selBg: '#E3F4F5', selText: '#0A5F67', focus: '#0E7C86' },
+      dark: { label: 'DARK', canvas: '#1F2123', surface: '#2A2C2E', inset: '#242628', bPanel: '#3A3D40', bControl: '#5A5E64', bSubtle: '#33363A', text: '#E2E2E2', text2: '#C7CAD1', muted: '#A3A9B3', disabled: '#5B6270', danger: '#F07171', track: '#4A4D52', knob: '#E8E9EB', accent: '#11808A', hover: '#14909B', pressed: '#0C6E77', selBg: '#163A3E', selText: '#8FDDE3', focus: '#3FB6C1' }
+    };
+    const keys = view === 'Light' ? ['light'] : view === 'Dark' ? ['dark'] : ['light', 'dark'];
+    const N = (s, t) => ({ s, t, col: s === '+' ? '#1F7A45' : s === '–' ? '#C0283A' : '#5B6270' });
+    const themesFor = fn => keys.map(k => { const t = { ...T[k], ...dn }; return { ...t, ...fn(t) }; });
+
+    const R = t => '2px solid ' + t.focus;
+    // BUTTONS
+    const ST = ['rest', 'hover', 'pressed', 'focus', 'disabled'];
+    const COLS = [['Primary', 'Apply', '1.3 1 0'], ['Secondary', 'Revert', '1.3 1 0'], ['Ghost', 'Reset', '1.1 1 0'], ['Danger', 'Delete', '1.2 1 0'], ['Icon', '+', '0 0 ' + dn.h + 'px']];
+    const btnTheme = (t, spec) => ({
+      cols: COLS.map(([l, , flex]) => ({ l: l === 'Icon' ? '' : l, flex })),
+      rows: ST.map(s => ({ s, cells: COLS.map(([role, lab, flex], i) => { const r = spec[role.toLowerCase()]; return { l: lab, flex, w: 400, ring: 'none', ...r.rest, ...(s === 'rest' ? {} : r[s]) }; }) }))
+    });
+    const primary = t => ({ rest: { bg: t.accent, col: '#FFFFFF', bd: t.accent, w: 600 }, hover: { bg: t.hover, bd: t.hover }, pressed: { bg: t.pressed, bd: t.pressed }, focus: { ring: R(t) }, disabled: { bg: mix(t.accent, t.surface, .55), bd: mix(t.accent, t.surface, .55), col: mix('#FFFFFF', t.surface, .15) } });
+    const dis = t => ({ col: t.disabled, bd: t.bSubtle, bg: 'transparent' });
+    const btnOpt = (id, title, sub, rec, bold, spec, notes, qss) => ({ id, title, sub, rec, bold, notes, qss, themes: themesFor(t => btnTheme(t, spec(t))) });
+    const btnOpts = [
+      btnOpt('3a', 'Solid + outline', 'Primary is solid accent. Secondary and icon buttons are outlined in border_control with full-strength text. Ghost is accent text, and danger is outlined in red. The conventional desktop set.', true, false,
+        t => ({ primary: primary(t),
+          secondary: { rest: { bg: t.surface, col: t.text, bd: t.bControl }, hover: { bg: t.inset }, pressed: { bg: mix(t.inset, t.bPanel, .7) }, focus: { ring: R(t) }, disabled: dis(t) },
+          ghost: { rest: { bg: 'transparent', col: t.selText, bd: 'transparent', w: 600 }, hover: { bg: t.selBg }, pressed: { bg: mix(t.selBg, t.accent, .2) }, focus: { ring: R(t) }, disabled: { col: t.disabled } },
+          danger: { rest: { bg: t.surface, col: t.danger, bd: t.danger }, hover: { bg: mix(t.surface, t.danger, .08) }, pressed: { bg: mix(t.surface, t.danger, .16) }, focus: { ring: R(t) }, disabled: dis(t) },
+          icon: { rest: { bg: t.surface, col: t.text2, bd: t.bControl, w: 600 }, hover: { bg: t.inset, col: t.text }, pressed: { bg: mix(t.inset, t.bPanel, .7) }, focus: { ring: R(t) }, disabled: dis(t) } }),
+        [N('+', 'Each role is clear at a glance, and it matches native Qt expectations'), N('+', 'Smallest QSS diff from today'), N('–', 'Many outlines in a dense panel (Revert, icon, segmented and fields all bordered)')],
+        'QPushButton { min-height: 24px; padding: 0 12px; border-radius: 4px;\n  background: bg_surface; color: text_primary; border: 1px solid border_control; }\nQPushButton[role="ghost"] { background: transparent; border-color: transparent;\n  color: accent_sel_text; font-weight: 600; }\nQPushButton[role="destructive"] { color: danger; border-color: danger; }\n/* focus: QSS has no outline → FocusRing.paint(self, painter) in paintEvent:\n   2px focus colour, 1px offset, radius+2; reserve 3px via contentsMargins */'),
+      btnOpt('3b', 'Tonal', 'Secondary and icon buttons are bg_inset fills with no border. Danger is a red-tinted fill. Only fields keep outlines, so buttons and inputs no longer look alike.', false, false,
+        t => ({ primary: primary(t),
+          secondary: { rest: { bg: t.inset, col: t.text, bd: t.inset }, hover: { bg: mix(t.inset, t.bPanel, .7), bd: mix(t.inset, t.bPanel, .7) }, pressed: { bg: t.bPanel, bd: t.bPanel }, focus: { ring: R(t) }, disabled: { col: t.disabled, bg: t.inset, bd: t.inset } },
+          ghost: { rest: { bg: 'transparent', col: t.selText, bd: 'transparent', w: 600 }, hover: { bg: t.selBg }, pressed: { bg: mix(t.selBg, t.accent, .2) }, focus: { ring: R(t) }, disabled: { col: t.disabled } },
+          danger: { rest: { bg: mix(t.surface, t.danger, .1), col: t.danger, bd: mix(t.surface, t.danger, .1), w: 600 }, hover: { bg: mix(t.surface, t.danger, .18), bd: mix(t.surface, t.danger, .18) }, pressed: { bg: mix(t.surface, t.danger, .26), bd: mix(t.surface, t.danger, .26) }, focus: { ring: '2px solid ' + t.danger }, disabled: { col: t.disabled, bg: t.inset, bd: t.inset } },
+          icon: { rest: { bg: t.inset, col: t.text2, bd: t.inset, w: 600 }, hover: { bg: mix(t.inset, t.bPanel, .7), bd: mix(t.inset, t.bPanel, .7), col: t.text }, pressed: { bg: t.bPanel, bd: t.bPanel }, focus: { ring: R(t) }, disabled: { col: t.disabled, bg: t.inset, bd: t.inset } } }),
+        [N('+', 'Buttons read as actions and outlined boxes read as editable values'), N('+', 'Matches the 2b inset card language'), N('–', 'Inside a 2b card (bg_inset), tonal buttons need a bg_surface fill instead')],
+        'QPushButton { background: bg_inset; border: 1px solid bg_inset; color: text_primary; }\nQPushButton:hover { background: mix(bg_inset, border_panel, .7); }\nQFrame[card="true"] QPushButton { background: bg_surface; border-color: bg_surface; }\nQPushButton[role="destructive"] { background: mix(bg_surface, danger, .1); color: danger; }\n/* focus: shared FocusRing (2px, 1px offset) — border unchanged */'),
+      btnOpt('3c', 'Text-first', 'Only the primary action is a box. Secondary, ghost, danger and icon buttons are text buttons that gain a fill on hover, like toolbars in pro tools.', false, true,
+        t => ({ primary: primary(t),
+          secondary: { rest: { bg: 'transparent', col: t.text, bd: 'transparent', w: 600 }, hover: { bg: t.inset }, pressed: { bg: t.bPanel }, focus: { ring: R(t) }, disabled: { col: t.disabled } },
+          ghost: { rest: { bg: 'transparent', col: t.muted, bd: 'transparent' }, hover: { bg: t.inset, col: t.text }, pressed: { bg: t.bPanel }, focus: { ring: R(t) }, disabled: { col: t.disabled } },
+          danger: { rest: { bg: 'transparent', col: t.danger, bd: 'transparent', w: 600 }, hover: { bg: mix(t.surface, t.danger, .1) }, pressed: { bg: mix(t.surface, t.danger, .18) }, focus: { ring: '2px solid ' + t.danger }, disabled: { col: t.disabled } },
+          icon: { rest: { bg: 'transparent', col: t.text2, bd: 'transparent', w: 600 }, hover: { bg: t.inset, col: t.text }, pressed: { bg: t.bPanel }, focus: { ring: R(t) }, disabled: { col: t.disabled } } }),
+        [N('+', 'The quietest panels: the only filled box is the main action'), N('+', 'Icon buttons in headers and toolbars look the same everywhere'), N('–', 'Secondary actions are less discoverable at rest'), N('–', 'Secondary vs ghost differ only in weight and colour')],
+        'QPushButton { background: transparent; border: 1px solid transparent;\n  color: text_primary; font-weight: 600; }\nQPushButton:hover { background: bg_inset; }\nQPushButton[role="ghost"] { color: text_muted; font-weight: 400; }\n/* focus: shared FocusRing (2px, 1px offset) — border unchanged */')
+    ];
+
+    // SLIDER
+    const sl = (t, o) => ({ lbl: t.text2, pct: 62, v: '62', track: t.track, fill: t.accent, thumb: true, th: 14, thM: -7, thBg: t.knob, thBw: 1, thBd: t.bControl, fBd: t.bControl, fCol: t.text, uCol: t.muted, caret: false, ring: 'none', scrubBg: t.surface, scrubFill: t.selBg, hint: '', ...o });
+    const slStates = (t, extra = {}) => [
+      sl(t, { s: 'rest', ...extra.rest }),
+      sl(t, { s: 'dragging · hover', thBd: t.accent, thBw: 2, th: 16, thM: -8, pct: 74, v: '74', fBd: t.bControl, ...extra.drag }),
+      sl(t, { s: 'focus · typing', ring: R(t), v: '8', caret: true, pct: 62, ...extra.type }),
+      sl(t, { s: 'disabled', lbl: t.disabled, fill: t.bControl, track: t.bSubtle, thBd: t.bSubtle, thBg: t.surface, fBd: t.bSubtle, fCol: t.disabled, uCol: t.disabled, ...extra.dis }),
+      sl(t, { s: 'mixed (3 series)', v: '—', pct: 0, thumb: false, fill: 'transparent', uCol: t.muted, ...extra.mixed })
+    ];
+    const sliderOpts = [
+      { id: '3d', title: 'Track + spinbox with unit', sub: 'Custom-painted 4px track with an accent fill and a 14px knob, next to a 58px spinbox with a unit suffix. The handle grows and gets an accent ring while dragging.', rec: true, bold: false, kTrack: true, kSpin: true,
+        notes: [N('+', 'Familiar; looks identical on Windows, macOS and Linux'), N('+', 'Unit suffix removes the need for a separate label'), N('–', 'The track needs ~120px; below 240px panels it gets cramped')],
+        qss: 'QSlider::groove:horizontal { height: 4px; background: toggle_off; border-radius: 2px; }\nQSlider::sub-page:horizontal { background: accent; border-radius: 2px; }\nQSlider::handle:horizontal { width: 14px; margin: -5px 0; border-radius: 7px;\n  background: knob; border: 1px solid border_control; }\nQSlider::handle:horizontal:pressed { border: 2px solid accent; }\nQDoubleSpinBox { qproperty-suffix: " %"; qproperty-buttonSymbols: NoButtons; }',
+        themes: themesFor(t => ({ states: slStates(t) })) },
+      { id: '3e', title: 'Track + stepper', sub: 'Same track, but the field gets − / + step buttons. Clicking steps by the configured increment (e.g. 0.5 px), which suits width and size values.', rec: false, bold: false, kTrack: true, kStep: true,
+        notes: [N('+', 'Precise nudges without typing or fiddly dragging'), N('+', 'Works for integer values like marker size and tick count'), N('–', 'Wider (78px) and visually busier than 3d')],
+        qss: 'class SliderWithSpinbox(QWidget):\n    step: float = 1.0          # snaps slider + stepper\n    stepper: bool = True        # adds −/+ QToolButtons around the spinbox\nQToolButton[stepper="true"] { width: 20px; border: none; color: text_muted; }',
+        themes: themesFor(t => ({ states: slStates(t) })) },
+      { id: '3f', title: 'Scrub field', sub: 'The field is the slider: fill width shows the value, dragging horizontally scrubs it, and double-click types. One control instead of two, as in Blender and Figma.', rec: false, bold: true, kScrub: true,
+        notes: [N('+', 'Half the width; fits 260px panels with room to spare'), N('+', 'Same height and outline as every other field'), N('–', 'Scrubbing is less discoverable, so it needs a hover hint and cursor'), N('–', 'Fully custom QWidget (paint + mouse handling + inline QLineEdit)')],
+        qss: 'class ScrubField(QWidget):   # paintEvent: bg_surface, fill accent_sel_bg to value%\n    drag-x → value (Shift = fine, ×0.1) · double-click → inline QLineEdit\n    cursor: Qt.SizeHorCursor · hover hint text "drag" in text_muted',
+        themes: themesFor(t => ({ states: slStates(t, { rest: { hint: '' }, drag: { hint: 'drag ⇆', scrubFill: mix(t.selBg, t.accent, .25), fBd: t.accent }, type: { scrubFill: 'transparent', hint: '' }, dis: { scrubFill: t.inset, scrubBg: t.surface }, mixed: { hint: 'mixed' } }) })) }
+    ];
+
+    // DROPDOWN
+    const dd = (t, o) => ({ lbl: t.text2, v: 'Dashed', fCol: t.text, uCol: t.muted, chev: '▼', fStyle: 'normal', open: false, ring: 'none', ...o });
+    const ddStates = (t, base, hov, v) => [
+      dd(t, { s: 'rest', v, ...base }),
+      dd(t, { s: 'hover', v, ...base, ...hov }),
+      dd(t, { s: 'focus (keyboard)', v, ...base, ring: R(t) }),
+      dd(t, { s: 'open', v, ...base, fBd: t.focus, chev: '▲', open: true }),
+      dd(t, { s: 'disabled', v, ...base, fBd: t.bSubtle, fCol: t.disabled, uCol: t.disabled, lbl: t.disabled, fBg: base.fBg === t.surface ? t.surface : t.inset }),
+      dd(t, { s: 'mixed (3 series)', ...base, v: 'Mixed', fCol: t.muted, fStyle: 'italic' })
+    ];
+    const lineItems = (t, mode) => ['Solid', 'Dashed', 'Dotted', 'Dash-dot'].map((l, i) => {
+      const sel = i === 1, hov = i === 2;
+      const it = { l, h: dn.h - 2, fs: dn.font, ls: 0, w: 400, col: t.text, bg: 'transparent', ck: '', ckCol: t.accent, meta: '' };
+      if (mode === 'hl') { if (sel) Object.assign(it, { bg: t.selBg, col: t.selText, w: 600 }); if (hov) it.bg = t.inset; }
+      if (mode === 'ck') { if (sel) Object.assign(it, { ck: '✓', w: 600 }); if (hov) it.bg = t.inset; }
+      return it;
+    });
+    const colItems = t => {
+      const H = l => ({ l, h: 18, fs: 9.5, ls: 1, w: 700, col: t.muted, bg: 'transparent', ck: '', meta: '' });
+      const I = (l, meta, sel, hov) => ({ l, h: dn.h - 2, fs: dn.font, ls: 0, w: sel ? 600 : 400, col: sel ? t.selText : t.text, bg: sel ? t.selBg : hov ? t.inset : 'transparent', ck: '', meta });
+      return [H('NUMERIC · 2'), I('revenue_usd', 'f64', true), I('revenue_eur', 'f64', false, true), H('TEXT · 1'), I('revenue_note', 'str')];
+    };
+    const ddOpts = [
+      { id: '3g', title: 'Outlined + highlighted row', sub: 'Outlined field like every other input. The popup opens below, and the current value row uses accent_sel_bg, the same selected style as the rail and lists.', rec: true, bold: false, fLabel: 'Style', checkCol: false, search: false, glyph: '',
+        notes: [N('+', 'Consistent with fields, spinboxes and the 2l rail selection'), N('+', 'Popup placement fix from DropDownComboBox becomes the default'), N('–', 'Selected and hover rows must stay clearly distinct (they do: sel_bg vs inset)')],
+        qss: 'QComboBox { border: 1px solid border_control; border-radius: 4px; padding: 0 8px; min-height: 24px; }\nQComboBox:on { border-color: focus; }   /* open */\n/* keyboard focus: FocusRing outside the border */\nQComboBox QAbstractItemView { border: 1px solid border_panel; padding: 3px; outline: 0; }\nQComboBox QAbstractItemView::item:selected { background: accent_sel_bg; color: accent_sel_text; }\nQComboBox QAbstractItemView::item:hover { background: bg_inset; }',
+        themes: themesFor(t => ({ states: ddStates(t, { fBd: t.bControl, fBg: t.surface }, { fBd: t.text2 }, 'Dashed'), items: lineItems(t, 'hl') })) },
+      { id: '3h', title: 'Filled + checkmark', sub: 'The field is a bg_inset fill with a 1px border that appears on hover and focus. The popup marks the current value with a check, like macOS and Windows 11 menus.', rec: false, bold: false, fLabel: 'Style', checkCol: true, search: false, glyph: '',
+        notes: [N('+', 'Lighter panels; the checkmark is clear for colour-blind users'), N('–', 'Different from text and number fields unless they also go filled'), N('–', 'Inside 2b cards (also inset) the fill disappears')],
+        qss: 'QComboBox { background: bg_inset; border: 1px solid bg_inset; }\nQComboBox:hover { border-color: border_control; }\n/* checkmark via QStyledItemDelegate painting ✓ in accent at x=6 */',
+        themes: themesFor(t => ({ states: ddStates(t, { fBd: t.inset, fBg: t.inset }, { fBd: t.bControl }, 'Dashed'), items: lineItems(t, 'ck') })) },
+      { id: '3i', title: 'Searchable, grouped', sub: 'For long lists such as data columns, fonts and colormaps. A type-ahead filter sits at the top of the popup, items are grouped with counts, and a type badge shows on the right.', rec: false, bold: true, fLabel: 'Y column', checkCol: false, search: true, glyph: 'f64',
+        notes: [N('+', 'Scales to hundreds of columns'), N('+', 'The type badge prevents plotting a text column by mistake'), N('–', 'Overkill for 4-item enums; best as an opt-in variant (searchable=True) alongside 3g or 3h')],
+        qss: 'ValueComboBox(searchable=True, groups=True)\n  popup: QFrame + QLineEdit filter + QListView (QSortFilterProxyModel)\n  group header: 9.5px/700/1px text_muted, not selectable\n  meta badge: IBM Plex Mono 10px text_muted, right-aligned',
+        themes: themesFor(t => ({ states: ddStates(t, { fBd: t.bControl, fBg: t.surface }, { fBd: t.text2 }, 'revenue_usd'), items: colItems(t) })) }
+    ];
+
+    const picks = ['Tokens: teal · 4/6/4 · 26px', 'Containers 2b · 2d · 2h', 'Tabs 2j (Settings 2l)', 'Shell 2m', 'Dialogs 2p / 2q / 2r by purpose'];
+    return { btnOpts, sliderOpts, ddOpts, picks };
+  }
+}
+</script>
+</body>
+</html>

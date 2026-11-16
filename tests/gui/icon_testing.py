@@ -8,7 +8,7 @@ from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QStyle, QStyleOptionViewItem, QTreeWidget, QTreeWidgetItem
 
 from pandaplot.models.state.config import Theme
-from pandaplot.services.theme.theme_manager import ThemeContext, ThemeManager
+from tests.gui.theme_testing import design_tokens
 
 _TOKEN_KEYS = (
     "text_primary",
@@ -25,9 +25,7 @@ _TOKEN_KEYS = (
 
 
 def _light_theme_tokens() -> dict[str, str]:
-    manager = ThemeManager.__new__(ThemeManager)
-    manager._current = ThemeContext(theme=Theme.LIGHT, accent="#4A56C6", interface_font_size=10)
-    tokens = manager.get_design_tokens()
+    tokens = design_tokens(Theme.LIGHT)
     return {key: tokens[key] for key in _TOKEN_KEYS}
 
 

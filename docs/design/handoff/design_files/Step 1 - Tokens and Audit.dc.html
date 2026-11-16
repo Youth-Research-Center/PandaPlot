@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0;background:#E8E9ED;color:#1C1E26;font-family:'IBM Plex Sans',sans-serif}a{color:#3440A8}a:hover{color:#1C1E26}*{box-sizing:border-box}</style>
+</helmet>
+<section id="step1" data-screen-label="Step 1 Tokens and Audit" style="padding:56px; display:flex; flex-direction:column; gap:56px; width:2140px">
+  <header style="display:flex; flex-direction:column; gap:8px; max-width:1100px">
+    <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#5B6270; letter-spacing:1px">PANDAPLOT COMPONENTS · STEP 1 OF 4</span>
+    <h1 style="margin:0; font-size:44px; font-weight:600; letter-spacing:-0.5px">Design-system audit + token foundations</h1>
+    <p style="margin:0; font-size:18px; line-height:1.5; color:#3F4350; text-wrap:pretty">Based on <span style="font-family:'IBM Plex Mono',monospace; font-size:15px">theme_manager.py</span>, the 15 widgets in <span style="font-family:'IBM Plex Mono',monospace; font-size:15px">gui/components/common</span> and <span style="font-family:'IBM Plex Mono',monospace; font-size:15px">pandaplot_storybook</span>. Pick one option from each token row. Steps 2–4 (containers → controls → multi-select) build on the picks.</p>
+  </header>
+
+  <div style="display:flex; flex-direction:column; gap:20px">
+    <h2 style="margin:0; font-size:28px; font-weight:600">What the system has today</h2>
+    <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px; max-width:1500px">
+      <div style="background:#FFFFFF; border:1px solid #D5D8DE; border-radius:10px; padding:18px; display:flex; flex-direction:column; gap:6px"><span style="font-size:13px; color:#5B6270; font-weight:600">TOKENS</span><span style="font-size:15px; line-height:1.45">~30 keys in one dict per theme (text ×5, border ×3, surface ×3, accent ×4, status ×4, radius ×4). The accent is user-configurable.</span></div>
+      <div style="background:#FFFFFF; border:1px solid #D5D8DE; border-radius:10px; padding:18px; display:flex; flex-direction:column; gap:6px"><span style="font-size:13px; color:#5B6270; font-weight:600">STYLING</span><span style="font-size:15px; line-height:1.45">Global QSS keyed on dynamic properties (<span style="font-family:'IBM Plex Mono',monospace; font-size:13px">[primary]</span>, <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">[chip]</span>, <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">[segment]</span>, <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">[card]</span>), plus per-widget stylesheets and QPainter.</span></div>
+      <div style="background:#FFFFFF; border:1px solid #D5D8DE; border-radius:10px; padding:18px; display:flex; flex-direction:column; gap:6px"><span style="font-size:13px; color:#5B6270; font-weight:600">COMPONENTS</span><span style="font-size:15px; line-height:1.45">15 shared widgets. The core set is PButton, SegmentedControl, ValueComboBox, SliderWithSpinbox, ToggleSwitch, ChipRow, Card, SectionHeader and DirtyFooter.</span></div>
+      <div style="background:#FFFFFF; border:1px solid #D5D8DE; border-radius:10px; padding:18px; display:flex; flex-direction:column; gap:6px"><span style="font-size:13px; color:#5B6270; font-weight:600">STORYBOOK</span><span style="font-size:15px; line-height:1.45">One story per widget with live controls and a Light/Dark/System switch. Contrast is unit-tested for 2 color pairs.</span></div>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:20px">
+    <h2 style="margin:0; font-size:28px; font-weight:600">What's missing to be a good system</h2>
+    <div style="display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:14px; max-width:2030px">
+      <sc-for list="{{ systemGaps }}" as="g" hint-placeholder-count="10">
+        <div style="background:#FFFFFF; border:1px solid #D5D8DE; border-radius:10px; padding:16px; display:flex; flex-direction:column; gap:8px">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#8A4BB8">{{ g.num }}</span>
+          <span style="font-size:16px; font-weight:600; line-height:1.3">{{ g.t }}</span>
+          <span style="font-size:14px; line-height:1.5; color:#3F4350; text-wrap:pretty">{{ g.b }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:20px">
+    <h2 style="margin:0; font-size:28px; font-weight:600">Per component</h2>
+    <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; max-width:2030px">
+      <sc-for list="{{ components }}" as="c" hint-placeholder-count="11">
+        <div style="background:#FFFFFF; border:1px solid #D5D8DE; border-radius:10px; padding:16px; display:flex; flex-direction:column; gap:10px">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px">
+            <div style="display:flex; flex-direction:column; gap:2px; min-width:0"><span style="font-size:17px; font-weight:600">{{ c.n }}</span><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#5B6270">{{ c.f }}</span></div>
+            <span style="font-size:12px; font-weight:600; padding:3px 8px; border-radius:4px; background:{{ c.sevBg }}; color:{{ c.sevFg }}; white-space:nowrap">{{ c.sev }}</span>
+          </div>
+          <span style="font-size:14px; color:#3F4350; line-height:1.45"><b style="font-weight:600; color:#1C1E26">Has:</b> {{ c.has }}</span>
+          <div style="display:flex; flex-direction:column; gap:5px">
+            <sc-for list="{{ c.gaps }}" as="gp"><div style="display:grid; grid-template-columns:10px minmax(0,1fr); gap:6px; font-size:14px; line-height:1.45"><span style="color:#DC3545">–</span><span style="text-wrap:pretty">{{ gp }}</span></div></sc-for>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; max-width:2030px">
+      <span style="font-size:16px; font-weight:600">Not in the system at all</span>
+      <div style="display:flex; flex-wrap:wrap; gap:8px">
+        <sc-for list="{{ missing }}" as="m" hint-placeholder-count="12"><span style="font-size:14px; padding:6px 12px; border-radius:6px; border:1px dashed #8C929E; background:#F4F5F8">{{ m }}</span></sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:12px; max-width:1500px">
+    <h2 style="margin:0; font-size:28px; font-weight:600">Token options</h2>
+    <p style="margin:0; font-size:16px; line-height:1.5; color:#3F4350">Light and dark are picked separately, so every row has its own Light and Dark options. Each card shows the same component sample, drawn with only what QSS can render (borders, fills, radius; no shadows). The <b>Density</b>, <b>Base for rows 2–3</b> and <b>Contrast checks</b> tweaks apply everywhere.</p>
+  </div>
+
+  <sc-for list="{{ rows }}" as="row" hint-placeholder-count="3">
+    <div style="display:flex; flex-direction:column; gap:16px">
+      <div style="display:flex; flex-direction:column; gap:4px">
+        <h3 style="margin:0; font-size:22px; font-weight:600">{{ row.title }}</h3>
+        <span style="font-size:15px; color:#5B6270">{{ row.sub }}</span>
+      </div>
+      <sc-for list="{{ row.groups }}" as="grp" hint-placeholder-count="2">
+      <div style="display:flex; flex-direction:column; gap:10px">
+      <div style="display:flex; align-items:center; gap:10px"><span style="font-size:13px; font-weight:700; letter-spacing:1px; padding:4px 10px; border-radius:5px; background:{{ grp.chipBg }}; color:{{ grp.chipFg }}; border:1px solid #1C1E26">{{ grp.label }}</span><span style="font-size:14px; color:#5B6270">{{ grp.hint }}</span></div>
+      <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start">
+        <sc-for list="{{ grp.options }}" as="opt" hint-placeholder-count="3">
+          <div id="{{ opt.id }}" style="width:520px; background:#FFFFFF; border:1px solid #D5D8DE; border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:14px">
+            <div style="display:flex; gap:12px; align-items:flex-start">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500; background:#1C1E26; color:#FFFFFF; padding:4px 9px; border-radius:6px">{{ opt.id }}</span>
+              <div style="display:flex; flex-direction:column; gap:3px; flex:1; min-width:0">
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap"><span style="font-size:18px; font-weight:600">{{ opt.title }}</span><sc-if value="{{ opt.rec }}"><span style="font-size:12px; font-weight:600; color:#1F6B42; background:#E3F4EA; padding:2px 8px; border-radius:4px">Recommended</span></sc-if></div>
+                <span style="font-size:14px; color:#5B6270; line-height:1.45; text-wrap:pretty">{{ opt.sub }}</span>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px">
+              <sc-for list="{{ opt.panes }}" as="p" hint-placeholder-count="2">
+                <div style="flex:1 1 0; min-width:0; background:{{ p.canvas }}; color:{{ p.text }}; padding:12px; display:flex; flex-direction:column; gap:10px; font-family:'Segoe UI', system-ui, -apple-system, sans-serif; font-size:{{ p.font }}px; border-radius:6px; border:1px solid {{ p.bPanel }}">
+                  <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px"><span style="font-weight:600; font-size:11px; color:{{ p.muted }}; letter-spacing:.5px">{{ p.label }}</span><span style="font-size:10px; color:{{ p.muted }}; font-family:'IBM Plex Mono',monospace">{{ p.meta }}</span></div>
+                  <sc-if value="{{ p.hasSw }}">
+                    <div style="display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:5px">
+                      <sc-for list="{{ p.swatches }}" as="sw"><div style="display:flex; flex-direction:column; gap:3px; min-width:0"><div style="height:18px; background:{{ sw.c }}; border:1px solid {{ p.bPanel }}; border-radius:3px"></div><span style="font-size:9px; color:{{ p.muted }}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:'IBM Plex Mono',monospace">{{ sw.n }}</span></div></sc-for>
+                    </div>
+                  </sc-if>
+                  <div style="background:{{ p.surface }}; border:1px solid {{ p.bSubtle }}; border-radius:{{ p.rCard }}px; padding:10px; display:flex; flex-direction:column; gap:{{ p.gap }}px">
+                    <span style="font-size:10.5px; font-weight:700; letter-spacing:1px; color:{{ p.muted }}">LINE</span>
+                    <div style="display:grid; grid-template-columns:48px minmax(0,1fr); gap:{{ p.gap }}px 8px; align-items:center">
+                      <span style="color:{{ p.text2 }}">Width</span>
+                      <div style="height:{{ p.h }}px; border:1px solid {{ p.focus }}; box-shadow:inset 0 0 0 1px {{ p.focus }}; border-radius:{{ p.rControl }}px; background:{{ p.surface }}; display:flex; align-items:center; justify-content:space-between; padding:0 {{ p.px }}px"><span>1.5</span><span style="color:{{ p.muted }}">px</span></div>
+                      <span style="color:{{ p.text2 }}">Style</span>
+                      <div style="height:{{ p.h }}px; border:1px solid {{ p.bControl }}; border-radius:{{ p.rControl }}px; background:{{ p.surface }}; display:flex; align-items:center; justify-content:space-between; padding:0 {{ p.px }}px"><span>Dashed</span><span style="color:{{ p.muted }}; font-size:8px">▼</span></div>
+                      <span style="color:{{ p.text2 }}">Opacity</span>
+                      <div style="display:flex; gap:8px; align-items:center">
+                        <div style="flex:1; height:4px; background:{{ p.track }}; border-radius:2px; position:relative"><div style="position:absolute; left:0; top:0; bottom:0; width:62%; background:{{ p.accent }}; border-radius:2px"></div><div style="position:absolute; left:62%; top:50%; width:12px; height:12px; margin:-6px 0 0 -6px; border-radius:6px; background:{{ p.knob }}; border:1px solid {{ p.bControl }}"></div></div>
+                        <div style="width:44px; height:{{ p.h }}px; border:1px solid {{ p.bControl }}; border-radius:{{ p.rControl }}px; background:{{ p.surface }}; display:flex; align-items:center; justify-content:flex-end; padding:0 {{ p.px }}px">62</div>
+                      </div>
+                      <span style="color:{{ p.text2 }}">Smooth</span>
+                      <div style="display:flex; gap:8px; align-items:center">
+                        <div style="width:26px; height:15px; border-radius:8px; background:{{ p.accent }}; position:relative"><div style="position:absolute; right:2px; top:2px; width:11px; height:11px; border-radius:6px; background:{{ p.knobOn }}"></div></div>
+                        <div style="width:26px; height:15px; border-radius:8px; background:{{ p.toggleOff }}; position:relative"><div style="position:absolute; left:2px; top:2px; width:11px; height:11px; border-radius:6px; background:{{ p.knob }}"></div></div>
+                      </div>
+                    </div>
+                    <div style="display:flex; border:1px solid {{ p.bControl }}; border-radius:{{ p.rControl }}px; padding:1px; height:{{ p.h }}px">
+                      <div style="flex:1; display:flex; align-items:center; justify-content:center; background:{{ p.subBg }}; color:{{ p.subText }}; font-weight:600; border-radius:{{ p.rInner }}px">Line</div>
+                      <div style="flex:1; display:flex; align-items:center; justify-content:center; color:{{ p.muted }}">Scatter</div>
+                      <div style="flex:1; display:flex; align-items:center; justify-content:center; color:{{ p.muted }}">Bar</div>
+                    </div>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap">
+                      <div style="height:{{ p.hChip }}px; padding:0 10px; display:flex; align-items:center; border-radius:{{ p.rChip }}px; background:{{ p.accent }}; color:{{ p.onAccent }}; border:1px solid {{ p.accent }}">Series 1</div>
+                      <div style="height:{{ p.hChip }}px; padding:0 10px; display:flex; align-items:center; border-radius:{{ p.rChip }}px; border:1px solid {{ p.bControl }}; color:{{ p.text2 }}">Series 2</div>
+                    </div>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap; padding-top:4px; border-top:1px solid {{ p.bSubtle }}">
+                      <div style="height:{{ p.h }}px; padding:0 {{ p.bpx }}px; display:flex; align-items:center; background:{{ p.accent }}; color:{{ p.onAccent }}; border-radius:{{ p.rControl }}px; font-weight:600">Apply</div>
+                      <div style="height:{{ p.h }}px; padding:0 {{ p.bpx }}px; display:flex; align-items:center; border:1px solid {{ p.bControl }}; color:{{ p.btnSecText }}; border-radius:{{ p.rControl }}px">Revert</div>
+                      <div style="height:{{ p.h }}px; padding:0 {{ p.bpx }}px; display:flex; align-items:center; border:1px solid {{ p.danger }}; color:{{ p.danger }}; border-radius:{{ p.rControl }}px">Delete</div>
+                      <div style="height:{{ p.h }}px; padding:0 {{ p.bpx }}px; display:flex; align-items:center; background:{{ p.accentDis }}; color:{{ p.onAccentDis }}; border-radius:{{ p.rControl }}px; font-weight:600">Off</div>
+                    </div>
+                  </div>
+                  <sc-if value="{{ showChecks }}">
+                    <div style="display:flex; flex-direction:column; gap:3px; font-size:10.5px">
+                      <sc-for list="{{ p.checks }}" as="ck"><div style="display:grid; grid-template-columns:minmax(0,1fr) 40px 30px; gap:6px; align-items:center"><span style="color:{{ p.text2 }}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ ck.n }}</span><span style="font-family:'IBM Plex Mono',monospace; text-align:right; color:{{ p.text2 }}">{{ ck.r }}</span><span style="font-weight:700; color:{{ ck.col }}; text-align:right">{{ ck.l }}</span></div></sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:5px">
+              <sc-for list="{{ opt.notes }}" as="nt"><div style="display:grid; grid-template-columns:14px minmax(0,1fr); gap:6px; font-size:14px; line-height:1.45"><span style="color:{{ nt.col }}; font-weight:700">{{ nt.s }}</span><span style="text-wrap:pretty">{{ nt.t }}</span></div></sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      </div>
+      </sc-for>
+    </div>
+  </sc-for>
+
+  <div style="display:flex; flex-direction:column; gap:16px; max-width:1500px">
+    <h3 style="margin:0; font-size:22px; font-weight:600">Spacing + control height (applies to every option)</h3>
+    <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px">
+      <sc-for list="{{ densities }}" as="d" hint-placeholder-count="3">
+        <div style="background:#FFFFFF; border:1px solid {{ d.border }}; border-radius:10px; padding:16px; display:flex; flex-direction:column; gap:8px">
+          <div style="display:flex; justify-content:space-between; align-items:center"><span style="font-size:17px; font-weight:600">{{ d.name }}</span><span style="font-size:12px; font-weight:600; color:#3440A8">{{ d.active }}</span></div>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; line-height:1.6; color:#3F4350">{{ d.spec }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; color:#3F4350">space: 2 · 4 · 6 · 8 · 12 · 16 · 24 — replaces 1 / 4·8 / 6 / 6·14 / 9 / 10</span>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:12px; max-width:1500px; padding:20px; background:#1C1E26; color:#FFFFFF; border-radius:12px">
+    <span style="font-size:18px; font-weight:600">Next</span>
+    <span style="font-size:15px; line-height:1.6; color:#D5D8DE">Reply with one Light and one Dark pick per row (e.g. "1bL + 1bD, 1dL + 1fD, 1hL + 1hD, default density"). I'll then write the <span style="font-family:'IBM Plex Mono',monospace">get_design_tokens()</span> + QSS patch and a Storybook "Tokens" story, and move on to <b style="color:#FFFFFF">Step 2 · Containers</b>: card, collapsible section, nested group, tabs, panel shell, dialog. Step 3 covers PButton / Slider+spinbox / Dropdown, and Step 4 the multi-select list (checkbox list, chips + popover, dual list).</span>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Compact&quot;,&quot;Default&quot;,&quot;Comfortable&quot;],&quot;default&quot;:&quot;Default&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;base&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Cleaned current&quot;,&quot;New set&quot;],&quot;default&quot;:&quot;Cleaned current&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Rows 2–3&quot;},&quot;showChecks&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const lum = h => { h = h.replace('#', ''); const c = [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)); return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]; };
+    const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+    const pick = bg => cr('#FFFFFF', bg) >= cr('#000000', bg) ? '#FFFFFF' : '#111318';
+    const mix = (a, b, t) => { const p = s => [1, 3, 5].map(i => parseInt(s.substr(i, 2), 16)); const A = p(a), B = p(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+
+    const TS = {
+      current: {
+        light: { canvas: '#FBFBFC', surface: '#FFFFFF', inset: '#F4F5F8', bPanel: '#E5E6EA', bControl: '#DCDEE4', bSubtle: '#ECEEF2', text: '#1C1E26', text2: '#3F4350', muted: '#6B7280', disabled: '#AEB2BC', danger: '#DC3545', toggleOff: '#E5E6EA', knob: '#FFFFFF' },
+        dark: { canvas: '#232527', surface: '#2A2C2E', inset: '#26282B', bPanel: '#3A3D40', bControl: '#4A4D52', bSubtle: '#33363A', text: '#E2E2E2', text2: '#C7CAD1', muted: '#9AA0AB', disabled: '#5B6270', danger: '#C24141', toggleOff: '#3A3D40', knob: '#FFFFFF' } },
+      cleaned: {
+        light: { canvas: '#FBFBFC', surface: '#FFFFFF', inset: '#F4F5F8', bPanel: '#E5E6EA', bControl: '#C9CDD5', bSubtle: '#ECEEF2', text: '#1C1E26', text2: '#3F4350', muted: '#6B7280', disabled: '#AEB2BC', danger: '#C82333', toggleOff: '#C9CDD5', knob: '#FFFFFF' },
+        dark: { canvas: '#1F2123', surface: '#2A2C2E', inset: '#242628', bPanel: '#3A3D40', bControl: '#5A5E64', bSubtle: '#33363A', text: '#E2E2E2', text2: '#C7CAD1', muted: '#A3A9B3', disabled: '#5B6270', danger: '#F07171', toggleOff: '#4A4D52', knob: '#E8E9EB' } },
+      fresh: {
+        light: { canvas: '#F5F6F8', surface: '#FFFFFF', inset: '#EEF0F3', bPanel: '#DDE0E5', bControl: '#8E94A0', bSubtle: '#E6E8EC', text: '#15171C', text2: '#363A44', muted: '#5E6471', disabled: '#A3A8B2', danger: '#C0283A', toggleOff: '#B7BCC5', knob: '#FFFFFF' },
+        dark: { canvas: '#1A1B1E', surface: '#232428', inset: '#1E1F22', bPanel: '#34363B', bControl: '#6A6E77', bSubtle: '#2C2E33', text: '#ECEDEF', text2: '#C4C7CE', muted: '#9CA1AC', disabled: '#585D67', danger: '#F27A7A', toggleOff: '#4E525A', knob: '#E6E7EA' } }
+    };
+    const ACC = {
+      shipped: { name: 'Indigo (shipped)', light: { base: '#4A56C6', hover: '#5663DA', pressed: '#404AAC', subBg: '#EEF0FB', subText: '#404AAC' }, dark: { base: '#4A56C6', hover: '#5663DA', pressed: '#404AAC', subBg: '#2E3350', subText: '#404AAC' } },
+      indigo: { name: 'Indigo', light: { base: '#4A56C6', hover: '#3F4AB3', pressed: '#353F9C', subBg: '#EEF0FB', subText: '#3440A8' }, dark: { base: '#5C68DD', hover: '#6A75E3', pressed: '#4E59C8', subBg: '#2E3350', subText: '#BAC0FF', focus: '#7C87F0' } },
+      teal: { name: 'Teal', light: { base: '#0E7C86', hover: '#0B6C75', pressed: '#095C63', subBg: '#E3F4F5', subText: '#0A5F67' }, dark: { base: '#11808A', hover: '#14909B', pressed: '#0C6E77', subBg: '#163A3E', subText: '#8FDDE3', focus: '#3FB6C1' } },
+      graphite: { name: 'Graphite', light: { base: '#2B2F38', hover: '#3A3F4A', pressed: '#1E2128', subBg: '#E6E8EC', subText: '#1C1F26', focus: '#3B6FE0' }, dark: { base: '#D9DCE1', hover: '#ECEEF1', pressed: '#BFC3CA', subBg: '#3A3D44', subText: '#F1F2F4', focus: '#6F9BFF' } }
+    };
+    const RAD = { shipped: { c: 5, card: 6, chip: 12 }, tight: { c: 2, card: 3, chip: 2 }, balanced: { c: 4, card: 6, chip: 4 }, soft: { c: 6, card: 8, chip: 999 } };
+    const DEN = { Compact: { h: 22, px: 6, bpx: 10, gap: 4, font: 12 }, Default: { h: 26, px: 8, bpx: 12, gap: 6, font: 12 }, Comfortable: { h: 30, px: 10, bpx: 14, gap: 8, font: 13 } };
+    const densKey = this.props.density ?? 'Default';
+    const dn = DEN[densKey] || DEN.Default;
+    const baseKey = (this.props.base ?? 'Cleaned current') === 'New set' ? 'fresh' : 'cleaned';
+
+    const pane = (tsKey, theme, accKey, radKey, swMode, opts = {}) => {
+      const t = TS[tsKey][theme], a = ACC[accKey][theme], r = RAD[radKey];
+      const focus = opts.noFocus ? t.bControl : (a.focus || a.base);
+      const onAccent = opts.fixedWhite ? '#FFFFFF' : pick(a.base);
+      const accentDis = mix(a.base, t.surface, 0.55);
+      const sw = swMode === 'base'
+        ? [['canvas', t.canvas], ['surface', t.surface], ['inset', t.inset], ['b.panel', t.bPanel], ['b.control', t.bControl], ['b.subtle', t.bSubtle], ['text', t.text], ['text.2', t.text2], ['muted', t.muted], ['disabled', t.disabled], ['danger', t.danger], ['accent', a.base]]
+        : swMode === 'accent'
+          ? [['base', a.base], ['hover', a.hover], ['pressed', a.pressed], ['sel.bg', a.subBg], ['sel.text', a.subText], ['focus', focus]]
+          : [];
+      const chk = (n, fg, bg, min) => { const v = cr(fg, bg); const ok = v >= min; return { n, r: v.toFixed(2), l: ok ? 'Pass' : 'Fail', col: ok ? (theme === 'light' ? '#1F7A45' : '#6BCB8E') : (theme === 'light' ? '#C0283A' : '#FF8080') }; };
+      return {
+        label: theme === 'light' ? 'LIGHT' : 'DARK',
+        meta: 'r ' + r.c + '/' + r.card + '/' + (r.chip > 99 ? 'pill' : r.chip) + ' · h ' + dn.h,
+        ...t, accent: a.base, subBg: a.subBg, subText: a.subText, focus, onAccent, accentDis, onAccentDis: pick(accentDis),
+        track: t.toggleOff, knobOn: theme === 'dark' && accKey === 'graphite' ? '#1A1B1E' : '#FFFFFF',
+        btnSecText: opts.weakSec ? t.text2 : t.text,
+        rControl: r.c, rCard: r.card, rChip: r.chip, rInner: Math.max(0, r.c - 1),
+        h: dn.h, hChip: dn.h - 2, px: dn.px, bpx: dn.bpx, gap: dn.gap, font: dn.font,
+        hasSw: sw.length > 0, swatches: sw.map(([n, c]) => ({ n, c })),
+        checks: [chk('Text / surface', t.text, t.surface, 4.5), chk('Muted / surface', t.muted, t.surface, 4.5), chk('On-accent / accent', onAccent, a.base, 4.5), chk('Selected text / sel. bg', a.subText, a.subBg, 4.5), chk('Control border / surface', t.bControl, t.surface, 3), chk('Focus ring / surface', focus, t.surface, 3), chk('Danger / surface', t.danger, t.surface, 4.5)]
+      };
+    };
+    const both = (...args) => [pane(args[0], 'light', ...args.slice(1)), pane(args[0], 'dark', ...args.slice(1))];
+    const N = (s, t, th) => ({ s, t, th, col: s === '+' ? '#1F7A45' : s === '–' ? '#C0283A' : '#5B6270' });
+    const baseLabel = baseKey === 'fresh' ? '1c New set' : '1b Cleaned current';
+
+    const rows = [
+      { title: 'Row 1 · Token base', sub: 'Neutrals, borders, text and status colours. Accent is indigo in all three for comparison.', options: [
+        { id: '1a', title: 'As shipped', rec: false, sub: 'Today\'s get_design_tokens(), shown as the baseline. No focus state, and dark mode reuses the light accent.', panes: both('current', 'shipped', 'shipped', 'base', { noFocus: true, fixedWhite: true, weakSec: true }), notes: [N('–', 'Selected segment text fails (the Storybook-only patch)', 'dark'), N('–', 'Control borders #DCDEE4 barely separate from white', 'light'), N('–', 'Danger #C24141 fails on surface', 'dark'), N('–', 'No dark-specific accent: #4A56C6 is dim on #2A2C2E', 'dark'), N('–', 'No focus ring', 'light')] },
+        { id: '1b', title: 'Current, cleaned', rec: true, sub: 'Same palette and feel, with semantic names, a dark-specific accent, derived selected colours, a focus token, and stronger control borders.', panes: both('cleaned', 'indigo', 'shipped', 'base'), notes: [N('+', 'Smallest visual change: the app looks the same, just fixed'), N('+', 'The Storybook-local contrast overrides can be deleted'), N('·', 'Canvas drops to #1F2123 so inset < canvas < surface stay in order', 'dark'), N('·', 'Neutrals unchanged; only control borders strengthened to #C9CDD5', 'light')] },
+        { id: '1c', title: 'New set', rec: false, sub: 'The bold option: cooler neutrals, control borders at 3:1 (WCAG 1.4.11), a darker dark mode, and a 4/6/4 radius.', panes: both('fresh', 'indigo', 'balanced', 'base'), notes: [N('+', 'Every control boundary passes non-text contrast'), N('+', 'Clearer hierarchy between canvas, surface and inset'), N('–', 'Heavier borders read denser; the app\'s look changes noticeably')] }
+      ] },
+      { title: 'Row 2 · Accent', sub: 'Each accent gets a separate light and dark ramp, with text on accent chosen for contrast. Neutrals come from ' + baseLabel + '.', options: [
+        { id: '1d', title: 'Indigo, refined', rec: true, sub: 'Keeps the brand hue. The dark ramp is lifted to #5C68DD so white text still passes.', panes: both(baseKey, 'indigo', 'shipped', 'accent'), notes: [N('+', 'Continuity with existing screenshots and docs'), N('–', 'Close to series colour 2 (#4A56C6) in charts')] },
+        { id: '1e', title: 'Teal', rec: false, sub: 'Cooler and more technical. Doesn\'t collide with any default series colour.', panes: both(baseKey, 'teal', 'shipped', 'accent'), notes: [N('+', 'Easy to tell UI apart from data in chart previews'), N('–', 'Near series colour 3 (#2B7A8C); that palette entry would need a nudge')] },
+        { id: '1f', title: 'Graphite + blue focus', rec: false, sub: 'Neutral-first: primary actions are ink-coloured, and colour appears only for focus and selection.', panes: both(baseKey, 'graphite', 'shipped', 'accent'), notes: [N('+', 'The chart data is the only colour on screen'), N('+', 'The user-set accent config can drive the focus colour alone'), N('–', 'Primary vs secondary relies on fill, not hue')] }
+      ] },
+      { title: 'Row 3 · Corner radius', sub: 'Control / card / chip. Today it\'s 5 / 6 / 12 (plus 4 for swatches). Base: ' + baseLabel + ', indigo.', options: [
+        { id: '1g', title: 'Tight · 2 / 3 / 2', rec: false, sub: 'Close to native Windows and engineering tools. Chips become tags.', panes: both(baseKey, 'indigo', 'tight', 'none'), notes: [N('+', 'Densest look; matches grid/table cells'), N('–', 'Chips and segments look alike')] },
+        { id: '1h', title: 'Balanced · 4 / 6 / 4', rec: true, sub: 'One control radius shared by swatches, inputs, buttons and chips; cards one step up.', panes: both(baseKey, 'indigo', 'balanced', 'none'), notes: [N('+', 'Two values instead of four'), N('+', 'Inner segment radius (3) still renders cleanly in QSS')] },
+        { id: '1i', title: 'Soft · 6 / 8 / pill', rec: false, sub: 'Friendlier and closer to the current chip. Pills set chips apart from buttons.', panes: both(baseKey, 'indigo', 'soft', 'none'), notes: [N('+', 'Chips read clearly as selectable filters'), N('–', 'Radius 6 at 22px height looks bubbly in compact density')] }
+      ] }
+    ];
+
+    const TH = [{ k: 'light', label: 'LIGHT', suf: 'L', idx: 0, chipBg: '#FFFFFF', chipFg: '#1C1E26', hint: 'Options for the light theme' }, { k: 'dark', label: 'DARK', suf: 'D', idx: 1, chipBg: '#1C1E26', chipFg: '#FFFFFF', hint: 'Options for the dark theme — pick independently of light' }];
+    rows.forEach(r => { r.groups = TH.map(t => ({ label: t.label, hint: t.hint, chipBg: t.chipBg, chipFg: t.chipFg, options: r.options.map(o => ({ ...o, id: o.id + t.suf, panes: [o.panes[t.idx]], notes: o.notes.filter(n => !n.th || n.th === t.k) })) })); });
+    const densities = Object.entries(DEN).map(([k, d]) => ({ name: k + ' · ' + d.h + 'px', spec: 'control h ' + d.h + ' · pad-x ' + d.px + ' · button pad-x ' + d.bpx + ' · row gap ' + d.gap + ' · font ' + d.font + 'px', active: k === densKey ? 'SHOWN' : '', border: k === densKey ? '#3440A8' : '#D5D8DE' }));
+
+    const systemGaps = [
+      ['Tokens are a flat dict', 'get_design_tokens() returns ~30 keys with no tiers (primitive → semantic → component). Names describe appearance, not role: surface_white is #2A2C2E in dark.'],
+      ['Accent states via lighter()/darker()', 'Hover 110, pressed 115, disabled 140 aren\'t perceptual. Custom accents give unpredictable results, and dark mode reuses the light accent unchanged.'],
+      ['Dark selected state breaks', 'accent_selected_bg is hardcoded #2E3350 and paired with accent_active_text, which fails AA. The Storybook patches it locally; upstream is still broken.'],
+      ['No spacing or height scale', 'Margins 9 / 8·6 / 10 / 1; paddings 4·8, 6·14, 4·10, 4·14. Buttons, combos and segments come out at different heights in one row.'],
+      ['No type scale', 'SectionHeader uses 10.5px inline, the token says 9 (pt), and body text comes from config. There\'s no label, value, caption or title style.'],
+      ['Four radii for three shapes', 'swatch 4, control 5, card 6, chip 12. The odd 5 matches nothing else.'],
+      ['No focus state anywhere', 'The global QSS has no :focus rules, and ToggleSwitch can\'t receive focus. Keyboard use is invisible.'],
+      ['Styling split three ways', 'Global QSS (buttons, chips, segments), per-widget setStyleSheet (SectionHeader, DirtyFooter) and QPainter (ToggleSwitch). Each reacts to a theme change differently.'],
+      ['Contrast tested for 2 pairs', 'test_color_contrast.py only checks the two Storybook overrides. Dark danger and dark hint on surface fail 4.5:1 today.'],
+      ['Storybook is one instance at a time', 'There\'s no state matrix (hover / pressed / focus / disabled / mixed), no tokens page and no usage notes, so regressions are easy to miss.']
+    ].map(([t, b], i) => ({ num: String(i + 1).padStart(2, '0'), t, b }));
+
+    const SEV = { High: ['#FDE8EA', '#A01828'], Medium: ['#FFF3DC', '#8A5200'], Low: ['#ECEEF2', '#3F4350'] };
+    const components = [
+      ['PButton', 'p_button.py', 'Medium', 'primary · secondary · destructive roles; iconButton flag; on_click/enabled kwargs', ['No size variants; 6·14 padding is ~28px, taller than combos', 'No ghost/tertiary, and no icon + label', 'No focus or loading state', 'Secondary label uses text_secondary, weaker than the field text beside it']],
+      ['SliderWithSpinbox', 'slider_with_spinbox.py', 'High', 'QSlider synced to a QDoubleSpinBox', ['set_tokens() is a no-op, so the track and handle are native and differ per OS', 'Spinbox is a fixed 72px with no unit suffix', 'Fixed 100 steps, no step snapping', 'No disabled or mixed ("—") state']],
+      ['ValueComboBox', 'value_combo_box.py', 'High', '(label, value) items + icons; same API as SegmentedControl', ['Native styling: no token height, radius or border', 'DropDownComboBox duplicates it; popup placement should live in one class', 'No placeholder, mixed value or searchable variant']],
+      ['DropDownComboBox', 'drop_down_combo_box.py', 'Medium', 'Opens the list below the field (macOS fix)', ['No currentValue() API', 'Popup list is unstyled (no item height, hover or selected tokens)']],
+      ['SegmentedControl', 'segmented_control.py', 'High', 'Mutually exclusive text cells', ['Selected text fails AA in dark', 'border-left: 3px nav rule leaks into every segment', 'Bold on select shifts the width', 'No per-segment disabled state or icon-only cells']],
+      ['ToggleSwitch', 'toggle_switch.py', 'Medium', 'QPainter 26×15 pill', ['No keyboard, focus or disabled state', 'Knob is always #FFFFFF', 'Off track is border_panel, nearly invisible in light']],
+      ['ChipRow', 'chip_row.py', 'Low', 'Single-select chips, spacing 6', ['Selected text hardcoded #FFFFFF', 'No wrap or overflow', 'No multi-select mode (needed in Step 4)']],
+      ['Card', 'card.py', 'Low', 'Bordered container via [card] QSS', ['Content margins of 9 are off-scale', 'Selected goes from 1px to 2px border, a 1px layout jump', 'No header or title slot']],
+      ['SectionHeader', 'section_header.py', 'Medium', 'Uppercase group label', ['Inline 10.5px ignores font_size_group_title', 'Not collapsible, no trailing action slot', 'Uppercase baked in via .upper()']],
+      ['DirtyFooter', 'dirty_footer.py', 'Low', 'Status label + Revert / Apply', ['Hex fallbacks duplicated inside the widget', 'No top border or elevation to separate it from scrolling content']],
+      ['Others', 'swatch row · spinner · line-style · font · thumbnail', 'Low', 'Specialised helpers', ['Out of scope this pass; they pick up the unified tokens automatically once PButton/Card/focus rules change']]
+    ].map(([n, f, sev, has, gaps]) => ({ n, f, sev, has, gaps, sevBg: SEV[sev][0], sevFg: SEV[sev][1] }));
+
+    const missing = ['Text field', 'Number field', 'Checkbox / radio', 'Multi-select list', 'Collapsible section', 'Nested group', 'Tab container', 'Panel shell', 'Dialog', 'Tooltip', 'Empty state', 'Inline validation'];
+
+    return { rows, densities, systemGaps, components, missing, showChecks: this.props.showChecks ?? true };
+  }
+}
+</script>
+</body>
+</html>

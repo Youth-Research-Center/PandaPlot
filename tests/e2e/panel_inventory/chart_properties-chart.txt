@@ -1,0 +1,11 @@
+group | "Chart Information" |
+label | "Title:" |
+text | "" | value="Signal over time" placeholder="Chart title (supports $LaTeX$ math)"
+label | "Subtitle:" |
+text | "" | value="" placeholder="Optional (supports $LaTeX$ math)"
+label | "Category:" |
+combo | "Category" | value="Line & Scatter" items=["Line & Scatter", "Bar & Pie", "Distribution", "Fields & Grids", "3-D"]
+label | "Type:" |
+combo | "Type" | value="Line" items=["Line", "Scatter"]
+label | "Bins:" | hidden
+number | "" | value=20 range=2..200 decimals=0 hidden

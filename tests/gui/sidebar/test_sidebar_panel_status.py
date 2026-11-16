@@ -8,14 +8,14 @@ from PySide6.QtWidgets import QPlainTextEdit, QTextEdit
 from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.state.app_context import AppContext
-from tests.gui.icon_testing import fresh_icon_tokens
+from tests.gui.theme_testing import design_tokens
 
 
 @pytest.fixture
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **fresh_icon_tokens()}
+    ctx.get_manager.return_value.get_design_tokens.return_value = design_tokens()
     return ctx
 
 

@@ -1,0 +1,26 @@
+label | "Chart Analysis" |
+button | "?" |
+group | "Series" |
+combo | "Analyze:" | value="Signal" items=["Signal"]
+label | "Data series and fitted curves of this chart." |
+group | "Operation" |
+combo | "Type:" | value="Derivative" items=["Derivative", "Integral", "Arc length (line length)", "Smoothing", "Interpolation"]
+group | "Parameters" |
+group | "Segment (index range)" |
+label | "Start index:" |
+number | "" | value=0 range=0..99 decimals=0
+label | "x=0, y=0" |
+label | "End index:" |
+number | "" | value=99 range=0..99 decimals=0
+label | "x=9.9, y=-0.4575" |
+group | "Result" |
+text | "Dataset name:" | value="" placeholder="Derivative — Signal"
+checkable | "Plot result" | checked=true
+label | "Plot on:" |
+combo | "" | value="New chart" items=["New chart", "Signal over time"]
+group | "Preview" |
+button | "Preview" |
+text | "" | value="" placeholder="Preview results will appear here..." read-only
+button | "Apply" |
+button | "Clear" |
+combo | "Method:" | value="Central difference" items=["Central difference", "Forward difference", "Backward difference"]

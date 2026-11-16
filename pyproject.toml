@@ -61,7 +61,13 @@ pythonpath = ["scripts/icons"]
 
 [tool.ruff]
 line-length = 150
+# Unexecuted draft code from the design handoff; a reference only, never imported.
+extend-exclude = ["docs/design/handoff"]
 
 [tool.ruff.lint]
 # On top of the default `select` (`E4`, E7`, `E9`, and `F`), enable flake8-bugbear (`B`) and flake8-quotes (`Q`).
 extend-select = ["B", "Q", "I", "FBT"]
+
+[tool.ty.src]
+# Unexecuted draft code from the design handoff; a reference only, never imported.
+exclude = ["docs/design/handoff"]

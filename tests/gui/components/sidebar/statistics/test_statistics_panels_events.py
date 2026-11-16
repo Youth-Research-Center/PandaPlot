@@ -19,7 +19,8 @@ from pandaplot.models.events.event_data import DatasetColumnRenamedData
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Dataset
 from pandaplot.utils.errors import UserFacingError
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.theme_testing import design_tokens, surface_palette
 
 
 @pytest.fixture
@@ -34,8 +35,8 @@ def context():
     ctx.event_bus = bus
     ctx.app_state = app_state
     ctx.get_app_state.return_value = app_state
-    ctx.get_manager.return_value.get_surface_palette.return_value = {}
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
+    ctx.get_manager.return_value.get_surface_palette.return_value = surface_palette()
+    ctx.get_manager.return_value.get_design_tokens.return_value = design_tokens()
 
     def execute(command):
         return command.execute().value == "success"
@@ -388,7 +389,7 @@ def test_statistics_info_button_shows_an_info_icon_and_no_text(qtbot, context):
     size = panel.info_btn.iconSize()
     expected = themed_icon(context.ctx, "info")
     assert panel.info_btn.icon().pixmap(size).toImage() == expected.pixmap(size).toImage()
-    assert_tinted(strongest_pixel(panel.info_btn.icon()), ICON_TOKENS["text_primary"])
+    assert_tinted(strongest_pixel(panel.info_btn.icon()), design_tokens()["text_primary"])
 
 
 def test_statistics_info_button_icon_follows_the_theme(qtbot, context):
@@ -407,7 +408,7 @@ def test_statistics_description_has_an_info_icon_and_plain_text(qtbot, context):
     assert panel.description_label.text() == info.description
     assert isinstance(panel.description_icon, IconLabel)
     assert panel.description_icon.icon_name == "info"
-    assert_tinted(strongest_pixel(panel.description_icon.pixmap()), ICON_TOKENS["accent"])
+    assert_tinted(strongest_pixel(panel.description_icon.pixmap()), design_tokens()["accent"])
 
 
 def test_statistics_description_icon_follows_the_theme(qtbot, context):

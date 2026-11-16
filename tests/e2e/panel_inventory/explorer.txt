@@ -1,0 +1,5 @@
+label | "Project Explorer" |
+group | "Project Info" |
+label | "Inventory" |
+label | "Unsaved project" |
+list | "" | items=["Inventory", "Inventory/Measurements", "Inventory/Signal over time"]

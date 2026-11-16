@@ -1,0 +1,27 @@
+label | "Chart Signal Analysis" |
+button | "?" |
+group | "Series" |
+combo | "Analyze:" | value="Signal" items=["Signal"]
+label | "Data series and fitted curves of this chart." |
+group | "Method" |
+combo | "Method:" | value="Fast Fourier Transform (FFT)" items=["Fast Fourier Transform (FFT)", "Short-Time Fourier Transform (STFT)", "Power Spectral Density (Welch)", "Autocorrelation", "Peak Detection"]
+label | "Transforms a signal from the time domain into the frequency domain and returns its frequency spectrum." |
+group | "Parameters" |
+group | "Segment (index range)" |
+label | "Start index:" |
+number | "" | value=0 range=0..99 decimals=0
+label | "x=0, y=0" |
+label | "End index:" |
+number | "" | value=99 range=0..99 decimals=0
+label | "x=9.9, y=-0.4575" |
+group | "Results" |
+button | "Run" |
+text | "" | value="" placeholder="Run analysis to see results..." read-only
+checkable | "Plot result" | checked=true
+label | "Plot on:" |
+combo | "" | value="New chart" items=["New chart", "Signal over time"]
+button | "Add to Project" | disabled
+button | "Clear" |
+number | "Sampling rate:" | value=10 range=0.001..1000000000 decimals=2
+number | "FFT size:" | value=1024 range=16..1000000 decimals=0
+combo | "Window:" | value="hann" items=["hann", "hamming", "blackman", "boxcar"]

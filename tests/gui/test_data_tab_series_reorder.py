@@ -22,7 +22,9 @@ from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.project import Project
+from pandaplot.models.state.config import Theme
 from pandaplot.services.theme.theme_manager import ThemeManager
+from tests.gui.theme_testing import design_tokens
 
 
 def _qapp():
@@ -275,7 +277,7 @@ def test_chevron_icon_follows_the_expanded_state(data_tab_with_chart):
 def test_series_row_icons_retint_when_the_theme_changes(data_tab_with_chart, monkeypatch):
     data_tab, _chart, app_context = data_tab_with_chart
     manager = app_context.get_manager(ThemeManager)
-    dark_tokens = {**manager.get_design_tokens(), "text_primary": "#E2E2E2", "text_disabled": "#5B6270", "status_danger": "#C24141"}
+    dark_tokens = design_tokens(Theme.DARK)
     monkeypatch.setattr(manager, "get_design_tokens", lambda: dict(dark_tokens))
 
     data_tab.apply_theme(dark_tokens)

@@ -1,6 +1,7 @@
 """The note editor toolbar shows theme-tinted bundled icons instead of emoji prefixes."""
 
 import re
+from typing import Any
 
 import pytest
 from PySide6.QtCore import QSize, Qt
@@ -13,11 +14,13 @@ from pandaplot.gui.components.tabs.note.note_editor import NoteEditorWidget
 from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.project.items import Note
 from pandaplot.models.project.project import Project
+from pandaplot.models.state.config import Theme
 from pandaplot.services.theme.theme_manager import ThemeManager
 from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.theme_testing import design_tokens
 
-LIGHT_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
-DARK_TOKENS = {"text_primary": "#E2E2E2", "text_muted": "#9AA0AB", "accent_icon_active": "#8995FF", "text_disabled": "#5B6270"}
+LIGHT_TOKENS = design_tokens(Theme.LIGHT)
+DARK_TOKENS = design_tokens(Theme.DARK)
 
 ICON_SIZE = 16
 NON_ASCII = re.compile(r"[^\x00-\x7f]")
@@ -52,7 +55,7 @@ EXPECTED_TOOLTIPS = {
 
 
 @pytest.fixture
-def tokens() -> dict[str, str]:
+def tokens() -> dict[str, Any]:
     return dict(LIGHT_TOKENS)
 
 
@@ -60,8 +63,7 @@ def tokens() -> dict[str, str]:
 def editor(qapp, monkeypatch, tokens):
     app_context = build_app_context()
     theme_manager = app_context.get_manager(ThemeManager)
-    real_tokens = theme_manager.get_design_tokens
-    monkeypatch.setattr(theme_manager, "get_design_tokens", lambda: {**real_tokens(), **tokens})
+    monkeypatch.setattr(theme_manager, "get_design_tokens", lambda: dict(tokens))
     project = Project(name="Test Project")
     note = Note(name="My Note", content="hello")
     project.add_item(note)
@@ -124,7 +126,7 @@ def test_toolbar_shows_icons_beside_text_at_16px(editor):
     assert toolbar.iconSize() == QSize(ICON_SIZE, ICON_SIZE)
 
 
-def _expected_pixels(icon_name: str, palette: dict[str, str]):
+def _expected_pixels(icon_name: str, palette: dict[str, Any]):
     icon = build_icon(icon_name, palette["text_primary"], size=ICON_SIZE, disabled_color=palette["text_disabled"])
     return icon.pixmap(QSize(ICON_SIZE, ICON_SIZE)).toImage()
 
