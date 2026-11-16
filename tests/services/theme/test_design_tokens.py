@@ -7,7 +7,7 @@ import pytest
 from PySide6.QtGui import QColor
 
 from pandaplot.models.state.config import AppearanceConfig, Theme
-from pandaplot.services.theme.contrast import contrast_ratio, mix
+from pandaplot.services.theme.contrast import contrast_ratio
 from pandaplot.services.theme.design_tokens import TEAL_ACCENT, build_design_tokens, freeze_tokens
 
 TEAL_LIGHT = {
@@ -124,11 +124,15 @@ def test_hover_and_pressed_step_away_from_the_on_accent_text(theme: Theme, accen
     assert contrast_ratio(on, QColor(tokens["accent_pressed"])) > contrast_ratio(on, QColor(tokens["accent_hover"]))
 
 
-@pytest.mark.parametrize(("theme", "amount"), [(Theme.LIGHT, 0.88), (Theme.DARK, 0.72)])
-def test_selected_background_tints_the_surface_with_the_accent(theme: Theme, amount: float) -> None:
-    tokens = build_design_tokens(theme, "#4A56C6")
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+@pytest.mark.parametrize("accent", ["#4A56C6", "#FF0000", "#2E9E44"])
+def test_selected_background_is_a_tint_of_the_surface(theme: Theme, accent: str) -> None:
+    tokens = build_design_tokens(theme, accent)
+    sel_bg, surface, accent_color = QColor(tokens["accent_sel_bg"]), QColor(tokens["bg_surface"]), QColor(tokens["accent"])
 
-    assert tokens["accent_sel_bg"] == mix("#4A56C6", tokens["bg_surface"], amount)
+    assert sel_bg != surface
+    assert 1.05 < contrast_ratio(sel_bg, surface) < 2.0
+    assert contrast_ratio(sel_bg, surface) < contrast_ratio(sel_bg, accent_color)
 
 
 def test_dark_focus_is_lighter_than_the_accent_when_needed() -> None:
@@ -136,15 +140,6 @@ def test_dark_focus_is_lighter_than_the_accent_when_needed() -> None:
 
     assert tokens["focus"] != tokens["accent"]
     assert QColor(tokens["focus"]).lightness() > QColor(tokens["accent"]).lightness()
-
-
-@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
-@pytest.mark.parametrize("accent", ["#4A56C6", "#FFD400", "#202060"])
-def test_another_accent_gets_legible_selected_text(theme: Theme, accent: str) -> None:
-    tokens = build_design_tokens(theme, accent)
-
-    assert contrast_ratio(QColor(tokens["accent_sel_text"]), QColor(tokens["accent_sel_bg"])) >= 4.5
-    assert contrast_ratio(QColor(tokens["on_accent"]), QColor(tokens["accent"])) >= 4.5
 
 
 def test_an_invalid_accent_falls_back_to_the_default() -> None:

@@ -69,6 +69,8 @@ def _accent_tokens(theme: Theme, accent: str) -> dict[str, str]:
 
     Hover and pressed step away from the black or white `on_accent` text; the selected background tints `bg_surface` with the accent,
     and the selected text and focus colour step until they reach 4.5:1 and 3:1.
+    For light accents (black `on_accent`) hover and pressed are lighter than the accent, so the pressed state gets lighter rather than darker;
+    for accents at or near white they clamp to white.
     """
     color = QColor(accent)
     if not color.isValid():
