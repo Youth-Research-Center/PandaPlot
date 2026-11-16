@@ -1,6 +1,7 @@
 """Design tokens v2: the handoff tables with the spec's fixes, aliases for existing widgets, and derived accents."""
 
 from types import MappingProxyType
+from typing import Any
 
 import pytest
 from PySide6.QtGui import QColor
@@ -136,7 +137,8 @@ def test_frozen_tokens_are_read_only_including_tables() -> None:
     frozen = freeze_tokens(build_design_tokens(Theme.LIGHT, TEAL_ACCENT))
 
     assert isinstance(frozen, MappingProxyType)
+    writable: Any = frozen  # the type says read-only; this checks the runtime refuses writes too
     with pytest.raises(TypeError):
-        frozen["accent"] = "#000000"  # type: ignore[index]
+        writable["accent"] = "#000000"
     with pytest.raises(TypeError):
-        frozen["space"]["md"] = 1  # type: ignore[index]
+        writable["space"]["md"] = 1
