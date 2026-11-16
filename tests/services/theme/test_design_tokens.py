@@ -7,7 +7,7 @@ import pytest
 from PySide6.QtGui import QColor
 
 from pandaplot.models.state.config import AppearanceConfig, Theme
-from pandaplot.services.theme.contrast import contrast_ratio
+from pandaplot.services.theme.contrast import contrast_ratio, mix
 from pandaplot.services.theme.design_tokens import TEAL_ACCENT, build_design_tokens, freeze_tokens
 
 TEAL_LIGHT = {
@@ -109,13 +109,33 @@ def test_accent_disabled_mixes_the_accent_into_the_surface() -> None:
 
 
 @pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
-def test_another_accent_keeps_todays_derivation(theme: Theme) -> None:
+@pytest.mark.parametrize("accent", ["#4A56C6", "#FFD400"])
+def test_custom_accent_keeps_the_chosen_colour(theme: Theme, accent: str) -> None:
+    assert build_design_tokens(theme, accent)["accent"] == accent
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+@pytest.mark.parametrize("accent", ["#4A56C6", "#FFD400"])
+def test_hover_and_pressed_step_away_from_the_on_accent_text(theme: Theme, accent: str) -> None:
+    tokens = build_design_tokens(theme, accent)
+    on, base = QColor(tokens["on_accent"]), QColor(tokens["accent"])
+
+    assert contrast_ratio(on, QColor(tokens["accent_hover"])) > contrast_ratio(on, base)
+    assert contrast_ratio(on, QColor(tokens["accent_pressed"])) > contrast_ratio(on, QColor(tokens["accent_hover"]))
+
+
+@pytest.mark.parametrize(("theme", "amount"), [(Theme.LIGHT, 0.88), (Theme.DARK, 0.72)])
+def test_selected_background_tints_the_surface_with_the_accent(theme: Theme, amount: float) -> None:
     tokens = build_design_tokens(theme, "#4A56C6")
 
-    assert tokens["accent"] == "#4A56C6"
-    assert tokens["accent_hover"] == QColor("#4A56C6").lighter(110).name().upper()
-    assert tokens["accent_pressed"] == QColor("#4A56C6").darker(115).name().upper()
-    assert tokens["focus"] == "#4A56C6"
+    assert tokens["accent_sel_bg"] == mix("#4A56C6", tokens["bg_surface"], amount)
+
+
+def test_dark_focus_is_lighter_than_the_accent_when_needed() -> None:
+    tokens = build_design_tokens(Theme.DARK, "#4A56C6")
+
+    assert tokens["focus"] != tokens["accent"]
+    assert QColor(tokens["focus"]).lightness() > QColor(tokens["accent"]).lightness()
 
 
 @pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
