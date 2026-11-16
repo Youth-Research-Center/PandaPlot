@@ -10,6 +10,7 @@ import pandas as pd
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.column_identity import keep_created_column_ids
+from pandaplot.commands.project.dataset.live_dataset import rebind_live_dataset
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData
 from pandaplot.models.events.event_types import DatasetOperationEvents
@@ -335,6 +336,8 @@ class AddColumnsCommand(Command):
 
     def undo(self) -> CommandResult:
         """Undo the add columns command."""
+        if not rebind_live_dataset(self, "AddColumnsCommand.undo"):
+            return CommandResult.ABORTED
         try:
             if self.dataset and self.original_data is not None:
                 # Restore original data
@@ -364,6 +367,8 @@ class AddColumnsCommand(Command):
         Replays the original insertion instead of re-running ``execute()``, which would validate and prompt again,
         re-take the undo snapshot and give the columns new ids that later commands do not reference (#667).
         """
+        if not rebind_live_dataset(self, "AddColumnsCommand.redo"):
+            return CommandResult.ABORTED
         if self.dataset is None or self.dataset.data is None or self.original_data is None:
             self.logger.warning("AddColumnsCommand.redo: dataset '%s' was never changed by execute()", self.dataset_id)
             return CommandResult.ABORTED

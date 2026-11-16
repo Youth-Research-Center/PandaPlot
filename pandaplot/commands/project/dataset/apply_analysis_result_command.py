@@ -20,6 +20,7 @@ from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.column_change_events import emit_columns_changed
 from pandaplot.commands.project.dataset.column_identity import keep_created_column_ids
 from pandaplot.commands.project.dataset.formula_guard import refuse_live_formula_edit
+from pandaplot.commands.project.dataset.live_dataset import rebind_live_dataset
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -117,6 +118,8 @@ class ApplyAnalysisResultCommand(Command):
 
     @override
     def undo(self) -> CommandResult:
+        if not rebind_live_dataset(self, "ApplyAnalysisResultCommand.undo"):
+            return CommandResult.ABORTED
         try:
             if not self.dataset or not isinstance(self.dataset, Dataset):
                 self.logger.warning("Undo failed: Invalid dataset reference")
@@ -172,6 +175,8 @@ class ApplyAnalysisResultCommand(Command):
 
     @override
     def redo(self) -> CommandResult:
+        if not rebind_live_dataset(self, "ApplyAnalysisResultCommand.redo"):
+            return CommandResult.ABORTED
         return self.execute()
 
     @override

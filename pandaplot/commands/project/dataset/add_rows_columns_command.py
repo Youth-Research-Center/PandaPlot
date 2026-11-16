@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QDialog
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.column_identity import keep_created_column_ids
+from pandaplot.commands.project.dataset.live_dataset import rebind_live_dataset
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import (
     DatasetColumnsAddedData,
@@ -280,6 +281,8 @@ class AddRowsColumnsCommand(Command):
 
     def undo(self) -> CommandResult:
         """Undo the add rows/columns command."""
+        if not rebind_live_dataset(self, "AddRowsColumnsCommand.undo"):
+            return CommandResult.ABORTED
         try:
             if self.dataset and self.original_data is not None:
                 self.dataset.set_data(self.original_data)
@@ -318,6 +321,8 @@ class AddRowsColumnsCommand(Command):
 
     def redo(self) -> CommandResult:
         """Redo the add rows/columns command."""
+        if not rebind_live_dataset(self, "AddRowsColumnsCommand.redo"):
+            return CommandResult.ABORTED
         # Re-execute with the target resolved on the first run, so redo does
         # not re-open the dialog.
         return self.execute()

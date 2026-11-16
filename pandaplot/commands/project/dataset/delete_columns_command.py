@@ -4,6 +4,7 @@ from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
+from pandaplot.commands.project.dataset.live_dataset import rebind_live_dataset
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import ChartUpdatedData, DatasetColumnsAddedData, DatasetColumnsRemovedData
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
@@ -82,20 +83,20 @@ class DeleteColumnsCommand(Command):
     Supports both column positions and column names for backward compatibility.
     """
 
-    def __init__(self, app_context: AppContext, dataset_id: str, 
+    def __init__(self, app_context: AppContext, dataset_id: str,
                  column_specs: list[int] | list[str]):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
         self.ui_controller: UIController = app_context.get_ui_controller()
-        
+
         self.dataset_id = dataset_id
         self.column_specs = column_specs
-        
+
         # These will be populated in execute() after we have access to the dataset
         self.column_names = []
         self.column_positions = []
-        
+
         # Store state for undo
         self.original_data = None
         self.original_column_ids = None
@@ -133,7 +134,7 @@ class DeleteColumnsCommand(Command):
         """Execute the delete columns command."""
         try:
             self.logger.info(f"Executing DeleteColumnsCommand for {len(self.column_specs)} column specifications")
-            
+
             # Validate input
             if not self.column_specs:
                 self.logger.warning(
@@ -253,7 +254,7 @@ class DeleteColumnsCommand(Command):
                     "Cannot delete all columns from dataset. Dataset must have at least one column."
                 )
                 return CommandResult.FAILURE
-            
+
             # Warn if any chart depends on the columns being deleted, since those
             # series/fit curves will be removed from the chart as part of this action
             references = self._find_chart_references(self.column_names)
@@ -562,11 +563,11 @@ class DeleteColumnsCommand(Command):
         """
         if not self.column_specs or not self.dataset or self.dataset.data is None:
             return
-        
+
         all_columns = list(self.dataset.data.columns)
         self.column_names = []
         self.column_positions = []
-        
+
         for spec in self.column_specs:
             if isinstance(spec, int):
                 # Position-based specification
@@ -589,6 +590,8 @@ class DeleteColumnsCommand(Command):
 
     def undo(self) -> CommandResult:
         """Undo the delete columns command by restoring the original data and chart refs."""
+        if not rebind_live_dataset(self, "DeleteColumnsCommand.undo"):
+            return CommandResult.ABORTED
         try:
             if self.dataset and self.original_data is not None and self.column_positions:
                 # Restore original data, then the saved id registry so restored
@@ -626,6 +629,8 @@ class DeleteColumnsCommand(Command):
 
     def redo(self) -> CommandResult:
         """Redo the delete columns command using the already-confirmed parameters."""
+        if not rebind_live_dataset(self, "DeleteColumnsCommand.redo"):
+            return CommandResult.ABORTED
         try:
             if not (self.dataset and self.original_data is not None and self.column_names):
                 return CommandResult.FAILURE

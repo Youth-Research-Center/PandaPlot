@@ -4,6 +4,7 @@ from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
+from pandaplot.commands.project.dataset.live_dataset import rebind_live_dataset
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import ChartUpdatedData, DatasetColumnRenamedData
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
@@ -181,6 +182,8 @@ class RenameColumnCommand(Command):
     @override
     def undo(self) -> CommandResult:
         """Rename back and restore references (same walk, names swapped)."""
+        if not rebind_live_dataset(self, "RenameColumnCommand.undo"):
+            return CommandResult.ABORTED
         if self._applied and self.old_name is not None:
             self._apply_rename(self.new_name, self.old_name)
             return CommandResult.SUCCESS
@@ -193,6 +196,8 @@ class RenameColumnCommand(Command):
     @override
     def redo(self) -> CommandResult:
         """Re-apply the rename and reference cascade."""
+        if not rebind_live_dataset(self, "RenameColumnCommand.redo"):
+            return CommandResult.ABORTED
         if self._applied and self.old_name is not None:
             self._apply_rename(self.old_name, self.new_name)
             return CommandResult.SUCCESS
