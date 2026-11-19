@@ -1,4 +1,4 @@
-"""Contrast pairs from spec §5.2 for the teal tables. Custom accents get the full §5.2 set in DS-05."""
+"""Contrast pairs from spec §5.2 for the teal tables and for custom accents."""
 
 import pytest
 from PySide6.QtGui import QColor
@@ -60,3 +60,21 @@ def test_selected_segment_text_is_legible(theme: Theme, accent: str) -> None:
     assert f"color: {tokens['accent_active_text']};" in rule
     assert f"background-color: {tokens['accent_selected_bg']};" in rule
     assert _ratio(tokens, "accent_active_text", "accent_selected_bg") >= 4.5
+
+
+CUSTOM_ACCENTS = ["#4A56C6", "#FFD400", "#202060", "#FF0000", "#E8E8E8", "#101010"]  # default, light, dark, saturated, near-white, near-black
+CUSTOM_PAIRS = [("on_accent", "accent"), ("on_accent", "accent_hover"), ("on_accent", "accent_pressed"), ("accent_sel_text", "accent_sel_bg")]
+
+
+@pytest.mark.parametrize("theme", THEMES)
+@pytest.mark.parametrize("accent", CUSTOM_ACCENTS)
+@pytest.mark.parametrize(("foreground", "background"), CUSTOM_PAIRS)
+def test_custom_accent_text_pairs_reach_4_5(theme: Theme, accent: str, foreground: str, background: str) -> None:
+    assert _ratio(build_design_tokens(theme, accent), foreground, background) >= 4.5
+
+
+@pytest.mark.parametrize("theme", THEMES)
+@pytest.mark.parametrize("accent", CUSTOM_ACCENTS)
+@pytest.mark.parametrize("background", ["bg_surface", "bg_inset", "bg_canvas"])
+def test_custom_accent_focus_reaches_3_on_every_surface(theme: Theme, accent: str, background: str) -> None:
+    assert _ratio(build_design_tokens(theme, accent), "focus", background) >= 3.0

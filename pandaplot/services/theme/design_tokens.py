@@ -1,7 +1,7 @@
 """Design tokens v2 (docs/design/design-system.md §5).
 
-Neutral and teal values come from the design handoff with the spec's contrast fixes (§4.1, §4.2). Any accent other
-than teal keeps the previous derivation until DS-05, except that the selected-item text is stepped to 4.5:1 (#581).
+Neutral and teal values come from the design handoff with the spec's contrast fixes (§4.1, §4.2). Any other accent
+keeps the chosen colour and derives the remaining states so text reaches 4.5:1 and the focus colour 3:1 (§5.1).
 Legacy keys alias the semantic ones so existing widgets keep working until DS-86 removes them.
 """
 
@@ -16,6 +16,7 @@ from pandaplot.services.theme.contrast import adjust_until_contrast, contrasting
 
 TEAL_ACCENT = "#0E7C86"
 _TEXT_CONTRAST = 4.5
+_NON_TEXT_CONTRAST = 3.0
 
 _SPACE = {"xxs": 2, "xs": 4, "sm": 6, "md": 8, "lg": 12, "xl": 16, "xxl": 24}
 _RADIUS = {"control": 4, "inner": 3, "chip": 4, "card": 6}
@@ -53,9 +54,6 @@ _TEAL = {
     },
 }
 
-# Selected-row background for accents other than teal, unchanged from before DS-04 until DS-05 derives it.
-_OTHER_ACCENT_SEL_BG = {Theme.LIGHT: "#EEF0FB", Theme.DARK: "#2E3350"}
-
 _SERIES_PALETTE = {
     Theme.LIGHT: ["#A01818", "#4A56C6", "#2B7A8C", "#3FA46A", "#E09A1F"],
     Theme.DARK: ["#C24141", "#6B77E8", "#3F9BB0", "#3FA46A", "#E09A1F"],
@@ -67,23 +65,36 @@ def _theme_key(theme: Theme) -> Theme:
 
 
 def _accent_tokens(theme: Theme, accent: str) -> dict[str, str]:
-    """Accent states: the teal table, or today's derivation with a legible selected text for any other accent."""
+    """Accent states: the teal table, or a derivation that keeps the chosen colour and guarantees contrast for any other accent.
+
+    Hover and pressed step away from the black or white `on_accent` text; the selected background tints `bg_surface` with the accent,
+    and the selected text and focus colour step until they reach 4.5:1 and 3:1.
+    For light accents (black `on_accent`) hover and pressed are lighter than the accent, so the pressed state gets lighter rather than darker;
+    for accents at or near white they clamp to white.
+    """
     color = QColor(accent)
     if not color.isValid():
         color = QColor(AppearanceConfig().accent_color)
     if color.name().upper() == TEAL_ACCENT:
         return dict(_TEAL[theme])
-    sel_bg = _OTHER_ACCENT_SEL_BG[theme]
-    sel_text = adjust_until_contrast(color, QColor(sel_bg), min_ratio=_TEXT_CONTRAST, lighten=theme == Theme.DARK)
-    name = color.name().upper()
+    neutral = _NEUTRAL[theme]
+    dark = theme == Theme.DARK
+    on_accent = contrasting_text_color(color)
+    # Hover and pressed move away from the text colour drawn on them, so they never contrast less than the accent itself.
+    step = QColor.darker if on_accent == QColor(255, 255, 255) else QColor.lighter
+    sel_bg = mix(color.name(), neutral["bg_surface"], 0.72 if dark else 0.88)
+    sel_text = adjust_until_contrast(color, QColor(sel_bg), min_ratio=_TEXT_CONTRAST, lighten=dark)
+    focus = color
+    for background in ("bg_inset", "bg_surface", "bg_canvas"):
+        focus = adjust_until_contrast(focus, QColor(neutral[background]), min_ratio=_NON_TEXT_CONTRAST, lighten=dark)
     return {
-        "accent": name,
-        "accent_hover": color.lighter(110).name().upper(),
-        "accent_pressed": color.darker(115).name().upper(),
+        "accent": color.name().upper(),
+        "accent_hover": step(color, 110).name().upper(),
+        "accent_pressed": step(color, 120).name().upper(),
         "accent_sel_bg": sel_bg,
         "accent_sel_text": sel_text.name().upper(),
-        "focus": name,
-        "on_accent": contrasting_text_color(color).name().upper(),
+        "focus": focus.name().upper(),
+        "on_accent": on_accent.name().upper(),
     }
 
 
