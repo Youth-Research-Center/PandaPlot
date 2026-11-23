@@ -3,12 +3,16 @@
 import logging
 from unittest.mock import Mock
 
+import pandas as pd
+
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.project.save_project_command import (
     SaveProjectAsCommand,
     SaveProjectCommand,
 )
 from pandaplot.models.events import EventBus
+from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_state import AppState
 
 
@@ -399,3 +403,232 @@ def test_first_save_into_the_examples_dir_is_refused(tmp_path, monkeypatch):
 
     task_scheduler.run_task.assert_not_called()
     ui_controller.show_warning_message.assert_called_once()
+
+
+def _install_project(disk_env, path=None, name="Lab"):
+    project = Project(name=name)
+    project.add_item(Dataset(id="ds-1", name="Data", data=pd.DataFrame({"t": [0.0, 1.0], "v": [3.5, 4.5]})))
+    project.project_file_path = str(path) if path is not None else None
+    disk_env.app_state.load_project(project)
+    disk_env.app_state.mark_modified()
+    return project
+
+
+class TestSaveToDisk:
+    """The whole save path against real files: execute -> background write -> mark saved."""
+
+    def test_save_writes_a_file_that_loads_back_and_clears_modified(self, disk_env, tmp_path):
+        path = tmp_path / "lab.pplot"
+        project = _install_project(disk_env, path)
+
+        assert SaveProjectCommand(disk_env.app_context).execute() is CommandResult.SUCCESS
+
+        assert disk_env.app_state.is_modified is False
+        assert disk_env.app_state.is_saving is False
+        reloaded = disk_env.project_manager.load_project(str(path))
+        assert reloaded.name == "Lab"
+        pd.testing.assert_frame_equal(reloaded.find_item("ds-1").data, project.find_item("ds-1").data)
+        disk_env.session.update_project.assert_called_once_with(str(path))
+        # A plain save to the existing file shows no dialog.
+        disk_env.ui_controller.show_info_message.assert_not_called()
+
+    def test_first_save_of_an_untitled_project_asks_for_a_path_and_adopts_it(self, disk_env, tmp_path):
+        project = _install_project(disk_env)
+        target = tmp_path / "new.pplot"
+        disk_env.ui_controller.show_save_project_dialog.return_value = str(target)
+
+        assert SaveProjectCommand(disk_env.app_context).execute() is CommandResult.SUCCESS
+
+        disk_env.ui_controller.show_save_project_dialog.assert_called_once_with(default_name="Lab.pplot")
+        assert target.exists()
+        assert disk_env.app_state.current_project is project
+        assert disk_env.app_state.project_file_path == str(target)
+        assert disk_env.app_state.is_modified is False
+        titles = [call.args[0] for call in disk_env.ui_controller.show_info_message.call_args_list]
+        assert titles == ["Save Starting", "Project Saved"]
+
+    def test_cancelled_save_dialog_writes_nothing(self, disk_env, tmp_path):
+        _install_project(disk_env)
+        disk_env.ui_controller.show_save_project_dialog.return_value = None
+
+        assert SaveProjectCommand(disk_env.app_context).execute() is CommandResult.FAILURE
+
+        assert list(tmp_path.iterdir()) == []
+        assert disk_env.app_state.is_modified is True
+        assert disk_env.app_state.is_saving is False
+        assert disk_env.app_state.project_file_path is None
+
+    def test_cancelled_save_as_dialog_keeps_the_current_file(self, disk_env, tmp_path):
+        path = tmp_path / "lab.pplot"
+        _install_project(disk_env, path)
+        disk_env.ui_controller.show_save_project_dialog.return_value = ""
+
+        assert SaveProjectAsCommand(disk_env.app_context).execute() is CommandResult.FAILURE
+
+        assert not path.exists()
+        assert disk_env.app_state.project_file_path == str(path)
+        assert disk_env.app_state.is_modified is True
+
+    def test_save_as_writes_the_new_file_and_switches_to_it(self, disk_env, tmp_path):
+        original = tmp_path / "lab.pplot"
+        project = _install_project(disk_env, original)
+        target = tmp_path / "sub" / "copy.pplot"
+        disk_env.ui_controller.show_save_project_dialog.return_value = str(target)
+
+        assert SaveProjectAsCommand(disk_env.app_context).execute() is CommandResult.SUCCESS
+
+        assert target.exists()
+        assert not original.exists()
+        assert disk_env.app_state.current_project is project
+        assert disk_env.app_state.project_file_path == str(target)
+        assert disk_env.app_state.is_modified is False
+        disk_env.session.update_project.assert_called_once_with(str(target))
+
+    def test_failed_save_as_keeps_the_original_file_path(self, disk_env, tmp_path):
+        """A Save As that cannot write must leave the project pointing at its original
+        file, so the next Save does not target the location that just failed."""
+        original = tmp_path / "lab.pplot"
+        _install_project(disk_env, original)
+        blocker = tmp_path / "blocker"
+        blocker.write_text("a file, not a folder", encoding="utf-8")
+        disk_env.ui_controller.show_save_project_dialog.return_value = str(blocker / "copy.pplot")
+
+        assert SaveProjectAsCommand(disk_env.app_context).execute() is CommandResult.SUCCESS
+
+        assert disk_env.ui_controller.show_error_message.call_args.args[:2] == ("Save Failed", "Couldn't save the project.")
+        assert disk_env.app_state.project_file_path == str(original)
+        assert disk_env.app_state.is_modified is True
+        assert disk_env.app_state.is_saving is False
+        disk_env.session.update_project.assert_not_called()
+
+    def test_disk_error_keeps_the_project_modified(self, disk_env, tmp_path, monkeypatch):
+        path = tmp_path / "lab.pplot"
+        _install_project(disk_env, path)
+        monkeypatch.setattr(disk_env.project_manager, "save_project", Mock(side_effect=OSError(28, "No space left on device")))
+
+        assert SaveProjectCommand(disk_env.app_context).execute() is CommandResult.SUCCESS
+
+        assert disk_env.app_state.is_modified is True
+        assert disk_env.app_state.is_saving is False
+        assert disk_env.ui_controller.show_error_message.call_args.kwargs["error"].reason
+        disk_env.session.update_project.assert_not_called()
+
+
+class TestSaveFailurePaths:
+    """Error handlers return explicit results and never leave the global save guard stuck."""
+
+    def _context(self):
+        app_context, app_state = _make_app_context(has_project=True, current_project=Mock(), project_file_path="/p/lab.pplot")
+        app_state.current_project.name = "Lab"
+        app_state.is_saving = False
+        app_state.modification_revision = 0
+        return app_context, app_state
+
+    def test_dispatch_error_ends_the_save_guard(self):
+        app_context, app_state = self._context()
+        error = RuntimeError("thread pool gone")
+        app_context.get_task_scheduler.return_value.run_task.side_effect = error
+        command = SaveProjectCommand(app_context)
+
+        assert command.execute() is CommandResult.FAILURE
+
+        assert command.is_saving is False
+        app_state.begin_save.assert_called_once()
+        app_state.end_save.assert_called_once()
+        app_context.get_ui_controller.return_value.show_error_message.assert_called_once_with(
+            "Save Project Error", "Couldn't save the project.", error=error
+        )
+
+    def test_save_as_dialog_error_returns_failure(self):
+        app_context, _app_state = self._context()
+        error = RuntimeError("dialog failed")
+        app_context.get_ui_controller.return_value.show_save_project_dialog.side_effect = error
+
+        assert SaveProjectAsCommand(app_context).execute() is CommandResult.FAILURE
+
+        app_context.get_task_scheduler.return_value.run_task.assert_not_called()
+        app_context.get_ui_controller.return_value.show_error_message.assert_called_once_with(
+            "Save Project As Error", "Couldn't save the project.", error=error
+        )
+
+    def test_save_task_reports_progress_in_order(self):
+        app_context, _app_state = self._context()
+        project = Mock(project_file_path="/p/lab.pplot")
+        progress: list[float] = []
+
+        result = SaveProjectCommand(app_context)._save_project_task(progress.append, project=project, save_path="/p/lab.pplot")
+
+        assert result["success"] is True
+        assert progress == [0.1, 0.3, 0.4, 0.9, 1.0]
+
+    def test_success_without_a_path_does_not_mark_saved(self):
+        app_context, app_state = self._context()
+        command = SaveProjectCommand(app_context)
+        command._dispatch_project = app_state.current_project
+
+        command._on_save_result({"success": True, "project": app_state.current_project, "path": None})
+
+        app_state.mark_saved.assert_not_called()
+        app_state.event_bus.emit.assert_not_called()
+
+    def test_an_exception_while_applying_the_result_is_reported(self):
+        app_context, app_state = self._context()
+        error = RuntimeError("subscriber exploded")
+        app_state.mark_saved.side_effect = error
+        command = SaveProjectCommand(app_context)
+        command._dispatch_project = app_state.current_project
+        command.previous_file_path = "/p/lab.pplot"
+
+        command._on_save_result({"success": True, "project": app_state.current_project, "path": "/p/lab.pplot"})
+
+        app_context.get_ui_controller.return_value.show_error_message.assert_called_once_with(
+            "Save Error", "Couldn't save the project.", error=error
+        )
+
+    def test_error_handler_shows_the_exception_and_survives_a_failing_dialog(self, caplog):
+        app_context, _app_state = self._context()
+        ui_controller = app_context.get_ui_controller.return_value
+        command = SaveProjectCommand(app_context)
+        command.is_saving = True
+        error = OSError("disk")
+
+        command._on_save_error((OSError, error, "traceback"))
+        ui_controller.show_error_message.assert_called_once_with("Save Project Error", "Couldn't save the project.", error=error)
+
+        ui_controller.show_error_message.side_effect = RuntimeError("dialog failed")
+        with caplog.at_level(logging.ERROR):
+            command._on_save_error((OSError, error, "traceback"))
+        assert command.is_saving is False
+        assert "Error handling save error" in caplog.text
+
+    def test_finished_handler_survives_end_save_raising(self, caplog):
+        app_context, app_state = self._context()
+        app_state.end_save.side_effect = RuntimeError("state gone")
+        command = SaveProjectCommand(app_context)
+        command.is_saving = True
+
+        with caplog.at_level(logging.ERROR):
+            command._on_save_finished()
+
+        assert command.is_saving is False
+        assert "Error in save finished handler" in caplog.text
+
+    def test_progress_handler_logs_and_survives_bad_values(self, caplog):
+        app_context, _app_state = self._context()
+        command = SaveProjectCommand(app_context)
+
+        with caplog.at_level(logging.DEBUG, logger="SaveProjectCommand"):
+            command._on_save_progress(0.4)
+            command._on_save_progress("bad")
+
+        assert "Save progress: 40%" in caplog.text
+        assert "Error handling save progress" in caplog.text
+
+    def test_cleanup_is_a_noop(self):
+        app_context, _app_state = self._context()
+        command = SaveProjectCommand(app_context)
+        state_before = dict(vars(command))
+
+        assert command.cleanup() is None
+
+        assert vars(command) == state_before

@@ -47,12 +47,23 @@ class ToggleSwitch(QAbstractButton):
         else:
             super().keyPressEvent(event)
 
+    def _focus_ring_color(self) -> QColor:
+        """Colour of the keyboard focus ring.
+
+        Checked: `on_accent`, because the ring sits on the accent track. Unchecked: `text_primary`, because the ring sits on the
+        `toggle_off` track edge (half over the surface) and the accent reaches only about 1-2:1 there, while `text_primary` keeps 3:1
+        against both.
+        """
+        if self.isChecked():
+            return QColor(self._tokens.get("on_accent", "#FFFFFF"))
+        return QColor(self._tokens.get("text_primary", "#1C1E26"))
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         on_color = QColor(self._tokens.get("accent", "#4A56C6"))
-        off_color = QColor(self._tokens.get("border_panel", "#E5E6EA"))
+        off_color = QColor(self._tokens.get("toggle_off", "#8B8E96"))
         track_color = on_color if self.isChecked() else off_color
 
         painter.setPen(Qt.PenStyle.NoPen)
@@ -72,10 +83,8 @@ class ToggleSwitch(QAbstractButton):
             QRectF(knob_x, (_TRACK_HEIGHT - _KNOB_DIAMETER) / 2, _KNOB_DIAMETER, _KNOB_DIAMETER)
         )
         if self.hasFocus():
-            # The checked track is already the accent color, so the ring
-            # needs a contrasting color there to stay visible.
-            focus_key = "accent_active_text" if self.isChecked() else "accent"
-            painter.setPen(QColor(self._tokens.get(focus_key, "#4A56C6")))
+            # on_accent over the accent track when checked; text_primary over the toggle_off track and surface when unchecked.
+            painter.setPen(self._focus_ring_color())
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRoundedRect(
                 QRectF(0.5, 0.5, _TRACK_WIDTH - 1, _TRACK_HEIGHT - 1), _TRACK_HEIGHT / 2, _TRACK_HEIGHT / 2

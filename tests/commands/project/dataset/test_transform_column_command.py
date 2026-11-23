@@ -12,6 +12,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.transform_column_command import TransformColumnCommand
 from pandaplot.models.events.event_types import DatasetEvents, DatasetOperationEvents
 from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.project import Project
 from pandaplot.models.state import AppContext, AppState
 
@@ -414,3 +415,122 @@ def test_cleanup_releases_the_original_data_snapshot():
     command.cleanup()
 
     assert command.original_data is None
+
+
+class TestRejectedTransformsLeaveTheDatasetUntouched:
+    """Every refused or failed run returns FAILURE with a reason and changes nothing."""
+
+    def _assert_untouched(self, dataset, before, event_bus):
+        pd.testing.assert_frame_equal(dataset.data, before)
+        assert dataset.formula_columns == {}
+        event_bus.emit.assert_not_called()
+
+    def test_missing_dataset(self, ctx):
+        app_context, _dataset, _event_bus = ctx
+        command = TransformColumnCommand(app_context, "no-such-dataset", _config("a_x2"))
+
+        assert command.execute() is CommandResult.FAILURE
+
+        assert command.error_message == "Dataset no-such-dataset not found"
+
+    def test_item_that_is_not_a_dataset(self, ctx):
+        app_context, _dataset, _event_bus = ctx
+        app_context.get_app_state().current_project.add_item(Folder(id="folder-1", name="F"))
+        command = TransformColumnCommand(app_context, "folder-1", _config("a_x2"))
+
+        assert command.execute() is CommandResult.FAILURE
+
+        assert command.error_message.startswith("Retrieved item is not a Dataset")
+
+    def test_project_lookup_error_is_treated_as_not_found(self, ctx, monkeypatch, caplog):
+        app_context, _dataset, _event_bus = ctx
+        monkeypatch.setattr(Project, "find_item", Mock(side_effect=RuntimeError("index corrupted")))
+        command = TransformColumnCommand(app_context, "ds-1", _config("a_x2"))
+
+        with caplog.at_level(logging.ERROR):
+            assert command.execute() is CommandResult.FAILURE
+
+        assert command.error_message == "Dataset ds-1 not found"
+        assert "index corrupted" in caplog.text
+
+    @pytest.mark.parametrize(
+        ("overrides", "message"),
+        [
+            ({"new_column_name": "  "}, "New column name cannot be empty"),
+            ({"expression": ""}, "Transform expression cannot be empty"),
+            ({"source_columns": []}, "At least one source column must be selected"),
+            ({"source_columns": ["a", "missing"]}, "Source columns not found: ['missing']"),
+        ],
+    )
+    def test_invalid_inputs(self, ctx, overrides, message):
+        app_context, dataset, event_bus = ctx
+        before = dataset.data.copy()
+        command = TransformColumnCommand(app_context, "ds-1", {**_config("a_x2"), **overrides})
+
+        assert command.execute() is CommandResult.FAILURE
+
+        assert command.error_message == message
+        self._assert_untouched(dataset, before, event_bus)
+
+    def test_formula_source_without_a_stable_id(self, ctx, monkeypatch):
+        app_context, dataset, event_bus = ctx
+        before = dataset.data.copy()
+        monkeypatch.setattr(dataset, "column_id", lambda name: None)
+        command = TransformColumnCommand(app_context, "ds-1", {**_config("a_x2"), "as_formula": True})
+
+        assert command.execute() is CommandResult.FAILURE
+
+        assert "has no stable id" in command.error_message
+        self._assert_untouched(dataset, before, event_bus)
+
+    def test_error_while_storing_the_result_is_reported(self, ctx, monkeypatch):
+        app_context, dataset, event_bus = ctx
+        before = dataset.data.copy()
+        monkeypatch.setattr(dataset, "set_data", Mock(side_effect=MemoryError("out of memory")))
+        command = TransformColumnCommand(app_context, "ds-1", _config("a_x2"))
+
+        assert command.execute() is CommandResult.FAILURE
+
+        assert command.error_message == "out of memory"
+        assert command.error_description is not None
+        self._assert_untouched(dataset, before, event_bus)
+
+
+class TestUndoRedoEvents:
+    """undo() and redo() tell subscribers which dataset changed, like execute()."""
+
+    def test_undo_of_a_replaced_column_emits_data_changed_for_that_column(self, ctx):
+        app_context, dataset, event_bus = ctx
+        command = TransformColumnCommand(app_context, "ds-1", _config("a", replace=True))
+        assert command.execute() is CommandResult.SUCCESS
+        event_bus.emit.reset_mock()
+
+        assert command.undo() is CommandResult.SUCCESS
+
+        payloads = _emitted(event_bus, DatasetEvents.DATASET_DATA_CHANGED)
+        assert len(payloads) == 1
+        assert payloads[0]["dataset_id"] == "ds-1"
+        assert list(dataset.data["a"]) == [1.0, 2.0, 3.0]
+
+    def test_redo_emits_the_same_events_as_execute(self, ctx):
+        app_context, _dataset, event_bus = ctx
+        command = TransformColumnCommand(app_context, "ds-1", _config("a_x2"))
+        assert command.execute() is CommandResult.SUCCESS
+        executed = [c.args[0] for c in event_bus.emit.call_args_list]
+        assert command.undo() is CommandResult.SUCCESS
+        event_bus.emit.reset_mock()
+
+        assert command.redo() is CommandResult.SUCCESS
+
+        assert [c.args[0] for c in event_bus.emit.call_args_list] == executed
+
+    def test_undo_error_returns_failure(self, ctx, monkeypatch, caplog):
+        app_context, dataset, _event_bus = ctx
+        command = TransformColumnCommand(app_context, "ds-1", _config("a_x2"))
+        assert command.execute() is CommandResult.SUCCESS
+        monkeypatch.setattr(dataset, "set_data", Mock(side_effect=MemoryError("out of memory")))
+
+        with caplog.at_level(logging.ERROR):
+            assert command.undo() is CommandResult.FAILURE
+
+        assert "Transform undo failed" in caplog.text

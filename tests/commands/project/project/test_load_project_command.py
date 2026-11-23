@@ -2,12 +2,15 @@
 opting out of CommandExecutor's generic dirty-tracking hook. Also covers
 cleanup() (see Command.cleanup) and surfacing items that
 ProjectDataManager.load() silently dropped (issue #288)."""
+import logging
 from unittest.mock import Mock
 
+import pandas as pd
 import pytest
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.project.load_project_command import LoadProjectCommand
+from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.utils.error_messages import ErrorDescription, describe_error
 
@@ -880,3 +883,204 @@ class TestLoadProjectCommandUntitledProject:
 
         assert command.execute() is CommandResult.NOOP
         command.task_scheduler.run_task.assert_not_called()
+
+
+def _write_project(disk_env, path, name="Saved", values=(1.0, 2.0, 3.0)):
+    project = Project(name=name)
+    dataset = Dataset(id="ds-1", name="Data", data=pd.DataFrame({"x": list(values)}))
+    project.add_item(dataset)
+    disk_env.project_manager.save_project(project, str(path))
+    return dataset
+
+
+class TestLoadFromDisk:
+    """The whole load path against real files: execute -> background read -> install -> undo/redo."""
+
+    def test_load_installs_the_saved_project_and_undo_redo_swap_it(self, disk_env, tmp_path):
+        path = tmp_path / "saved.pplot"
+        saved_dataset = _write_project(disk_env, path)
+        previous = Project(name="Previous")
+        previous.project_file_path = str(tmp_path / "previous.pplot")
+        disk_env.app_state.load_project(previous)
+        disk_env.app_state.mark_modified()
+        disk_env.ui_controller.show_question.return_value = True
+        command = LoadProjectCommand(disk_env.app_context, str(path))
+
+        assert command.execute() is CommandResult.SUCCESS
+
+        loaded = disk_env.app_state.current_project
+        assert loaded is command.loaded_project
+        assert loaded.name == "Saved"
+        assert loaded.project_file_path == str(path)
+        pd.testing.assert_frame_equal(loaded.find_item("ds-1").data, saved_dataset.data)
+        assert disk_env.app_state.is_modified is False
+        assert command.is_loading is False
+        disk_env.session.update_project.assert_called_with(str(path))
+
+        assert command.undo() is CommandResult.SUCCESS
+        assert disk_env.app_state.current_project is previous
+        assert disk_env.app_state.is_modified is True
+
+        assert command.redo() is CommandResult.SUCCESS
+        assert disk_env.app_state.current_project is loaded
+
+    def test_missing_file_reports_failure_and_keeps_the_current_project(self, disk_env, tmp_path):
+        current = Project(name="Current")
+        disk_env.app_state.load_project(current)
+        command = LoadProjectCommand(disk_env.app_context, str(tmp_path / "gone.pplot"))
+
+        # execute() only dispatches the read; the failure arrives through the result callback.
+        assert command.execute() is CommandResult.SUCCESS
+
+        assert disk_env.app_state.current_project is current
+        assert command.loaded_project is None
+        assert command.is_loading is False
+        assert disk_env.ui_controller.show_error_message.call_args.args[:2] == ("Load Failed", "Couldn't open the project.")
+        disk_env.session.update_project.assert_not_called()
+
+    def test_truncated_file_reports_failure_and_keeps_the_current_project(self, disk_env, tmp_path):
+        path = tmp_path / "partial.pplot"
+        _write_project(disk_env, path)
+        path.write_bytes(path.read_bytes()[: path.stat().st_size // 2])
+        current = Project(name="Current")
+        disk_env.app_state.load_project(current)
+        command = LoadProjectCommand(disk_env.app_context, str(path))
+
+        assert command.execute() is CommandResult.SUCCESS
+
+        assert disk_env.app_state.current_project is current
+        assert command.loaded_project is None
+        disk_env.ui_controller.show_error_message.assert_called_once()
+
+    def test_redo_without_a_cached_project_reloads_from_disk(self, disk_env, tmp_path):
+        path = tmp_path / "saved.pplot"
+        _write_project(disk_env, path)
+        command = LoadProjectCommand(disk_env.app_context, str(path))
+
+        assert command.redo() is CommandResult.SUCCESS
+
+        assert disk_env.app_state.current_project.name == "Saved"
+        assert command.loaded_project is disk_env.app_state.current_project
+
+
+class TestLoadProjectCommandFailurePaths:
+    """Paths that must leave the current project alone and return an explicit result."""
+
+    def test_second_load_while_one_is_running_is_refused(self, env):
+        command = LoadProjectCommand(env, "/p.pplot")
+        command.is_loading = True
+
+        assert command.execute() is CommandResult.FAILURE
+
+        env.get_task_scheduler.return_value.run_task.assert_not_called()
+        env.get_ui_controller.return_value.show_info_message.assert_called_once_with(
+            "Load In Progress", "A project load is already in progress."
+        )
+
+    def test_dispatch_error_resets_the_busy_flag(self, env):
+        env.get_app_state.return_value.has_project = False
+        error = RuntimeError("thread pool gone")
+        env.get_task_scheduler.return_value.run_task.side_effect = error
+        command = LoadProjectCommand(env, "/p.pplot")
+
+        assert command.execute() is CommandResult.FAILURE
+
+        assert command.is_loading is False
+        env.get_ui_controller.return_value.show_error_message.assert_called_once_with(
+            "Load Project Error", "Couldn't open the project.", error=error
+        )
+
+    def test_redo_while_loading_is_refused(self, env):
+        command = LoadProjectCommand(env, "/p.pplot")
+        command.loaded_project = Mock()
+        command.is_loading = True
+
+        assert command.redo() is CommandResult.FAILURE
+
+        env.get_app_state.return_value.load_project.assert_not_called()
+
+    def test_load_task_reports_progress_in_order(self, env):
+        env.get_manager.return_value.load_project.return_value = Mock()
+        command = LoadProjectCommand(env, "/p.pplot")
+        progress: list[float] = []
+
+        result = command._load_project_task(progress.append)
+
+        assert result["success"] is True
+        assert progress == [0.1, 0.2, 0.3, 0.7, 0.9, 1.0]
+
+    def test_load_task_reports_a_manager_that_returned_nothing(self, env):
+        env.get_manager.return_value.load_project.return_value = None
+        command = LoadProjectCommand(env, "/p.pplot")
+
+        result = command._load_project_task(None)
+
+        assert result["success"] is False
+        assert result["project"] is None
+        assert result["error_description"].reason == "The project could not be loaded from this file."
+
+    def test_success_without_a_project_is_reported_and_installs_nothing(self, env):
+        command = LoadProjectCommand(env, "/p.pplot")
+
+        command._on_load_result({"success": True, "project": None, "file_path": "/p.pplot"})
+
+        env.get_app_state.return_value.load_project.assert_not_called()
+        assert command.loaded_project is None
+        assert env.get_ui_controller.return_value.show_error_message.call_args.args[0] == "Load Failed"
+
+    def test_a_raising_on_loaded_callback_does_not_undo_the_load(self, env, caplog):
+        on_loaded = Mock(side_effect=RuntimeError("tab restore failed"))
+        command = LoadProjectCommand(env, "/p.pplot", on_loaded=on_loaded)
+        project = Mock(failed_item_ids=[])
+
+        with caplog.at_level(logging.ERROR):
+            command._on_load_result({"success": True, "project": project, "file_path": "/p.pplot"})
+
+        env.get_app_state.return_value.load_project.assert_called_once_with(project)
+        assert command.loaded_project is project
+        assert "on_loaded callback failed" in caplog.text
+        env.get_ui_controller.return_value.show_error_message.assert_not_called()
+
+    def test_an_exception_while_installing_is_reported(self, env):
+        error = RuntimeError("event handler exploded")
+        env.get_app_state.return_value.load_project.side_effect = error
+        command = LoadProjectCommand(env, "/p.pplot")
+
+        command._on_load_result({"success": True, "project": Mock(failed_item_ids=[]), "file_path": "/p.pplot"})
+
+        env.get_ui_controller.return_value.show_error_message.assert_called_once_with(
+            "Load Error", "Couldn't open the project.", error=error
+        )
+
+    def test_error_handler_survives_a_failing_dialog(self, env, caplog):
+        env.get_ui_controller.return_value.show_error_message.side_effect = RuntimeError("dialog failed")
+        command = LoadProjectCommand(env, "/p.pplot")
+        command.is_loading = True
+
+        with caplog.at_level(logging.ERROR):
+            command._on_load_error((OSError, OSError("disk"), "traceback"))
+
+        assert command.is_loading is False
+        assert "Error handling load error" in caplog.text
+
+    def test_finished_handler_runs_on_finished_and_survives_it_raising(self, env, caplog):
+        on_finished = Mock(side_effect=RuntimeError("startup step failed"))
+        command = LoadProjectCommand(env, "/p.pplot", on_finished=on_finished)
+        command.is_loading = True
+
+        with caplog.at_level(logging.ERROR):
+            command._on_load_finished()
+
+        assert command.is_loading is False
+        on_finished.assert_called_once_with()
+        assert "on_finished callback failed" in caplog.text
+
+    def test_progress_handler_logs_and_survives_bad_values(self, env, caplog):
+        command = LoadProjectCommand(env, "/p.pplot")
+
+        with caplog.at_level(logging.DEBUG, logger="LoadProjectCommand"):
+            command._on_load_progress(0.7)
+            command._on_load_progress("bad")
+
+        assert "Load progress: 70%" in caplog.text
+        assert "Error handling load progress" in caplog.text

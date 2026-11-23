@@ -123,12 +123,12 @@ class EditBatchCommand(Command):
 
             # Check if data fits in current dataframe dimensions
             current_rows, current_cols = self.dataset.data.shape
-            
+
             # Check if we need to add rows
             if self.end_row >= current_rows:
                 rows_to_add = self.end_row - current_rows + 1
                 self.logger.info(f"Need to add {rows_to_add} rows")
-                
+
                 # Use AddRowsCommand to add the required rows
                 if current_rows == 0:
                     # Special case: empty dataset, we need to handle this differently
@@ -163,10 +163,10 @@ class EditBatchCommand(Command):
                     self.dataset = None
                     self.project = None
                     return CommandResult.FAILURE
-                
+
                 # Track the command for undo
                 self.executed_commands.append(add_rows_command)
-                
+
                 self.logger.info(f"Successfully added {rows_to_add} rows")
                 # Refresh the dataset reference after adding rows
                 current_rows = len(self.dataset.data)
@@ -175,7 +175,7 @@ class EditBatchCommand(Command):
             if self.end_column >= current_cols:
                 cols_to_add = self.end_column - current_cols + 1
                 self.logger.info(f"Need to add {cols_to_add} columns")
-                
+
                 # Generate column names for new columns
                 new_column_names = []
                 for i in range(cols_to_add):
@@ -214,20 +214,21 @@ class EditBatchCommand(Command):
                         "Batch Edit",
                         f"Failed to add {cols_to_add} columns to accommodate new data."
                     )
+                    self._roll_back_expansion()
                     self.dataset = None
                     self.project = None
                     return CommandResult.FAILURE
-                
+
                 # Track the command for undo
                 self.executed_commands.append(add_columns_command)
-                
+
                 self.logger.info(f"Successfully added {cols_to_add} columns")
                 # Refresh the dataset reference after adding columns
                 current_cols = len(self.dataset.data.columns)
 
             # Store original data for undo
             self.old_data = self.dataset.data.iloc[
-                self.start_row:self.end_row + 1, 
+                self.start_row:self.end_row + 1,
                 self.start_column:self.end_column + 1
             ].copy()
 
@@ -242,21 +243,50 @@ class EditBatchCommand(Command):
 
             # Emit event for batch data change
             self.app_context.event_bus.emit(
-                DatasetEvents.DATASET_DATA_CHANGED, 
+                DatasetEvents.DATASET_DATA_CHANGED,
                 DatasetDataChangedData(
-                    dataset_id=self.dataset_id, 
-                    start_index=(self.start_row, self.start_column), 
+                    dataset_id=self.dataset_id,
+                    start_index=(self.start_row, self.start_column),
                     end_index=(self.end_row, self.end_column)).to_dict()
             )
 
             return CommandResult.SUCCESS
-            
+
         except Exception as e:
             self.logger.exception("Failed to perform batch edit at starting position (%s, %s)", self.start_row, self.start_column)
+            self._roll_back_cells()
+            self._roll_back_expansion()
             self.ui_controller.show_error_message("Batch Edit Error", "Couldn't apply the pasted or edited cells.", error=e)
             self.dataset = None
             self.project = None
             return CommandResult.FAILURE
+
+    def _roll_back_cells(self) -> None:
+        """Put back the cells a failed execute() had already overwritten."""
+        if self.old_data is None or self.dataset is None or self.dataset.data is None:
+            return
+        try:
+            self.dataset.data.iloc[
+                self.start_row:self.end_row + 1,
+                self.start_column:self.end_column + 1
+            ] = self.old_data
+        except Exception:
+            self.logger.exception("Failed to restore cells after a failed batch edit")
+        self.old_data = None
+
+    def _roll_back_expansion(self) -> None:
+        """Remove the rows and columns a failed execute() had already added.
+
+        execute() reports FAILURE in that case, so the command never reaches
+        the undo stack and nothing else could remove them.
+        """
+        for command in reversed(self.executed_commands):
+            try:
+                if command.undo() is not CommandResult.SUCCESS:
+                    self.logger.error("Could not roll back %s after a failed batch edit", command.__class__.__name__)
+            except Exception:
+                self.logger.exception("Failed to roll back %s after a failed batch edit", command.__class__.__name__)
+        self.executed_commands = []
 
     def undo(self) -> CommandResult:
         """Restore the original data and undo any expansion commands"""
