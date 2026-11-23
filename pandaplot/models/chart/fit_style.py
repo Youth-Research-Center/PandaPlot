@@ -1,14 +1,17 @@
-"""Style fields for a curve fit's line and confidence band.
+"""Style fields for a curve fit's line, area fill and confidence band.
 
 Deliberately does NOT subclass LineSeriesStyle: a fit has no marker
-concept at all (see StyleTab.load_fit_style's own docstring), and its
-"fill" is a confidence band drawn AROUND the curve (from
-style.confidence_lower/confidence_upper), not an area-fill-to-baseline
-UNDER it like DataSeries's fill_* fields -- different semantics, needing
-different fields (band_fill_alpha/band_color vs fill_color/fill_alpha/
-fill_orientation/fill_base/fill_to_index). Inheriting LineSeriesStyle
-would resurrect exactly the "carries fields it never uses" problem the
-per-series-type style split (SeriesStyleBase subclasses) exists to avoid.
+concept at all (see StyleTab.load_fit_style's own docstring), and
+inheriting LineSeriesStyle would resurrect exactly the "carries fields it
+never uses" problem the per-series-type style split (SeriesStyleBase
+subclasses) exists to avoid.
+
+It does take the shared area-fill fields (FillStyleFields, #431), so a fit
+can be filled to a baseline or to another series like a Line. That fill is
+independent of the confidence band, which is drawn AROUND the curve (from
+style.confidence_lower/confidence_upper) with its own band_color/
+band_fill_alpha. The area fill is drawn below the band, and the fit line
+above both.
 
 Carries fit-only metadata (fit_type/fit_params/fit_stats/confidence
 arrays+ids/is_manual) moved here from the old standalone FitData
@@ -24,10 +27,31 @@ from typing import Any
 import numpy as np
 
 from pandaplot.models.chart.series_style.base import SeriesStyleBase
+from pandaplot.models.chart.series_style.fill import FillStyleFields
 
 
 @dataclass
-class FitStyle(SeriesStyleBase):
+class _FitFillStyleFields(FillStyleFields):
+    """FillStyleFields with every field redeclared keyword-only.
+
+    FitStyle existed before it gained the fill fields, so inheriting them
+    as positional fields would put them ahead of `color` and change what an
+    existing positional call such as `FitStyle("#123456", "solid")` sets.
+    Keep this list in step with FillStyleFields.
+    """
+
+    fill_enabled: bool = field(default=False, kw_only=True)
+    fill_color: str = field(default="", kw_only=True)
+    fill_alpha: float = field(default=0.3, kw_only=True)
+    fill_orientation: str = field(default="vertical", kw_only=True)
+    fill_base: float = field(default=0.0, kw_only=True)
+    fill_to_index: int = field(default=-1, kw_only=True)
+    fill_range_enabled: bool = field(default=False, kw_only=True)
+    fill_sections: list[tuple[int, int]] = field(default_factory=list, kw_only=True)
+
+
+@dataclass
+class FitStyle(_FitFillStyleFields, SeriesStyleBase):
     color: str = "#ff7f0e"
     line_style: str = "dashed"
     line_width: float = 2.0

@@ -238,7 +238,8 @@ def topics() -> list[HelpTopic]:
                 'A fit can show a shaded confidence band. On the Data tab, first choose "Confidence Lower Column (optional):" and '
                 '"Confidence Upper Column (optional):", then set "Series Type:" to "Fit" (it is greyed out on chart types without fits). '
                 'The two columns stay editable on the fit afterwards. A fit with these columns gets a '
-                '"Confidence Band" card on the Style tab for its colour and opacity.'
+                '"Confidence Band" card on the Style tab for its colour and opacity. The band is separate from the fit\'s "Fill" card, '
+                "which shades the area under the fit curve; with both on, the band is drawn over the fill and the fit line over both."
             ),
             keywords=(
                 "error bar", "error bars", "errorbar", "uncertainty", "error", "asymmetric", "confidence band", "confidence interval", "caps",
@@ -264,7 +265,7 @@ def topics() -> list[HelpTopic]:
                 'Axes: choose X, Y₁ (or Y₂ when a series uses it) and style the "Axis title", "Tick values" and "Colors" cards '
                 "(spine and tick colours). Axes have no style when the chart is a Pie.\n\n"
                 'A series: you see only the cards that fit its type. These can include "Line" (colour, style, width, opacity), "Markers", '
-                '"Fill" (Line and Scatter), "Value Labels" (Line, Scatter, Bar and Stacked Bar; use "Label points:" to label only some points), '
+                '"Fill" (Line, Scatter and Fit), "Value Labels" (Line, Scatter, Bar and Stacked Bar; use "Label points:" to label only some points), '
                 '"Error Bars", "Twin Y Column", "Density", "Box", "Pie", "Vector" and "Heatmap Rendering". '
             ),
             keywords=(

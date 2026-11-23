@@ -1,19 +1,32 @@
-"""Renders a "fit" series -- reproduces chart_editor.py's former separate
-fit-rendering loop exactly (line via render_line_series + confidence band
-via fill_between), now dispatched through SERIES_RENDERERS like every
-other type (#304)."""
+"""Renders a "fit" series: its curve via render_line_series, an optional
+area fill via the shared render_area_fill (#431), and an optional confidence
+band via fill_between, dispatched through SERIES_RENDERERS like every other
+type (#304)."""
 from matplotlib.axes import Axes
 
 from pandaplot.gui.components.tabs.chart.series_data import SeriesData
+from pandaplot.gui.components.tabs.chart.series_renderers.fill import render_area_fill
 from pandaplot.gui.components.tabs.chart.series_renderers.line import render_line_series
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style import LineSeriesStyle
 
+# Matplotlib gid of a fit's confidence-band artist, so the legend can tell it
+# apart from the fit's area fill (both are PolyCollections tracked for the
+# same series).
+CONFIDENCE_BAND_GID = "pandaplot-fit-confidence-band"
+
 
 def render_fit_series(axes: Axes, series_data: SeriesData, style: FitStyle,
                        label: str, alpha: float, *, visible: bool, extra: dict) -> None:
-    """Draw a fit's curve (as a marker-less line) plus its optional confidence band on `axes`.
+    """Draw a fit's curve (as a marker-less line) plus its optional area fill and confidence band on `axes`.
+
+    The area fill and the confidence band are independent, each with its own
+    color and opacity. When both are on they stack in a fixed order: the area
+    fill at the bottom, the band above it and the fit line on top, so the
+    curve stays readable. The line is drawn first, but both fills keep
+    matplotlib's default zorder 1, below the line's 2; between the two fills,
+    which share a zorder, the one added first (the area fill) is drawn below.
 
     Draws nothing on a 3-D axes: a fit only has 2-D curve data, and mplot3d
     rejects the band's `fill_between`. A fit may stay on a chart that was
@@ -30,6 +43,9 @@ def render_fit_series(axes: Axes, series_data: SeriesData, style: FitStyle,
     )
     render_line_series(axes, series_data, line_style_adapter, label, alpha,
                         visible=visible, extra={})
+
+    if style.fill_enabled:
+        render_area_fill(axes, series_data, style, color=style.fill_color or style.color, visible=visible, extra=extra)
 
     if (style.band_fill_enabled
             and style.confidence_lower is not None
@@ -48,11 +64,13 @@ def render_fit_series(axes: Axes, series_data: SeriesData, style: FitStyle,
                 style.confidence_lower,
                 style.confidence_upper,
                 color=band_color,
-                alpha=band_fill_alpha)
+                alpha=band_fill_alpha,
+                gid=CONFIDENCE_BAND_GID)
         else:
             axes.fill_between(
                 series_data.x_data,
                 style.confidence_lower,
                 style.confidence_upper,
                 color=band_color,
-                alpha=band_fill_alpha)
+                alpha=band_fill_alpha,
+                gid=CONFIDENCE_BAND_GID)

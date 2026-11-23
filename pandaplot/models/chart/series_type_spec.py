@@ -296,9 +296,11 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_value_labels=False,
         style_cls=TrisurfSeriesStyle,
     ),
+    # A fit fills like a Line (FitStyle carries FillStyleFields, #431); its
+    # confidence band is a separate option with its own card.
     SeriesType.FIT: SeriesTypeSpec(
         marker_mode="unsupported", supports_line_style=True, supports_color=True,
-        supports_fill=False, supports_error_bars=False, needs_x_column=True,
+        supports_fill=True, supports_error_bars=False, needs_x_column=True,
         needs_secondary_columns=False, needs_z_column=False,
         supports_gridding=False, uses_color_scale=False, is_3d=False,
         supports_curve_analysis=False,

@@ -1269,7 +1269,7 @@ class StyleTab(QWidget):
             and is_fit
             and obj.style.confidence_lower is not None
         )
-        # The generic Fill card reads/writes FillStyleFields (Line, Scatter);
+        # The generic Fill card reads/writes FillStyleFields (Line, Scatter, Fit);
         # a Density series' fill (supports_fill too) has its own two-control
         # version on the Density card instead -- see density_card.
         self.fill_card.setVisible(
@@ -2379,31 +2379,43 @@ class StyleTab(QWidget):
         if hasattr(style, "twin_y_color"):
             style.twin_y_color = self.twin_y_color_row.currentColor()
 
-        # Area fill. "Match line" reuses the "" == inherit-style.color
-        # convention. fill_to_index is -1 (fill down to the constant baseline)
-        # or the index of another series to fill between. Only styles with
-        # the shared FillStyleFields (Line, Scatter) declare fill fields.
+        # Only styles with the shared FillStyleFields (Line, Scatter and Fit)
+        # have fill fields. A fit never reaches this method: its fill is
+        # applied in apply_fit_style_to.
         if isinstance(style, FillStyleFields):
-            style.fill_enabled = self.fill_enabled_toggle.isChecked()
-            style.fill_orientation = (
-                "horizontal" if self.fill_horizontal_toggle.isChecked() else "vertical"
+            self._apply_fill_controls_to(style)
+
+    def _apply_fill_controls_to(self, style: FillStyleFields) -> None:
+        """Write the Fill card's controls into `style`'s shared area-fill fields.
+
+        "Match line" reuses the "" == inherit-style.color convention.
+        fill_to_index is -1 (fill down to the constant baseline) or the index
+        of another series to fill between. Section rows are 1-based in the UI;
+        an end on the last point is stored as -1 ("to the end").
+
+        Args:
+            style: A Line, Scatter or Fit style carrying FillStyleFields.
+        """
+        style.fill_enabled = self.fill_enabled_toggle.isChecked()
+        style.fill_orientation = (
+            "horizontal" if self.fill_horizontal_toggle.isChecked() else "vertical"
+        )
+        style.fill_to_index = self.fill_to_control.currentValue()
+        style.fill_base = self.fill_base_spin.value()
+        style.fill_color = (
+            "" if self.fill_match_line_toggle.isChecked()
+            else self.fill_color_row.currentColor()
+        )
+        style.fill_alpha = self.fill_opacity_slider.value()
+        style.fill_range_enabled = self.fill_range_enabled_toggle.isChecked()
+        point_count = max(len(self._fill_points[0]), 1) if self._fill_points is not None else 1
+        style.fill_sections = [
+            (
+                start_spin.value() - 1,
+                -1 if end_spin.value() == point_count else end_spin.value() - 1,
             )
-            style.fill_to_index = self.fill_to_control.currentValue()
-            style.fill_base = self.fill_base_spin.value()
-            style.fill_color = (
-                "" if self.fill_match_line_toggle.isChecked()
-                else self.fill_color_row.currentColor()
-            )
-            style.fill_alpha = self.fill_opacity_slider.value()
-            style.fill_range_enabled = self.fill_range_enabled_toggle.isChecked()
-            point_count = max(len(self._fill_points[0]), 1) if self._fill_points is not None else 1
-            style.fill_sections = [
-                (
-                    start_spin.value() - 1,
-                    -1 if end_spin.value() == point_count else end_spin.value() - 1,
-                )
-                for _, start_spin, _, end_spin, _ in self.fill_section_rows
-            ]
+            for _, start_spin, _, end_spin, _ in self.fill_section_rows
+        ]
 
     def apply_fit_style_to(self, fit):
         style = fit.style
@@ -2417,6 +2429,8 @@ class StyleTab(QWidget):
             else self.band_color_row.currentColor()
         )
         style.band_fill_alpha = self.band_opacity_slider.value()
+        # The area fill is independent of the confidence band (#431).
+        self._apply_fill_controls_to(style)
         # Note: fit data doesn't use marker_size or marker colors.
 
     def load_series_style(self, series):
@@ -2584,36 +2598,7 @@ class StyleTab(QWidget):
             if hasattr(style, "twin_y_color"):
                 self.twin_y_color_row.setCurrentColor(style.twin_y_color)
 
-            self._populate_fill_to_options(series)
-            self.fill_enabled_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
-            self.fill_enabled_toggle.setChecked(checked=getattr(style, "fill_enabled", False))
-            self.fill_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
-            self.fill_horizontal_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
-            self.fill_horizontal_toggle.setChecked(checked=getattr(style, "fill_orientation", "vertical") == "horizontal")
-            self.fill_horizontal_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
-            self.fill_to_control.setCurrentValue(getattr(style, "fill_to_index", -1))
-            self.fill_base_spin.setValue(getattr(style, "fill_base", 0.0))
-            fill_color = getattr(style, "fill_color", "")
-            self.fill_color_row.setCurrentColor(fill_color or color)
-            self.fill_match_line_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
-            self.fill_match_line_toggle.setChecked(checked=fill_color == "")
-            self.fill_match_line_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
-            self.fill_opacity_slider.setValue(getattr(style, "fill_alpha", 0.3))
-            self.fill_range_enabled_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
-            self.fill_range_enabled_toggle.setChecked(checked=getattr(style, "fill_range_enabled", False))
-            self.fill_range_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
-            self._fill_points = self._resolve_fill_points(series)
-            point_count = max(len(self._fill_points[0]), 1) if self._fill_points is not None else 1
-            for row_widget, *_ in self.fill_section_rows:
-                self.fill_sections_layout.removeWidget(row_widget)
-                row_widget.hide()
-                row_widget.deleteLater()
-            self.fill_section_rows.clear()
-            sections = getattr(style, "fill_sections", [])
-            for start, end in sections:
-                self._add_fill_section(start + 1, point_count if end < 0 else end + 1)
-            self._update_fill_range_labels()
-            self._update_fill_controls_visibility()
+            self._load_fill_controls(series, line_color=color)
 
             self.density_bandwidth_spin.setValue(getattr(style, "bandwidth", 0.0))
             self.density_fill_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
@@ -2624,11 +2609,57 @@ class StyleTab(QWidget):
         finally:
             self._updating_controls = previous_guard
 
+    def _load_fill_controls(self, series: DataSeries, *, line_color: str) -> None:
+        """Populate the Fill card from a series' or fit's area-fill fields.
+
+        Reads with getattr defaults, so a style without FillStyleFields still
+        leaves the (then hidden) card in a consistent state. Section ranges
+        address the points the series actually plots: a fit's precomputed
+        curve points, not its source dataset's rows. Call while
+        `_updating_controls` is set.
+
+        Args:
+            series: The selected series or fit.
+            line_color: Color shown in the swatch while "Match line" is on.
+        """
+        style = series.style
+        self._populate_fill_to_options(series)
+        self.fill_enabled_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+        self.fill_enabled_toggle.setChecked(checked=getattr(style, "fill_enabled", False))
+        self.fill_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+        self.fill_horizontal_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+        self.fill_horizontal_toggle.setChecked(checked=getattr(style, "fill_orientation", "vertical") == "horizontal")
+        self.fill_horizontal_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+        self.fill_to_control.setCurrentValue(getattr(style, "fill_to_index", -1))
+        self.fill_base_spin.setValue(getattr(style, "fill_base", 0.0))
+        fill_color = getattr(style, "fill_color", "")
+        self.fill_color_row.setCurrentColor(fill_color or line_color)
+        self.fill_match_line_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+        self.fill_match_line_toggle.setChecked(checked=fill_color == "")
+        self.fill_match_line_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+        self.fill_opacity_slider.setValue(getattr(style, "fill_alpha", 0.3))
+        self.fill_range_enabled_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+        self.fill_range_enabled_toggle.setChecked(checked=getattr(style, "fill_range_enabled", False))
+        self.fill_range_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+        self._fill_points = self._resolve_fill_points(series)
+        point_count = max(len(self._fill_points[0]), 1) if self._fill_points is not None else 1
+        for row_widget, *_ in self.fill_section_rows:
+            self.fill_sections_layout.removeWidget(row_widget)
+            row_widget.hide()
+            row_widget.deleteLater()
+        self.fill_section_rows.clear()
+        sections = getattr(style, "fill_sections", [])
+        for start, end in sections:
+            self._add_fill_section(start + 1, point_count if end < 0 else end + 1)
+        self._update_fill_range_labels()
+        self._update_fill_controls_visibility()
+
     def load_fit_style(self, fit):
-        """Populate the Line/Band/Marker cards from a fit-data entry's
+        """Populate the Line/Band/Fill/Marker cards from a fit-data entry's
         typed style object. Fit data has no marker concept, so markers are
         forced off and locked; opacity applies to the fit line itself,
-        band_fill_alpha to the confidence band separately."""
+        band_fill_alpha to the confidence band and fill_alpha to the area
+        fill, each separately."""
         previous_guard = self._updating_controls
         self._updating_controls = True
         try:
@@ -2648,6 +2679,8 @@ class StyleTab(QWidget):
             self.band_match_line_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self.band_opacity_slider.setValue(style.band_fill_alpha)
             self._update_band_controls_visibility()
+
+            self._load_fill_controls(fit, line_color=style.color)
 
             self.markers_enabled_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
             self.markers_enabled_toggle.setChecked(checked=False)

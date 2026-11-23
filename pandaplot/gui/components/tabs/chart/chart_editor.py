@@ -54,12 +54,14 @@ from pandaplot.gui.components.tabs.chart.series_renderers import (
 )
 from pandaplot.gui.components.tabs.chart.series_renderers.box import BOX_POSITIONS_KEY, apply_box_ticks, box_numeric_values
 from pandaplot.gui.components.tabs.chart.series_renderers.density import compute_density_curve
+from pandaplot.gui.components.tabs.chart.series_renderers.fit import CONFIDENCE_BAND_GID
 from pandaplot.gui.components.tabs.chart.series_renderers.hist import finite_numeric_values
 from pandaplot.gui.components.tabs.chart.series_renderers.stacked_bar import BarStack, place_on_stack
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.gui.resources.themed_icons import DEFAULT_ICON_SIZE, ActionIcons, IconRole
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_style import DensitySeriesStyle, LineSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
@@ -425,22 +427,24 @@ def resolve_fill_baseline(resolved_data, series_index, fill_base, fill_to_index,
 
 
 def line_style_for_data_series_index(chart, series_idx):
-    """The line-with-optional-fill style (`LineSeriesStyle`, or a
-    Density curve's `DensitySeriesStyle`) for
+    """The line-with-optional-fill style (`LineSeriesStyle`, a Density
+    curve's `DensitySeriesStyle`, or a fit's `FitStyle`) for
     `chart.data_series[series_idx]`, or None when `series_idx` is out
     of range (or no match) or the series isn't drawn as a fillable line."""
     if series_idx is None or not (0 <= series_idx < len(chart.data_series)):
         return None
     style = chart.data_series[series_idx].style
-    return style if isinstance(style, (LineSeriesStyle, DensitySeriesStyle)) else None
+    return style if isinstance(style, (LineSeriesStyle, DensitySeriesStyle, FitStyle)) else None
 
 
 def find_fill_artist_for_series(artist_series_map, series_idx):
-    """The PolyCollection added by render_line_series's fill_between(x)
-    call for `series_idx`, found via `artist_series_map` (populated by
-    render_chart's track_new_artists)."""
+    """The area-fill PolyCollection (render_area_fill's fill_between(x),
+    or a Density curve's fill) for `series_idx`, found via
+    `artist_series_map` (populated by render_chart's track_new_artists).
+    A fit's confidence band is a PolyCollection too, but not the area
+    fill, so it is skipped."""
     for artist, idx in artist_series_map.items():
-        if idx == series_idx and isinstance(artist, PolyCollection):
+        if idx == series_idx and isinstance(artist, PolyCollection) and artist.get_gid() != CONFIDENCE_BAND_GID:
             return artist
     return None
 
@@ -1677,13 +1681,13 @@ class ChartEditorWidget(PWidget):
         """Apply theme-specific styling to all components."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
-        
+
         # Get theme-appropriate colors
         card_bg = palette.get("card_bg", "#f8f9fa")
         card_border = palette.get("card_border", "#dee2e6")
         base_fg = palette.get("base_fg", "#000000")
         secondary_fg = palette.get("secondary_fg", "#555555")
-        
+
         # Apply styling to preview frame
         self.preview_frame.setStyleSheet(f"""
             QFrame {{
@@ -1692,7 +1696,7 @@ class ChartEditorWidget(PWidget):
                 border-radius: 6px;
             }}
         """)
-        
+
         # Apply styling to status frame
         self.status_frame.setStyleSheet(f"""
             QFrame {{
@@ -1702,14 +1706,14 @@ class ChartEditorWidget(PWidget):
                 padding: 1px;
             }}
         """)
-        
+
         # Apply styling to dataset label
         self.dataset_label.setStyleSheet(f"color: {secondary_fg}; font-size: 12px;")
-        
+
         # Apply styling to status label (preserve color logic based on current text)
         self._update_status_label_style()
         self.status_icon.retint()
-        
+
         # Apply theme to toolbar if it exists
         self._apply_toolbar_theme()
         self._toolbar_icons.retint()
@@ -1726,7 +1730,7 @@ class ChartEditorWidget(PWidget):
         base_fg = palette.get("base_fg", "#000000")
         card_bg = palette.get("card_bg", "#f8f9fa")
         card_border = palette.get("card_border", "#dee2e6")
-        
+
         self.preview_toolbar.setStyleSheet(f"""
             QToolBar {{
                 background-color: {card_bg};
@@ -1758,9 +1762,9 @@ class ChartEditorWidget(PWidget):
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         secondary_fg = palette.get("secondary_fg", "#555555")
-        
+
         status_text = self.status_label.text()
-        
+
         # Determine color based on status
         if "Modified" in status_text:
             color = "#ffc107"  # Warning yellow
@@ -1770,7 +1774,7 @@ class ChartEditorWidget(PWidget):
             color = "#dc3545"  # Error red
         else:
             color = secondary_fg  # Default theme color
-            
+
         self.status_label.setStyleSheet(f"color: {color}; font-size: 12px; font-weight: bold;")
 
     @override

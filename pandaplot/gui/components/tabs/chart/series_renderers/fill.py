@@ -1,4 +1,4 @@
-"""Area fill under/between a series, shared by the line and scatter renderers."""
+"""Area fill under/between a series, shared by the line, scatter and fit renderers."""
 import numpy as np
 
 from pandaplot.gui.components.tabs.chart.series_data import SeriesData

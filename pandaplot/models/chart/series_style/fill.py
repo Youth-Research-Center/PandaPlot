@@ -1,5 +1,5 @@
 """Area-fill style fields shared by every series type that can be filled
-(Line and Scatter) -- read by
+(Line, Scatter and Fit) -- read by
 pandaplot/gui/components/tabs/chart/series_renderers/fill.py."""
 from dataclasses import dataclass, field
 

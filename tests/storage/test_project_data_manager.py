@@ -207,8 +207,8 @@ def _png_bytes() -> bytes:
     return bytes(buffer.data())
 
 
-def test_schema_version_is_7():
-    assert CURRENT_SCHEMA_VERSION == 7
+def test_schema_version_is_8():
+    assert CURRENT_SCHEMA_VERSION == 8
 
 
 def test_cover_image_and_example_info_round_trip(tmp_path, manager):
@@ -429,3 +429,94 @@ def test_save_through_a_symlink_updates_the_target_and_keeps_the_link(tmp_path, 
     assert link.is_symlink()
     assert sorted(item.id for item in manager.load(str(real)).get_all_items()) == ["ds-1", "ds-2"]
     assert sorted(p.name for p in real_dir.iterdir()) == ["lab.pplot"]
+
+
+# --- area fill on fit curves (#431) ---
+
+_FIT_FILL_FIELDS = (
+    "fill_enabled", "fill_color", "fill_alpha", "fill_orientation", "fill_base",
+    "fill_to_index", "fill_range_enabled", "fill_sections",
+)
+
+
+def _project_with_filled_fit() -> tuple[Project, Chart]:
+    import numpy as np
+
+    from pandaplot.models.chart.fit_style import FitStyle
+
+    project = Project(name="Fit Fill")
+    chart = Chart(name="Fit Chart", chart_type="line")
+    chart.add_data_series("ds1", x_column="x", y_column="y", label="Data")
+    chart.add_fit_series(
+        source_dataset_id="ds1",
+        x_data=np.array([1.0, 2.0, 3.0, 4.0]),
+        y_data=np.array([1.0, 4.0, 9.0, 16.0]),
+        label="Fit",
+        style=FitStyle(
+            fit_type="quadratic",
+            fill_enabled=True, fill_color="#00ff00", fill_alpha=0.45, fill_orientation="horizontal",
+            fill_base=-1.5, fill_to_index=0, fill_range_enabled=True, fill_sections=[(0, 1), (2, -1)],
+            band_fill_enabled=True, band_color="#ff0000", band_fill_alpha=0.6,
+            confidence_lower=np.array([0.5, 3.5, 8.5, 15.5]),
+            confidence_upper=np.array([1.5, 4.5, 9.5, 16.5]),
+        ),
+    )
+    project.add_item(chart)
+    return project, chart
+
+
+def test_fit_area_fill_round_trips_through_a_saved_project(tmp_path, manager):
+    project, chart = _project_with_filled_fit()
+    path = str(tmp_path / "fit_fill.pplot")
+
+    manager.save(project, path)
+    loaded = manager.load(path).find_item(chart.id)
+
+    saved_style = chart.data_series[1].style
+    style = loaded.data_series[1].style
+    assert loaded.data_series[1].is_fit
+    for name in _FIT_FILL_FIELDS:
+        assert getattr(style, name) == getattr(saved_style, name), name
+    assert style.fill_sections == [(0, 1), (2, -1)]
+    assert style.band_fill_enabled is True
+    assert style.band_color == "#ff0000"
+    assert style.band_fill_alpha == 0.6
+
+
+def test_version_7_fit_without_fill_fields_loads_with_fill_defaults(tmp_path, manager):
+    """A fit saved before #431 has no fill_* keys: it loads with the fill
+    defaults (off) and keeps the rest of its style."""
+    from pandaplot.models.chart.fit_style import FitStyle
+
+    project, chart = _project_with_filled_fit()
+    path = tmp_path / "v7.pplot"
+    manager.save(project, str(path))
+
+    with zipfile.ZipFile(path) as zf:
+        entries = {name: zf.read(name) for name in zf.namelist()}
+    stripped = 0
+    for name, payload in entries.items():
+        if not name.endswith(".json"):
+            continue
+        data = json.loads(payload)
+        if name == "project.json":
+            data["schema_version"] = 7
+        for series in data.get("data_series", []) if isinstance(data, dict) else []:
+            if series.get("series_type") == "fit":
+                for key in _FIT_FILL_FIELDS:
+                    series["style"].pop(key)
+                stripped += 1
+        entries[name] = json.dumps(data).encode("utf-8")
+    assert stripped == 1
+    with zipfile.ZipFile(path, "w") as zf:
+        for name, payload in entries.items():
+            zf.writestr(name, payload)
+
+    loaded = manager.load(str(path)).find_item(chart.id)
+
+    style = loaded.data_series[1].style
+    defaults = FitStyle()
+    for name in _FIT_FILL_FIELDS:
+        assert getattr(style, name) == getattr(defaults, name), name
+    assert style.fit_type == "quadratic"
+    assert style.band_color == "#ff0000"
