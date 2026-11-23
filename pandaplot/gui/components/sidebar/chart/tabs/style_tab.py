@@ -2379,8 +2379,9 @@ class StyleTab(QWidget):
         if hasattr(style, "twin_y_color"):
             style.twin_y_color = self.twin_y_color_row.currentColor()
 
-        # Only styles with the shared FillStyleFields (Line, Scatter) declare
-        # fill fields here; a fit applies them in apply_fit_style_to.
+        # Only styles with the shared FillStyleFields (Line, Scatter and Fit)
+        # have fill fields. A fit never reaches this method: its fill is
+        # applied in apply_fit_style_to.
         if isinstance(style, FillStyleFields):
             self._apply_fill_controls_to(style)
 

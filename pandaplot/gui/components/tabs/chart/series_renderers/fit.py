@@ -23,9 +23,10 @@ def render_fit_series(axes: Axes, series_data: SeriesData, style: FitStyle,
 
     The area fill and the confidence band are independent, each with its own
     color and opacity. When both are on they stack in a fixed order: the area
-    fill at the bottom, the band above it and the fit line on top (fills keep
-    matplotlib's default zorder 1, below the line's 2, and the area fill is
-    added first), so the curve stays readable.
+    fill at the bottom, the band above it and the fit line on top, so the
+    curve stays readable. The line is drawn first, but both fills keep
+    matplotlib's default zorder 1, below the line's 2; between the two fills,
+    which share a zorder, the one added first (the area fill) is drawn below.
 
     Draws nothing on a 3-D axes: a fit only has 2-D curve data, and mplot3d
     rejects the band's `fill_between`. A fit may stay on a chart that was

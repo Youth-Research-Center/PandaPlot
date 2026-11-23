@@ -32,6 +32,14 @@ from pandaplot.models.chart.series_style.fill import FillStyleFields
 
 @dataclass
 class _FitFillStyleFields(FillStyleFields):
+    """FillStyleFields with every field redeclared keyword-only.
+
+    FitStyle existed before it gained the fill fields, so inheriting them
+    as positional fields would put them ahead of `color` and change what an
+    existing positional call such as `FitStyle("#123456", "solid")` sets.
+    Keep this list in step with FillStyleFields.
+    """
+
     fill_enabled: bool = field(default=False, kw_only=True)
     fill_color: str = field(default="", kw_only=True)
     fill_alpha: float = field(default=0.3, kw_only=True)

@@ -32,7 +32,7 @@ def test_fit_style_post_init_defaults():
 
 
 def test_fit_style_preserves_existing_positional_arguments():
-    style = FitStyle("#123456", "solid", 3.0, False, 0.4, "#abcdef", "horizontal", "Linear")
+    style = FitStyle("#123456", "solid", 3.0, False, 0.4, "#abcdef", "horizontal", "Linear")  # noqa: FBT003 - the positional call is what this test checks
 
     assert style.color == "#123456"
     assert style.line_style == "solid"
